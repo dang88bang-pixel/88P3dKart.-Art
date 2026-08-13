@@ -4,27 +4,33 @@ import android.util.Log
 import com.example.agent.network.models.EkfState
 import com.example.agent.sensors.BleTokenManager
 import com.example.agent.sensors.SerialManager
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okio.ByteString
-import java.util.concurrent.TimeUnit
 
-/**
- * Robuster WebSocket-Client zum Edge-Agent (mit exponentiellem Backoff-Reconnect).
- */
+/** WebSocket client for the gateway event/measurement interface. */
 class AgentWebSocketClient(
-    private val serverUrl: String = "ws://192.168.1.100:8080/ws/agent/events",
+    private val serverUrl: String?,
 ) {
     companion object {
         private const val TAG = "AgentWS"
@@ -34,27 +40,43 @@ class AgentWebSocketClient(
         .pingInterval(10, TimeUnit.SECONDS)
         .retryOnConnectionFailure(true)
         .build()
-
-    private var webSocket: WebSocket? = null
-    private var isConnected = false
-    private var reconnectJob: Job? = null
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val json = Json { ignoreUnknownKeys = true }
+
+    private var webSocket: WebSocket? = null
+    @Volatile private var isConnected = false
+    @Volatile private var isConnecting = false
+    private var reconnectJob: Job? = null
+    @Volatile private var closed = false
 
     var onConnected: (() -> Unit)? = null
     var onDisconnected: (() -> Unit)? = null
     var onBinaryPointCloud: ((ByteArray) -> Unit)? = null
     var onEkfState: ((EkfState) -> Unit)? = null
 
+    @Synchronized
     fun connect() {
-        if (isConnected) return
-        Log.d(TAG, "Verbinde zu $serverUrl ...")
-        val request = Request.Builder().url(serverUrl).build()
+        if (isConnected || isConnecting || closed) return
+        val url = serverUrl?.takeIf { it.startsWith("wss://") } ?: run {
+            Log.w(TAG, "A wss:// gateway URL is required; connection disabled")
+            return
+        }
+        isConnecting = true
+        Log.d(TAG, "Connecting to configured gateway")
+        val request = try {
+            Request.Builder().url(url).build()
+        } catch (error: IllegalArgumentException) {
+            isConnecting = false
+            Log.e(TAG, "Configured gateway URL is invalid", error)
+            return
+        }
 
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
+                isConnecting = false
                 isConnected = true
-                Log.d(TAG, "WebSocket verbunden")
+                reconnectJob?.cancel()
+                Log.d(TAG, "WebSocket connected")
                 scope.launch(Dispatchers.Main) { onConnected?.invoke() }
             }
 
@@ -63,7 +85,7 @@ class AgentWebSocketClient(
                     val state = json.decodeFromString<EkfState>(text)
                     scope.launch(Dispatchers.Main) { onEkfState?.invoke(state) }
                 } catch (e: Exception) {
-                    Log.w(TAG, "JSON-Parse Fehler: $e")
+                    Log.w(TAG, "Rejected gateway JSON", e)
                 }
             }
 
@@ -72,107 +94,125 @@ class AgentWebSocketClient(
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                isConnecting = false
                 isConnected = false
                 scope.launch(Dispatchers.Main) { onDisconnected?.invoke() }
                 scheduleReconnect()
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                isConnecting = false
                 isConnected = false
-                Log.e(TAG, "WebSocket Fehler: ${t.message}")
+                Log.e(TAG, "WebSocket failure: ${t.message}")
                 scope.launch(Dispatchers.Main) { onDisconnected?.invoke() }
                 scheduleReconnect()
             }
         })
     }
 
+    @Synchronized
     private fun scheduleReconnect() {
-        reconnectJob?.cancel()
+        if (closed || reconnectJob?.isActive == true) return
         reconnectJob = scope.launch {
-            var delayMs = 1000L
-            while (!isConnected) {
+            var delayMs = 1_000L
+            while (!isConnected && !closed) {
                 delay(delayMs)
-                Log.d(TAG, "Reconnect-Versuch in ${delayMs}ms")
                 connect()
-                if (delayMs < 30000) delayMs = (delayMs * 1.5).toLong()
+                delayMs = (delayMs * 2).coerceAtMost(30_000L)
             }
         }
     }
 
-    private fun sendPayload(type: String, payload: Map<String, Any?>) {
-        if (!isConnected) return
-        val msg = mapOf("type" to type, "payload" to payload)
-        webSocket?.send(json.encodeToString(msg))
+    private fun sendPayload(type: String, payload: JsonObject): Boolean {
+        if (!isConnected || closed) return false
+        val message = buildJsonObject {
+            put("type", type)
+            put("payload", payload)
+        }
+        return webSocket?.send(message.toString()) == true
     }
 
-    fun sendLidarFrame(deviceId: String, points: List<Float>, scattering: Boolean) {
+    fun sendLidarFrame(deviceId: String, points: List<Float>, scattering: Boolean?): Boolean =
         sendPayload(
             "lidar",
-            mapOf(
-                "device_id" to deviceId,
-                "timestamp" to System.currentTimeMillis() / 1000.0,
-                "points" to points,
-                "scattering_detected" to scattering,
-            )
+            buildJsonObject {
+                put("device_id", deviceId)
+                put("timestamp", System.currentTimeMillis() / 1000.0)
+                put("points", buildJsonArray { points.forEach { add(it) } })
+                put("scattering_detected", scattering?.let { JsonPrimitive(it) } ?: JsonNull)
+            },
         )
-    }
 
-    fun sendMmwaveTargets(deviceId: String, targets: List<SerialManager.MmwaveTarget>) {
-        val list = targets.map { mapOf("x" to it.x, "y" to it.y, "z" to it.z, "v" to it.velocity) }
-        sendPayload(
-            "mmwave",
-            mapOf(
-                "device_id" to deviceId,
-                "timestamp" to System.currentTimeMillis() / 1000.0,
-                "targets" to list,
-            )
-        )
-    }
+    fun sendMmwaveTargets(
+        deviceId: String,
+        targets: List<SerialManager.MmwaveTarget>,
+    ): Boolean = sendPayload(
+        "mmwave",
+        buildJsonObject {
+            put("device_id", deviceId)
+            put("timestamp", System.currentTimeMillis() / 1000.0)
+            put("targets", buildJsonArray {
+                targets.forEach { target ->
+                    add(buildJsonObject {
+                        put("x", target.x)
+                        put("y", target.y)
+                        put("z", target.z)
+                        put("v", target.velocity)
+                    })
+                }
+            })
+        },
+    )
 
-    fun sendBleTokens(deviceId: String, tokens: List<BleTokenManager.TokenData>) {
-        val list = tokens.map {
-            mapOf(
-                "mac" to it.mac, "rssi" to it.rssi,
-                "accel_x" to it.accelX, "accel_y" to it.accelY, "accel_z" to it.accelZ,
-                "battery" to it.battery,
-            )
-        }
+    fun sendBleTokens(deviceId: String, tokens: List<BleTokenManager.TokenData>): Boolean =
         sendPayload(
             "ble",
-            mapOf(
-                "device_id" to deviceId,
-                "timestamp" to System.currentTimeMillis() / 1000.0,
-                "tokens" to list,
-            )
+            buildJsonObject {
+                put("device_id", deviceId)
+                put("timestamp", System.currentTimeMillis() / 1000.0)
+                put("tokens", buildJsonArray {
+                    tokens.forEach { token ->
+                        add(buildJsonObject {
+                            put("mac", token.mac)
+                            put("rssi", token.rssi)
+                            put("accel_x", token.accelX)
+                            put("accel_y", token.accelY)
+                            put("accel_z", token.accelZ)
+                            put("battery", token.battery?.let { JsonPrimitive(it) } ?: JsonNull)
+                            put("sequence", token.sequence)
+                            put("protocol_version", token.protocolVersion)
+                            put("imu_valid", token.imuValid)
+                        })
+                    }
+                })
+            },
         )
-    }
 
-    fun sendUwbPhase(deviceId: String, phase: Float) {
-        sendPayload(
-            "uwb_phase",
-            mapOf(
-                "device_id" to deviceId,
-                "timestamp" to System.currentTimeMillis() / 1000.0,
-                "phase" to phase,
-            )
-        )
-    }
+    fun sendTelemetry(
+        deviceId: String,
+        battery: Float?,
+        thermal: Float?,
+        scattering: Boolean,
+    ): Boolean = sendPayload(
+        "telemetry",
+        buildJsonObject {
+            put("device_id", deviceId)
+            put("battery", battery?.let { JsonPrimitive(it) } ?: JsonNull)
+            put("thermal_c", thermal?.let { JsonPrimitive(it) } ?: JsonNull)
+            put("scattering", scattering)
+        },
+    )
 
-    fun sendTelemetry(deviceId: String, battery: Float, thermal: Float, scattering: Boolean) {
-        sendPayload(
-            "telemetry",
-            mapOf(
-                "device_id" to deviceId,
-                "battery" to battery,
-                "thermal_c" to thermal,
-                "scattering" to scattering,
-            )
-        )
-    }
-
+    @Synchronized
     fun disconnect() {
+        if (closed) return
+        closed = true
         reconnectJob?.cancel()
-        webSocket?.close(1000, "App beendet")
+        webSocket?.close(1000, "Client shutting down")
+        webSocket = null
         isConnected = false
+        client.dispatcher.executorService.shutdown()
+        client.connectionPool.evictAll()
+        scope.cancel()
     }
 }

@@ -60,9 +60,6 @@ dependencies {
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
 
-    // UWB (Android 12+)
-    implementation("androidx.uwb:uwb:1.0.0-alpha05")
-
     // Serialisierung
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
 
