@@ -1,0 +1,56 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-error.log*
+pnpm-lock.yaml
+
+# Build artifacts
+build/
+dist/
+out/
+target/
+*.apk
+*.aab
+
+# Databases
+*.db
+*.db-wal
+*.db-shm
+/data/
+
+# Logs
+logs/
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.iml
+local.properties
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+ssl/
+*.pem
+*.key
+*.crt
+
+# OS
+.DS_Store
+Thumbs.db

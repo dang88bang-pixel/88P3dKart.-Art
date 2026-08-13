@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Silicon Labs (RPLIDAR A1) -->
+    <usb-device vendor-id="4292" />
+    <!-- FTDI (TI IWR6843 mmWave) -->
+    <usb-device vendor-id="1027" />
+</resources>

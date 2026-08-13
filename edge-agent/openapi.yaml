@@ -1,0 +1,127 @@
+openapi: 3.0.3
+info:
+  title: 3dxAgent Edge-Agent API
+  version: 2.0.0
+  description: >
+    REST-API des 3dxAgent Fusions-Kernels. Bietet EKF-Zustand, Historie,
+    Szenarien-Konfiguration, ICP-Map-Merging sowie die v2.0-Datenpipeline.
+servers:
+  - url: http://localhost:8080
+paths:
+  /api/v1/health:
+    get:
+      summary: Health-Check
+      responses:
+        '200':
+          description: Status des Agenten
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  mode: { type: string }
+  /api/v1/agent/state:
+    get:
+      summary: Aktueller 6-DOF-EKF-Zustand
+      responses:
+        '200':
+          description: EKF-Zustand
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EkfState'
+  /api/v1/agent/config:
+    post:
+      summary: Szenario starten/konfigurieren
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScenarioConfig'
+      responses:
+        '200':
+          description: Bestätigung
+  /api/v1/agent/history:
+    get:
+      summary: 3D-Transformations-Historie
+      parameters:
+        - name: device_id
+          in: query
+          schema: { type: string, default: CT45P-01 }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 100 }
+      responses:
+        '200':
+          description: Liste von Transformationen
+  /api/v1/agent/merge:
+    post:
+      summary: ICP-Map-Merging mehrerer CT45P
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MergeRequest'
+      responses:
+        '200':
+          description: Ergebnis des Mergings
+        '400':
+          description: Weniger als 2 Geräte
+  /api/v1/pipeline/run:
+    post:
+      summary: v2.0-Datenpipeline ausführen
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PipelineRequest'
+      responses:
+        '200':
+          description: Pipeline-Ergebnis
+components:
+  schemas:
+    EkfState:
+      type: object
+      properties:
+        x: { type: number }
+        y: { type: number }
+        z: { type: number }
+        vx: { type: number }
+        vy: { type: number }
+        vz: { type: number }
+        covariance:
+          type: array
+          items:
+            type: array
+            items: { type: number }
+        kalman_gain_lidar: { type: number }
+        mode: { type: string }
+    ScenarioConfig:
+      type: object
+      required: [type]
+      properties:
+        type: { type: string, enum: [tactical, evacuation, architecture, temp, research] }
+        params: { type: object, additionalProperties: true }
+    MergeRequest:
+      type: object
+      required: [device_ids]
+      properties:
+        device_ids:
+          type: array
+          items: { type: string }
+        reference: { type: string }
+    PipelineRequest:
+      type: object
+      required: [device_id]
+      properties:
+        device_id: { type: string }
+        points:
+          type: array
+          items: { type: number }
+        metadata:
+          type: object
+          additionalProperties: true

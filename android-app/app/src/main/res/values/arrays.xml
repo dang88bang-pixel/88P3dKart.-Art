@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="scenario_types">
+        <item>Tactical</item>
+        <item>Evacuation</item>
+        <item>Architecture</item>
+        <item>Temp</item>
+        <item>Research</item>
+    </string-array>
+</resources>
