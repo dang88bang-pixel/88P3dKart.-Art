@@ -90,7 +90,8 @@ for (let i = 0; i < 5; i++) {
 }
 
 // ─── WebSocket ──────────────────────────────────────────────────
-const WS_URL = `ws://${window.location.host}/ws`;
+const WS_PROTO = window.location.protocol === 'https:' ? 'wss' : 'ws';
+const WS_URL = `${WS_PROTO}://${window.location.host}/ws`;
 let socket;
 
 function connect() {
