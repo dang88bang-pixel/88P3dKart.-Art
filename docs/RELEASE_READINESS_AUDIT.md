@@ -1,16 +1,26 @@
 # Release-Readiness-Audit: 3dxAgent / CT45P
 
-**Prüfdatum:** 2026-08-13
+**Prüfdatum:** 2026-08-14
 
-**Geprüfter Repository-Stand:** Branch `arena/019ffc03-88p3dkart-art`, Basis-Commit `e503fb3` einschließlich der auf diesem Branch dokumentierten Architektur und Verträge
+**Geprüfter Repository-Stand:** Branch `arena/019ffc03-88p3dkart-art`, Commit `fa3af61`
 
 **Prüfart:** repository-grounded statische Prüfung und im verfügbaren Workspace ausführbare Tests
 
-> **Ergebnis:** Der vorliegende Stand ist **kein v5.0.0-Produktionsrelease** und
+> **Ergebnis:** Der vorliegende Stand ist **kein v5.x-Produktionsrelease** und
 > erzeugt derzeit **kein nachgewiesen gebautes oder signiertes APK**. Vorhandene
 > Klassen belegen Implementierungsabsicht und teilweise Prototypfunktionalität,
-> aber keine Ende-zu-Ende-, Hardware-, Security-, Compliance- oder
-> Release-Abnahme.
+> aber keine Ende-zu-Ende-, Hardware-, Compliance- oder Release-Abnahme.
+>
+> **Aktualisierung gegenüber der Erstprüfung:** Ein checksum-gepinnter Gradle-
+> Wrapper, Gateway-Authentisierung, Android-Keystore-Enrollment, erneuerbare
+> Gerätesessions, HTTPS/WSS-Ableitung, ein gateway-autoritatives Alarmservice,
+> Alarm-REST/WebSocket-Projektion, persistente Events/Outbox und eine native
+> Alarm-UI sind inzwischen im Quellstand vorhanden. Der vollständige Gateway-
+> Testlauf vom 2026-08-14 bestand mit **82 Tests**. Der Android-Build bleibt in
+> dieser Umgebung wegen nicht abrufbarer Gradle-/Maven-/Android-SDK-Artefakte
+> blockiert; Android-Compile-, Installations- und Hardwareevidenz existiert daher
+> weiterhin nicht. Details zum zusätzlich vorgeschlagenen KI-Agenten stehen in
+> [Integrierter Agent: Audit und Zielarchitektur](INTEGRATED_AGENT_AUDIT.md).
 
 Dieses Audit ersetzt Statusangaben wie „vollständig“, „getestet“, „signiert“ oder
 „produktionsbereit“ durch überprüfbare Evidenz. Es ändert nicht die verbindliche
