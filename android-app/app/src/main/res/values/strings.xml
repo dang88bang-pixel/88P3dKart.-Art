@@ -7,6 +7,7 @@
     <string name="nav_live">Live 3D</string>
     <string name="nav_map">Karte</string>
     <string name="nav_scenario">Szenarien</string>
+    <string name="nav_alarm">Alarme</string>
     <string name="nav_analysis">Analyse</string>
     <string name="nav_settings">Einstellungen</string>
 
@@ -17,4 +18,36 @@
     <string name="status_healthy">🟢 Gesund</string>
     <string name="status_degraded">🟡 Eingeschränkt</string>
     <string name="status_critical">🔴 Kritisch</string>
+
+    <!-- Gateway-authoritative alarm presentation -->
+    <string name="alarm_connected_authoritative">Verbunden · Gateway ist maßgeblich</string>
+    <string name="alarm_disconnected_degraded">Getrennt · letzter Zustand ist möglicherweise veraltet</string>
+    <string name="alarm_waiting">Warte auf einen Alarmzustand des Gateways.</string>
+    <string name="alarm_authority_format">%1$s · %2$s\nPriorität %3$s · Revision %4$d</string>
+    <string name="alarm_attention_format">Aufmerksamkeit: %1$s</string>
+    <string name="alarm_no_evidence">Keine kalibrierte Entfernungs-Evidenz empfangen.</string>
+    <string name="alarm_evidence_format">Evidenz: %1$s\nDistanz: %2$s m · Konfidenz: %3$s\nAlter: %4$s ms · Qualität: %5$s</string>
+    <string name="alarm_no_event">Noch kein Alarmereignis empfangen.</string>
+    <string name="alarm_event_format">Letztes Ereignis: %1$s\nGrund: %2$s\nZeit: %3$s</string>
+    <string name="alarm_acknowledge">Bestätigen</string>
+    <string name="alarm_snooze_15">15 Min. stumm</string>
+    <string name="alarm_no_state">Kein Alarmzustand für diesen Befehl verfügbar.</string>
+    <string name="alarm_command_failed">Alarmbefehl wurde vom Gateway nicht bestätigt.</string>
+    <string name="alarm_notification_channel">Entfernungsalarme</string>
+    <string name="alarm_notification_channel_description">Vom maßgeblichen Gateway bestätigte Alarmereignisse</string>
+    <string name="alarm_notification_title">Alarm · Priorität %1$s</string>
+    <string name="alarm_notification_text">Grund: %1$s</string>
+    <string name="alarm_notification_detail">Zustand: %1$s\nGrund: %2$s\nZeit: %3$s</string>
+
+    <!-- Sichere Gateway-Einrichtung -->
+    <string name="enrollment_title">Gateway-Einrichtung</string>
+    <string name="enrollment_explanation">Geben Sie den HTTPS-Endpunkt und den einmaligen, vom Administrator ausgegebenen Enrollment-Code ein. Der Code wird nicht gespeichert.</string>
+    <string name="enrollment_gateway_hint">https://gateway.example.internal</string>
+    <string name="enrollment_device_hint">Geräte-ID</string>
+    <string name="enrollment_code_hint">Einmaliger Enrollment-Code</string>
+    <string name="enrollment_action">Sicher verbinden</string>
+    <string name="enrollment_invalid_input">Eingaben prüfen. HTTPS, Geräte-ID und Code sind erforderlich.</string>
+    <string name="enrollment_failed">Enrollment fehlgeschlagen. Code, Gateway und Netzwerk prüfen.</string>
+    <string name="enrollment_storage_error">Geschützter Gerätespeicher ist nicht verfügbar.</string>
+    <string name="enrollment_reenroll_required">Der geschützte Schlüssel war nicht mehr verwendbar. Neues Enrollment erforderlich.</string>
 </resources>

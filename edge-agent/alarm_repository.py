@@ -53,6 +53,14 @@ class OutboxRecord:
     attempts: int
 
 
+@dataclass(frozen=True)
+class ActivePolicy:
+    policy_id: str
+    revision: int
+    snapshot_hash: str
+    document: dict[str, Any]
+
+
 class AlarmRepository:
     def __init__(self, db_path: str):
         self.db_path = db_path
@@ -123,6 +131,15 @@ class AlarmRepository:
                     PRIMARY KEY (policy_id, asset_id, source_id)
                 );
 
+                CREATE TABLE IF NOT EXISTS alarm_consumed_inputs (
+                    policy_id TEXT NOT NULL,
+                    asset_id TEXT NOT NULL,
+                    source_id TEXT NOT NULL,
+                    cursor TEXT NOT NULL,
+                    consumed_utc_ms INTEGER NOT NULL,
+                    PRIMARY KEY (policy_id, asset_id, source_id, cursor)
+                );
+
                 CREATE TABLE IF NOT EXISTS alarm_events (
                     event_id TEXT PRIMARY KEY,
                     deduplication_key TEXT NOT NULL UNIQUE,
@@ -147,6 +164,22 @@ class AlarmRepository:
                     ON alarm_outbox(status, available_utc_ms, lease_until_utc_ms);
                 """
             )
+            # Databases created by the pre-checkpoint prototype lack these columns.
+            # SQLite's CREATE TABLE IF NOT EXISTS does not reconcile an existing
+            # table, so perform the only supported forward migration explicitly.
+            runtime_columns = {
+                row["name"]
+                for row in connection.execute("PRAGMA table_info(alarm_runtime)")
+            }
+            if "checkpoint_revision" not in runtime_columns:
+                connection.execute(
+                    "ALTER TABLE alarm_runtime ADD COLUMN "
+                    "checkpoint_revision INTEGER NOT NULL DEFAULT 1"
+                )
+            if "evidence_json" not in runtime_columns:
+                connection.execute(
+                    "ALTER TABLE alarm_runtime ADD COLUMN evidence_json TEXT"
+                )
 
     def store_policy_revision(
         self,
@@ -190,6 +223,50 @@ class AlarmRepository:
                     (policy_id, revision),
                 )
         return snapshot_hash
+
+    def load_active_policy(self, policy_id: str) -> Optional[ActivePolicy]:
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                """SELECT p.policy_id, p.revision, p.snapshot_hash, p.document_json
+                   FROM active_alarm_policies a
+                   JOIN alarm_policy_revisions p
+                     ON p.policy_id=a.policy_id AND p.revision=a.revision
+                   WHERE a.policy_id=?""",
+                (policy_id,),
+            ).fetchone()
+        finally:
+            connection.close()
+        if row is None:
+            return None
+        return ActivePolicy(
+            policy_id=row["policy_id"],
+            revision=row["revision"],
+            snapshot_hash=row["snapshot_hash"],
+            document=json.loads(row["document_json"]),
+        )
+
+    def list_active_policies(self) -> list[ActivePolicy]:
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                """SELECT p.policy_id, p.revision, p.snapshot_hash, p.document_json
+                   FROM active_alarm_policies a
+                   JOIN alarm_policy_revisions p
+                     ON p.policy_id=a.policy_id AND p.revision=a.revision
+                   ORDER BY p.policy_id"""
+            ).fetchall()
+        finally:
+            connection.close()
+        return [
+            ActivePolicy(
+                policy_id=row["policy_id"],
+                revision=row["revision"],
+                snapshot_hash=row["snapshot_hash"],
+                document=json.loads(row["document_json"]),
+            )
+            for row in rows
+        ]
 
     def apply_reduction(
         self,
@@ -242,12 +319,12 @@ class AlarmRepository:
                 )
 
             if cursor is not None:
-                existing_cursor = connection.execute(
-                    """SELECT cursor FROM alarm_input_cursors
-                       WHERE policy_id=? AND asset_id=? AND source_id=?""",
-                    (policy_id, asset_id, cursor.source_id),
+                consumed = connection.execute(
+                    """SELECT 1 FROM alarm_consumed_inputs
+                       WHERE policy_id=? AND asset_id=? AND source_id=? AND cursor=?""",
+                    (policy_id, asset_id, cursor.source_id, cursor.cursor),
                 ).fetchone()
-                if existing_cursor is not None and existing_cursor["cursor"] == cursor.cursor:
+                if consumed is not None:
                     raise PersistenceInvariantError("input cursor was already consumed")
 
             connection.execute(
@@ -277,6 +354,12 @@ class AlarmRepository:
                 ),
             )
             if cursor is not None:
+                connection.execute(
+                    """INSERT INTO alarm_consumed_inputs
+                       (policy_id, asset_id, source_id, cursor, consumed_utc_ms)
+                       VALUES (?, ?, ?, ?, ?)""",
+                    (policy_id, asset_id, cursor.source_id, cursor.cursor, utc_ms),
+                )
                 connection.execute(
                     """INSERT INTO alarm_input_cursors
                        (policy_id, asset_id, source_id, cursor, state_revision)
@@ -383,7 +466,7 @@ class AlarmRepository:
                    JOIN alarm_events e ON e.event_id=o.event_id
                    WHERE (o.status='PENDING' AND o.available_utc_ms <= ?)
                       OR (o.status='IN_FLIGHT' AND o.lease_until_utc_ms <= ?)
-                   ORDER BY o.available_utc_ms, o.event_id
+                   ORDER BY o.available_utc_ms, e.state_revision, o.event_id
                    LIMIT ?""",
                 (now_utc_ms, now_utc_ms, limit),
             ).fetchall()
@@ -433,6 +516,27 @@ class AlarmRepository:
                 ).rowcount
                 == 1
             )
+
+    def list_events(
+        self,
+        policy_id: str,
+        asset_id: str,
+        after_state_revision: int = 0,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        if after_state_revision < 0 or not 1 <= limit <= 500:
+            raise ValueError("invalid event cursor or limit")
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                """SELECT payload_json FROM alarm_events
+                   WHERE policy_id=? AND asset_id=? AND state_revision>?
+                   ORDER BY state_revision, event_id LIMIT ?""",
+                (policy_id, asset_id, after_state_revision, limit),
+            ).fetchall()
+        finally:
+            connection.close()
+        return [json.loads(row["payload_json"]) for row in rows]
 
     def event_count(self) -> int:
         connection = self._connect()

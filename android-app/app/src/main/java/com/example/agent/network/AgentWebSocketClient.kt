@@ -1,6 +1,7 @@
 package com.example.agent.network
 
 import android.util.Log
+import com.example.agent.network.models.AlarmEvent
 import com.example.agent.network.models.EkfState
 import com.example.agent.sensors.BleTokenManager
 import com.example.agent.sensors.SerialManager
@@ -14,6 +15,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -31,9 +35,14 @@ import okio.ByteString
 /** WebSocket client for the gateway event/measurement interface. */
 class AgentWebSocketClient(
     private val serverUrl: String?,
+    private val sessionProvider: suspend () -> GatewaySession?,
+    private val invalidateSession: () -> Unit,
 ) {
     companion object {
         private const val TAG = "AgentWS"
+        private const val AUTHENTICATION_CLOSE_CODE = 4401
+        private const val SESSION_RENEWAL_CLOSE_CODE = 4001
+        private const val SESSION_RENEWAL_MARGIN_SECONDS = 60L
     }
 
     private val client: OkHttpClient = OkHttpClient.Builder()
@@ -47,12 +56,15 @@ class AgentWebSocketClient(
     @Volatile private var isConnected = false
     @Volatile private var isConnecting = false
     private var reconnectJob: Job? = null
+    private var renewalJob: Job? = null
+    private var connectionGeneration = 0L
     @Volatile private var closed = false
 
     var onConnected: (() -> Unit)? = null
     var onDisconnected: (() -> Unit)? = null
     var onBinaryPointCloud: ((ByteArray) -> Unit)? = null
     var onEkfState: ((EkfState) -> Unit)? = null
+    var onAlarmEvent: ((AlarmEvent) -> Unit)? = null
 
     @Synchronized
     fun connect() {
@@ -62,52 +74,139 @@ class AgentWebSocketClient(
             return
         }
         isConnecting = true
+        val generation = ++connectionGeneration
+        scope.launch {
+            val session = try {
+                sessionProvider()
+            } catch (error: Exception) {
+                Log.e(TAG, "Could not obtain a gateway session", error)
+                null
+            }
+            if (session == null) {
+                if (markTerminated(generation)) scheduleReconnect()
+                return@launch
+            }
+            if (!isCurrentConnectionAttempt(generation)) return@launch
+            openAuthenticatedSocket(url, session, generation)
+        }
+    }
+
+    @Synchronized
+    private fun openAuthenticatedSocket(url: String, session: GatewaySession, generation: Long) {
+        if (!isCurrentConnectionAttempt(generation)) return
         Log.d(TAG, "Connecting to configured gateway")
         val request = try {
-            Request.Builder().url(url).build()
+            Request.Builder()
+                .url(url)
+                .header("Authorization", "Bearer ${session.accessToken}")
+                .build()
         } catch (error: IllegalArgumentException) {
-            isConnecting = false
+            markTerminated(generation)
             Log.e(TAG, "Configured gateway URL is invalid", error)
             return
         }
 
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
-                isConnecting = false
-                isConnected = true
-                reconnectJob?.cancel()
+                if (!markConnected(generation)) {
+                    webSocket.close(1000, "Superseded connection")
+                    return
+                }
+                scheduleSessionRenewal(session.expiresAtEpochSeconds, generation)
                 Log.d(TAG, "WebSocket connected")
                 scope.launch(Dispatchers.Main) { onConnected?.invoke() }
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
-                try {
-                    val state = json.decodeFromString<EkfState>(text)
-                    scope.launch(Dispatchers.Main) { onEkfState?.invoke(state) }
-                } catch (e: Exception) {
-                    Log.w(TAG, "Rejected gateway JSON", e)
-                }
+                if (!isCurrent(generation)) return
+                handleJsonMessage(text)
             }
 
             override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
+                if (!isCurrent(generation)) return
                 scope.launch(Dispatchers.Main) { onBinaryPointCloud?.invoke(bytes.toByteArray()) }
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                isConnecting = false
-                isConnected = false
+                if (!isCurrent(generation)) return
+                if (code == AUTHENTICATION_CLOSE_CODE) invalidateSession()
+                if (!markTerminated(generation)) return
                 scope.launch(Dispatchers.Main) { onDisconnected?.invoke() }
                 scheduleReconnect()
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                isConnecting = false
-                isConnected = false
-                Log.e(TAG, "WebSocket failure: ${t.message}")
+                if (!isCurrent(generation)) return
+                if (response?.code == 401 || response?.code == 403) invalidateSession()
+                if (!markTerminated(generation)) return
+                Log.e(TAG, "WebSocket connection failed", t)
                 scope.launch(Dispatchers.Main) { onDisconnected?.invoke() }
                 scheduleReconnect()
             }
         })
+    }
+
+    private fun handleJsonMessage(text: String) {
+        try {
+            val root = json.parseToJsonElement(text).jsonObject
+            if (root["type"]?.jsonPrimitive?.content == "alarm_event") {
+                val payload = root["payload"] ?: error("Missing alarm event payload")
+                val event = json.decodeFromJsonElement<AlarmEvent>(payload)
+                scope.launch(Dispatchers.Main) { onAlarmEvent?.invoke(event) }
+            } else {
+                val state = json.decodeFromString<EkfState>(text)
+                scope.launch(Dispatchers.Main) { onEkfState?.invoke(state) }
+            }
+        } catch (error: Exception) {
+            Log.w(TAG, "Rejected gateway JSON", error)
+        }
+    }
+
+    @Synchronized
+    private fun markConnected(generation: Long): Boolean {
+        if (closed || generation != connectionGeneration) return false
+        isConnecting = false
+        isConnected = true
+        reconnectJob?.cancel()
+        return true
+    }
+
+    @Synchronized
+    private fun markTerminated(generation: Long): Boolean {
+        if (generation != connectionGeneration) return false
+        connectionGeneration += 1
+        isConnecting = false
+        isConnected = false
+        webSocket = null
+        renewalJob?.cancel()
+        return !closed
+    }
+
+    @Synchronized
+    private fun isCurrent(generation: Long): Boolean =
+        !closed && generation == connectionGeneration
+
+    @Synchronized
+    private fun isCurrentConnectionAttempt(generation: Long): Boolean =
+        isConnecting && isCurrent(generation)
+
+    @Synchronized
+    private fun scheduleSessionRenewal(expiresAtEpochSeconds: Long, generation: Long) {
+        renewalJob?.cancel()
+        val now = System.currentTimeMillis() / 1000L
+        val delaySeconds = (expiresAtEpochSeconds - SESSION_RENEWAL_MARGIN_SECONDS - now)
+            .coerceAtLeast(0L)
+        renewalJob = scope.launch {
+            delay(delaySeconds * 1_000L)
+            renewSession(generation)
+        }
+    }
+
+    @Synchronized
+    private fun renewSession(generation: Long) {
+        if (!isConnected || !isCurrent(generation)) return
+        invalidateSession()
+        webSocket?.close(SESSION_RENEWAL_CLOSE_CODE, "Renewing gateway session")
     }
 
     @Synchronized
@@ -123,6 +222,7 @@ class AgentWebSocketClient(
         }
     }
 
+    @Synchronized
     private fun sendPayload(type: String, payload: JsonObject): Boolean {
         if (!isConnected || closed) return false
         val message = buildJsonObject {
@@ -207,10 +307,13 @@ class AgentWebSocketClient(
     fun disconnect() {
         if (closed) return
         closed = true
+        connectionGeneration += 1
         reconnectJob?.cancel()
+        renewalJob?.cancel()
         webSocket?.close(1000, "Client shutting down")
         webSocket = null
         isConnected = false
+        isConnecting = false
         client.dispatcher.executorService.shutdown()
         client.connectionPool.evictAll()
         scope.cancel()

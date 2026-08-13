@@ -29,6 +29,7 @@ class Attention(str, Enum):
 
 class EventType(str, Enum):
     POLICY_ENABLED = "POLICY_ENABLED"
+    POLICY_UPDATED = "POLICY_UPDATED"
     PENDING_STARTED = "PENDING_STARTED"
     PENDING_CANCELED = "PENDING_CANCELED"
     TRIGGERED = "TRIGGERED"
@@ -188,6 +189,16 @@ def evaluate(
     clear = _clear_predicate(policy, evidence)
     current = _reduce_condition(current, policy, breach, clear, now_ms, transitions)
     return Reduction(current, tuple(transitions))
+
+
+def policy_updated(runtime: AlarmRuntime, now_ms: int) -> Reduction:
+    """Record an immutable policy-revision change without inventing a state change."""
+    previous = runtime
+    current = replace(runtime, state_revision=runtime.state_revision + 1)
+    return Reduction(
+        current,
+        (Transition(EventType.POLICY_UPDATED, "POLICY.UPDATED", previous, current),),
+    )
 
 
 def acknowledge(runtime: AlarmRuntime, now_ms: int) -> Reduction:

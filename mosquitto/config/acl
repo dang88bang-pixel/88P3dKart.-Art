@@ -1,0 +1,6 @@
+# The edge-agent client certificate must have CN=edge-agent.
+user edge-agent
+topic read ble/tokens/+
+
+# Sensor certificate CNs or WebSocket usernames may publish only their own ID.
+pattern write ble/tokens/%u

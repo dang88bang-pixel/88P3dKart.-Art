@@ -1,27 +1,52 @@
-version: '3.8'
-
 services:
-  # 1. Edge-Agent (Python) — Fusions-Kernel
   edge-agent:
     build: ./edge-agent
     container_name: edge-agent
-    privileged: true
     devices:
       - /dev/ttyUSB0:/dev/ttyUSB0
       - /dev/ttyACM0:/dev/ttyACM0
+    group_add:
+      - "${AGENT_DEVICE_GID:?Set AGENT_DEVICE_GID to the host serial-device group ID}"
     volumes:
       - ./data:/data
       - ./logs:/var/log/agent
+      - ./ssl/mqtt:/run/mqtt:ro
+    secrets:
+      - agent_signing_secret
+      - agent_admin_token
     environment:
-      - AGENT_DB_PATH=/data/agent.db
-      - AGENT_LOG_DIR=/var/log/agent
-      - AGENT_LOOP_HZ=20
-      - MQTT_HOST=mosquitto
-      - MQTT_PORT=1883
-    ports:
-      - "8080:8080"
-    depends_on:
-      - mosquitto
+      AGENT_DB_PATH: /data/agent.db
+      AGENT_AUTH_DB_PATH: /data/credentials.db
+      AGENT_ALARM_DB_PATH: /data/alarms.db
+      AGENT_GATEWAY_ID: "${AGENT_GATEWAY_ID:?Set a stable AGENT_GATEWAY_ID}"
+      AGENT_ALARM_TICK_MS: "250"
+      AGENT_ALARM_OUTBOX_LEASE_MS: "30000"
+      AGENT_ALARM_OUTBOX_RETRY_MS: "5000"
+      AGENT_ALARM_OUTBOX_BATCH_SIZE: "100"
+      AGENT_LOG_DIR: /var/log/agent
+      AGENT_LOOP_HZ: "20"
+      # TLS terminates at nginx; the API port is not published to the host.
+      AGENT_REQUIRE_TLS: "false"
+      AGENT_AUTH_SIGNING_SECRET_FILE: /run/secrets/agent_signing_secret
+      AGENT_ADMIN_BOOTSTRAP_TOKEN_FILE: /run/secrets/agent_admin_token
+      AGENT_AUTH_MAX_FAILURES: "5"
+      AGENT_AUTH_FAILURE_WINDOW_SECONDS: "60"
+      AGENT_AUTH_ATTEMPT_MAX_KEYS: "4096"
+      AGENT_TRUSTED_HOSTS: "${AGENT_PUBLIC_HOST:?Set AGENT_PUBLIC_HOST},localhost,127.0.0.1"
+      AGENT_CORS_ORIGINS: "https://${AGENT_PUBLIC_HOST:?Set AGENT_PUBLIC_HOST}"
+      AGENT_MQTT_ENABLED: "${AGENT_MQTT_ENABLED:-false}"
+      MQTT_HOST: mosquitto
+      MQTT_PORT: "8883"
+      AGENT_MQTT_TLS_CA: /run/mqtt/ca.crt
+      AGENT_MQTT_TLS_CERT: /run/mqtt/edge-agent.crt
+      AGENT_MQTT_TLS_KEY: /run/mqtt/edge-agent.key
+    expose:
+      - "8080"
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8080/api/v1/health')"]
@@ -29,35 +54,8 @@ services:
       timeout: 3s
       retries: 3
 
-  # 2. Web-Visualizer (Node.js + Three.js)
-  web-visualizer:
-    build: ./web-visualizer
-    container_name: web-visualizer
-    ports:
-      - "3000:3000"
-    environment:
-      - AGENT_WS_URL=ws://edge-agent:8080/ws/agent/events
-      - PORT=3000
-    depends_on:
-      - edge-agent
-    restart: unless-stopped
-
-  # 3. MQTT-Broker (Eclipse Mosquitto)
-  mosquitto:
-    image: eclipse-mosquitto:2.0
-    container_name: mosquitto
-    ports:
-      - "1883:1883"
-      - "9001:9001"
-    volumes:
-      - ./mosquitto/config:/mosquitto/config:ro
-      - ./mosquitto/data:/mosquitto/data
-      - ./mosquitto/log:/mosquitto/log
-    restart: unless-stopped
-
-  # 4. Nginx Reverse Proxy (optional, HTTPS)
   nginx:
-    image: nginx:alpine
+    image: nginx:1.27-alpine
     container_name: nginx-proxy
     ports:
       - "80:80"
@@ -66,8 +64,38 @@ services:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./ssl:/etc/nginx/ssl:ro
     depends_on:
-      - web-visualizer
       - edge-agent
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
+      - /tmp
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
     restart: unless-stopped
-    profiles:
-      - production
+
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: mosquitto
+    profiles: ["mqtt"]
+    user: "1883:1883"
+    ports:
+      - "8883:8883"
+      - "9002:9002"
+    volumes:
+      - ./mosquitto/config:/mosquitto/config:ro
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
+      - ./ssl/mqtt:/mosquitto/certs:ro
+      - ./secrets/mosquitto-passwords:/mosquitto/secrets/passwords:ro
+    cap_drop:
+      - ALL
+    restart: unless-stopped
+
+secrets:
+  agent_signing_secret:
+    file: ./secrets/agent-signing-secret
+  agent_admin_token:
+    file: ./secrets/agent-admin-token

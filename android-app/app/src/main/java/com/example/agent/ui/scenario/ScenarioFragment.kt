@@ -1,6 +1,7 @@
 package com.example.agent.ui.scenario
 
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -9,6 +10,7 @@ import android.widget.Button
 import android.widget.Spinner
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
+import com.example.agent.MainActivity
 import com.example.agent.R
 import com.example.agent.network.AgentApiClient
 import kotlinx.coroutines.launch
@@ -17,7 +19,8 @@ class ScenarioFragment : Fragment() {
     private lateinit var spinnerScenario: Spinner
     private lateinit var btnStart: Button
     private lateinit var btnStop: Button
-    private val apiClient = AgentApiClient()
+    private val apiClient: AgentApiClient
+        get() = (requireActivity() as MainActivity).apiClient
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?,
@@ -36,9 +39,18 @@ class ScenarioFragment : Fragment() {
         btnStart.setOnClickListener {
             val type = spinnerScenario.selectedItem.toString().lowercase()
             val params = mapOf("persons" to 50, "smoke" to 0.7)
-            lifecycleScope.launch { apiClient.startScenario(type, params) }
+            lifecycleScope.launch {
+                runCatching { apiClient.startScenario(type, params) }
+                    .onFailure { Log.e(TAG, "Gateway rejected scenario command", it) }
+            }
         }
-        btnStop.setOnClickListener { /* Szenario stoppen (REST) */ }
+        // The current gateway has no stop-scenario command contract. Keep the
+        // control explicitly disabled instead of reporting a fictitious stop.
+        btnStop.isEnabled = false
         return view
+    }
+
+    companion object {
+        private const val TAG = "ScenarioFragment"
     }
 }

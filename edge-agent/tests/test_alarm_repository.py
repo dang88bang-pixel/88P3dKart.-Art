@@ -289,6 +289,52 @@ def test_outbox_lease_expiry_and_explicit_retry_are_at_least_once(tmp_path):
     assert third.attempts == 3
 
 
+def test_consumed_cursor_history_rejects_replay_after_newer_input(tmp_path):
+    repository = AlarmRepository(str(tmp_path / "alarm.db"))
+    first = evaluate(
+        AlarmRuntime(), policy(), evidence("m-1", 1_000, lower=7.0, upper=9.0), 1_000
+    )
+    apply(repository, first, 0, 0, "cursor-1")
+    second = evaluate(
+        first.runtime, policy(), evidence("m-2", 1_100, lower=7.0, upper=9.0), 1_100
+    )
+    apply(repository, second, 0, 1, "cursor-2", monotonic=1_100, utc=10_100)
+
+    replay = evaluate(
+        second.runtime, policy(), evidence("m-3", 1_200, lower=7.0, upper=9.0), 1_200
+    )
+    with pytest.raises(PersistenceInvariantError, match="already consumed"):
+        apply(repository, replay, 0, 2, "cursor-1", monotonic=1_200, utc=10_200)
+
+
+def test_initialize_migrates_pre_checkpoint_runtime_table(tmp_path):
+    path = tmp_path / "legacy.db"
+    connection = sqlite3.connect(path)
+    connection.execute(
+        """CREATE TABLE alarm_runtime (
+               policy_id TEXT NOT NULL,
+               asset_id TEXT NOT NULL,
+               state_revision INTEGER NOT NULL,
+               runtime_json TEXT NOT NULL,
+               boot_id TEXT NOT NULL,
+               checkpoint_monotonic_ms INTEGER NOT NULL,
+               checkpoint_utc_ms INTEGER NOT NULL,
+               PRIMARY KEY (policy_id, asset_id)
+           )"""
+    )
+    connection.commit()
+    connection.close()
+
+    repository = AlarmRepository(str(path))
+    connection = sqlite3.connect(path)
+    columns = {row[1] for row in connection.execute("PRAGMA table_info(alarm_runtime)")}
+    connection.close()
+    assert {"checkpoint_revision", "evidence_json"} <= columns
+    assert repository.load_runtime(
+        "missing", "asset", "boot", monotonic_ms=0, utc_ms=0
+    ).checkpoint_revision == 0
+
+
 def test_repository_rejects_missing_or_mismatched_transition_events(tmp_path):
     repository = AlarmRepository(str(tmp_path / "alarm.db"))
     reduction = evaluate(AlarmRuntime(), policy(), evidence("m-1", 1_000), 1_000)
