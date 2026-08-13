@@ -1,0 +1,209 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://3dxagent.local/schemas/alarm-policy/1.0.0",
+  "title": "3dxAgent AlarmPolicy",
+  "description": "Versioned policy evaluated by the authoritative gateway alarm engine. Notification delivery preferences do not change detection semantics.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "policy_id",
+    "asset_id",
+    "revision",
+    "enabled",
+    "metric",
+    "threshold_m",
+    "trigger_direction",
+    "decision_mode",
+    "minimum_confidence",
+    "maximum_age_ms",
+    "dwell_ms",
+    "clear_dwell_ms",
+    "data_loss_dwell_ms",
+    "recovery_dwell_ms",
+    "hysteresis_m",
+    "cooldown_ms",
+    "severity",
+    "data_loss_behavior",
+    "delivery_profile_id"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "policy_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "asset_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "pattern": "^[A-Za-z0-9._:/-]+$"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "enabled": {
+      "type": "boolean"
+    },
+    "metric": {
+      "enum": [
+        "RANGE_FROM_CT45P",
+        "RANGE_FROM_ANCHOR",
+        "RANGE_FROM_ZONE",
+        "GEOFENCE_EXIT",
+        "CONNECTIVITY_LOSS"
+      ]
+    },
+    "reference_id": {
+      "type": ["string", "null"],
+      "maxLength": 160
+    },
+    "threshold_m": {
+      "type": ["number", "null"],
+      "exclusiveMinimum": 0,
+      "maximum": 100000
+    },
+    "trigger_direction": {
+      "enum": ["ABOVE", "BELOW", "OUTSIDE", "LOSS"]
+    },
+    "decision_mode": {
+      "enum": ["POSSIBLE_BREACH", "CONFIRMED_BREACH"]
+    },
+    "minimum_confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "maximum_age_ms": {
+      "type": "integer",
+      "minimum": 100,
+      "maximum": 86400000
+    },
+    "dwell_ms": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 86400000
+    },
+    "clear_dwell_ms": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 86400000
+    },
+    "data_loss_dwell_ms": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 86400000
+    },
+    "recovery_dwell_ms": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 86400000
+    },
+    "hysteresis_m": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100000
+    },
+    "cooldown_ms": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 604800000
+    },
+    "severity": {
+      "enum": ["INFO", "WARNING", "CRITICAL"]
+    },
+    "data_loss_behavior": {
+      "enum": ["SEPARATE_ALARM", "FAIL_CLOSED", "WARN_ONLY"]
+    },
+    "delivery_profile_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "metric": {
+            "enum": ["RANGE_FROM_CT45P", "RANGE_FROM_ANCHOR", "RANGE_FROM_ZONE"]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "threshold_m": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "trigger_direction": {
+            "enum": ["ABOVE", "BELOW"]
+          }
+        },
+        "required": ["threshold_m"]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "metric": {
+            "enum": ["RANGE_FROM_ANCHOR", "RANGE_FROM_ZONE", "GEOFENCE_EXIT"]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "reference_id": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["reference_id"]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "metric": {
+            "const": "GEOFENCE_EXIT"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "threshold_m": {
+            "const": null
+          },
+          "trigger_direction": {
+            "const": "OUTSIDE"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "metric": {
+            "const": "CONNECTIVITY_LOSS"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "reference_id": {
+            "const": null
+          },
+          "threshold_m": {
+            "const": null
+          },
+          "trigger_direction": {
+            "const": "LOSS"
+          }
+        }
+      }
+    }
+  ]
+}

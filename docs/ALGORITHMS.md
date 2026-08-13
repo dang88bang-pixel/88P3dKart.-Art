@@ -1,7 +1,9 @@
 # 🧠 Algorithmen & Implementierungstiefe (v4.1/4.3)
 
-Vollständige mathematische Grundlagen der Kernalgorithmen. Alle sind **offline-fähig**
-und **ressourcenschonend** in Kotlin implementiert (CT45P, Snapdragon 662).
+Mathematische Grundlagen der prototypischen Kernalgorithmen. Sie sind
+**offline-fähig** in Kotlin implementiert und auf die CT45-XP-Plattform mit
+Qualcomm QCS4290/QCM4290 ausgerichtet. Hardwareabhängige Pfade und Messwerte
+müssen auf der vollständigen SKU validiert werden.
 
 ## 1. Adaptiver 6-DOF EKF
 
@@ -58,11 +60,14 @@ Implementierung: `offline/SemanticEngine.kt`.
 Poisson-Gleichung `Δφ = ∇·V`; für den CT45P als **Distanzfeld + Oberflächen-Extraktion**
 an besetzten/leeren Zellgrenzen umgesetzt (`offline/PoissonReconstruction.kt`).
 
-## 5. UWB-Micro-Doppler (DFT)
+## 5. UWB-Micro-Doppler (DFT, experimentell)
 
-DFT im Bereich 0.15–0.6 Hz (20 Bins) auf dem Phasen-Ringbuffer (20 Hz, 5 s),
-Hanning-Fenster, Konfidenz = Peak-/Gesamtenergie, gültig bei > 0.3.
-Implementierung: `offline/UwbDoppler.kt` (Kotlin) und `edge-agent/uwb_processor.py` (FFT).
+DFT im Bereich 0.15–0.6 Hz (20 Bins) auf einem Phasen-Ringbuffer (20 Hz, 5 s),
+Hanning-Fenster, Konfidenz = Peak-/Gesamtenergie, prototypisch gültig bei > 0.3.
+Implementierung: `offline/UwbDoppler.kt` (Kotlin) und `edge-agent/uwb_processor.py`
+(FFT). Der CT45 XP weist laut öffentlicher Spezifikation kein integriertes UWB
+aus; echte Rohphasendaten benötigen ein dafür geeignetes externes UWB-Modul.
+Aus einer Distanz abgeleitete „Phase“ ist kein Ersatz für Rohphase.
 
 ## 6. ICP-Map-Merging (Kabsch-Umeyama)
 
@@ -92,5 +97,6 @@ Implementierung: `offline/MotionDetector.kt`.
 - Gebündelte Integration (100 ms Debounce)
 - LOD im Renderer
 
-Richtwerte (CT45P, Snapdragon 662): EKF < 5 ms, Octree-Suche < 1 ms,
-Punktwolke ~28 fps, Akku ~4 h Dauer-Scan.
+Noch zu validierende Zielwerte auf der exakten CT45P-SKU: EKF < 5 ms,
+Octree-Suche < 1 ms und Punktwolkenanzeige ~28 fps. Eine Akkulaufzeit wird erst
+nach einem reproduzierbaren Release-Profiltest ausgewiesen.
