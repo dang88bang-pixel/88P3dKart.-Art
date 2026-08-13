@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="primary">#0066FF</color>
+    <color name="primary_dark">#0044CC</color>
+    <color name="secondary">#00C8A0</color>
+    <color name="background">#0D0D1A</color>
+    <color name="surface">#1A1A2E</color>
+    <color name="error">#FF3333</color>
+    <color name="success">#44FF88</color>
+    <color name="warning">#FF8800</color>
+
+    <!-- Semantische Farben -->
+    <color name="person">#FF3333</color>
+    <color name="wall">#4488FF</color>
+    <color name="floor">#44FF88</color>
+    <color name="furniture">#AA8844</color>
+    <color name="unknown">#FFFFFF</color>
+    <color name="marked">#FFCC00</color>
+    <color name="moving">#FF8800</color>
+</resources>

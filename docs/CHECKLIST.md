@@ -6,6 +6,9 @@
 **Legende:** ✅ = erledigt & verifiziert · 🧩 = geliefert (benötigt externe Hardware/SDK) ·
 ⚠️ = offen
 
+> **Update v4.4.0:** Die Dokumente `88p3Kart.txt` (Versionen 2.0 → 4.4.0) wurden
+> abgeglichen. Folgende **fehlende Teile** wurden ergänzt (Schritt 7–9).
+
 ---
 
 ## 🗂️ Schritt 0 — Monorepo-Grundstruktur
@@ -83,3 +86,36 @@
 | 6.1 | Alle Dateien committen | ✅ |
 | 6.2 | Push auf `arena/019ff93c-88p3dkart-art` | ✅ |
 | 6.3 | Pull Request öffnen | ✅ |
+
+## 🧩 Schritt 7 — Offline-Paket (v3.x, neu ergänzt)
+
+| # | Aufgabe | Status |
+|---|---------|--------|
+| 7.1 | `VoxelNode.kt`, `AdaptiveOctree.kt` | ✅ |
+| 7.2 | `MotionDetector.kt`, `SemanticEngine.kt`, `SmartMeshIntegrator.kt` | ✅ |
+| 7.3 | `OpenHPSAdapter.kt` (Trilateration + Madgwick) | ✅ |
+| 7.4 | `UwbDoppler.kt` (DFT) | ✅ |
+| 7.5 | `ICPMerger.kt` (Kabsch + Jacobi-SVD) | ✅ |
+| 7.6 | `LocalWebSocketServer.kt`, `LocalApiServer.kt` | ✅ |
+| 7.7 | `PoissonReconstruction.kt` (vereinfacht) | ✅ |
+| 7.8 | `pipeline/LiveSensorPipeline.kt` | ✅ |
+
+## 📡 Schritt 8 — Client-Regelwerk (v4.4.0, neu ergänzt)
+
+| # | Aufgabe | Status |
+|---|---------|--------|
+| 8.1 | `network/ClientModels.kt` (Typen, Capabilities, Signale) | ✅ |
+| 8.2 | `network/ClientRegistry.kt`, `ClientConnectionManager.kt` | ✅ |
+| 8.3 | `network/ClientHealthEvaluator.kt`, `ClientRecoveryManager.kt` | ✅ |
+| 8.4 | `pipeline/SignalInterpreter.kt`, `pipeline/DataIntegrator.kt` | ✅ |
+| 8.5 | `sensors/NetworkDataCollector.kt` | ✅ |
+
+## 🔧 Schritt 9 — Utils, Ressourcen & Docs (neu ergänzt)
+
+| # | Aufgabe | Status |
+|---|---------|--------|
+| 9.1 | `utils/Logger.kt`, `ErrorRecovery.kt`, `Profiler.kt` | ✅ |
+| 9.2 | `colors.xml`, `strings.xml`, `themes.xml`, `file_paths.xml` | ✅ |
+| 9.3 | `proguard-rules.pro`, `gradle.properties`, `build.gradle.kts` (+Java-WebSocket) | ✅ |
+| 9.4 | `docs/ALGORITHMS.md`, `CLIENT_RULES.md`, `OFFLINE.md`, `UX.md` | ✅ |
+| 9.5 | **Build**: Android-App mit Android-SDK | 🧩 (nicht in Sandbox kompilierbar) |

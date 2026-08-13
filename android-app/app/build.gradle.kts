@@ -42,6 +42,13 @@ dependencies {
     // USB-Serial (LiDAR & mmWave)
     implementation("com.github.felHR85:UsbSerial:6.1.0")
 
+    // Lokaler WebSocket-Server (Offline-Modus)
+    implementation("org.java-websocket:Java-WebSocket:1.5.3")
+
+    // Optional: TinyML für semantische Klassifikation (benötigt Modell-Asset)
+    // implementation("org.tensorflow:tensorflow-lite:2.14.0")
+    // implementation("org.tensorflow:tensorflow-lite-support:0.4.4")
+
     // Persistenz (SQLite WAL)
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")

@@ -1,6 +1,6 @@
 # 🧭 3dxAgent — Autonomes 3D-Kartierungs- & Lageerkennungssystem
 
-**Version:** 2.0.0-DataPipeline · **Zielplattform:** Honeywell CT45P + Multi-Sensor Edge-Netzwerk
+**Version:** 4.4.0-ClientRules · **Zielplattform:** Honeywell CT45P + Multi-Sensor Edge-Netzwerk
 
 Die **3dxAgent-Plattform** verwandelt das Industrie-Smartphone **Honeywell CT45P**
 in ein hochpräzises, autonomes 3D-Kartierungs- und Lageerkennungssystem. Durch die
@@ -15,6 +15,14 @@ Die **v2.0.0-DataPipeline** ergänzt eine vollständige
 ```
 Sensor-/Netzwerkdaten → Analyse → Mesh → 3D-Umgebung → Exakte Abbildung → Evaluierungsagent
 ```
+
+Die Erweiterungen **v3.x–v4.4.0** ergänzen zudem:
+- **Offline-Betrieb** — UWB-DFT, ICP/Kabsch, Madgwick-IMU, Trilateration und ein
+  lokaler REST/WebSocket-Server direkt in Kotlin auf dem CT45P (Package `offline/`)
+- **Smart Mesh Integrator** — adaptiver Octree, semantische Klassifikation
+  (Person/Gegenstand/Wand/Boden), Bewegungsdetektion
+- **Client-Regelwerk** — Anbindung beliebiger externer Geräte (Token, Relay,
+  Sensor, Gateway, Wearable) mit Authentifizierung, Signalauswertung und Health-Check
 
 ---
 
