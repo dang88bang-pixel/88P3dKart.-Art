@@ -18,6 +18,8 @@
     <string name="status_healthy">🟢 Gesund</string>
     <string name="status_degraded">🟡 Eingeschränkt</string>
     <string name="status_critical">🔴 Kritisch</string>
+    <string name="device_health_status">Android-Thermik: %1$s · Akku: %2$s / %3$s</string>
+    <string name="device_workload_mode">Lokaler Arbeitsmodus: %1$s</string>
 
     <!-- Gateway-authoritative alarm presentation -->
     <string name="alarm_connected_authoritative">Verbunden · Gateway ist maßgeblich</string>

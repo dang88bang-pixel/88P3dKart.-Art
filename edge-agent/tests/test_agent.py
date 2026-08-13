@@ -375,6 +375,43 @@ def test_websocket_requires_bearer_and_rejects_cross_device_payload(authenticate
             websocket.receive_json()
 
 
+def test_sensor_telemetry_requires_explicit_temperature_source(authenticated_client):
+    client, headers = authenticated_client
+    with client.websocket_connect(
+        "wss://testserver/ws/agent/events", headers=headers["device"]
+    ) as websocket:
+        websocket.send_json(
+            {
+                "type": "telemetry",
+                "payload": {
+                    "device_id": "CT45P-01",
+                    "thermal_c": 42.0,
+                    "scattering": False,
+                },
+            }
+        )
+        assert websocket.receive_json() == {
+            "type": "error",
+            "code": "INVALID_MESSAGE",
+        }
+
+        websocket.send_json(
+            {
+                "type": "telemetry",
+                "payload": {
+                    "device_id": "CT45P-01",
+                    "thermal_source": "lidar.internal",
+                    "thermal_c": 42.0,
+                    "scattering": False,
+                },
+            }
+        )
+        websocket.send_json(
+            {"type": "handshake", "payload": {"device_id": "CT45P-01"}}
+        )
+        assert websocket.receive_json()["type"] == "handshake_ack"
+
+
 def test_websocket_rejects_oversized_text(authenticated_client):
     client, headers = authenticated_client
     with client.websocket_connect(

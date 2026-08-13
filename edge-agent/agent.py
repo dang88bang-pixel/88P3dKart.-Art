@@ -71,7 +71,8 @@ pipeline = DataPipeline()
 
 current_mode = "FULL"
 scattering_detected = False
-thermal_celsius = 45.0
+sensor_thermal_celsius: float | None = None
+sensor_thermal_source: str | None = None
 
 _loop: asyncio.AbstractEventLoop | None = None
 
@@ -709,19 +710,42 @@ async def websocket_endpoint(websocket: WebSocket):
                         )
 
                 elif msg_type == "telemetry":
-                    global thermal_celsius, scattering_detected, current_mode
+                    global sensor_thermal_celsius, sensor_thermal_source
+                    global scattering_detected, current_mode
                     thermal = payload.get("thermal_c")
+                    thermal_source = payload.get("thermal_source")
                     scattering = payload.get("scattering")
-                    if not isinstance(thermal, (int, float)) or not isinstance(scattering, bool):
-                        raise ValueError("thermal_c and scattering are required")
+                    valid_source = (
+                        isinstance(thermal_source, str)
+                        and 1 <= len(thermal_source) <= 64
+                        and all(
+                            character.isalnum() or character in "._:-"
+                            for character in thermal_source
+                        )
+                    )
+                    if (
+                        not isinstance(thermal, (int, float))
+                        or isinstance(thermal, bool)
+                        or not isinstance(scattering, bool)
+                        or not valid_source
+                    ):
+                        raise ValueError(
+                            "thermal_source, thermal_c and scattering are required"
+                        )
                     if not -50 <= float(thermal) <= 150:
                         raise ValueError("thermal_c is outside accepted bounds")
-                    thermal_celsius = float(thermal)
+                    sensor_thermal_celsius = float(thermal)
+                    sensor_thermal_source = thermal_source
                     scattering_detected = scattering
-                    ekf.adapt_to_environment(scattering_detected, thermal_celsius)
-                    if thermal_celsius > CONFIG.THERMAL_CRITICAL_C:
+                    ekf.adapt_to_environment(
+                        scattering_detected, sensor_thermal_celsius
+                    )
+                    if sensor_thermal_celsius > CONFIG.THERMAL_CRITICAL_C:
                         current_mode = "MINIMAL"
-                    elif scattering_detected or thermal_celsius > CONFIG.THERMAL_WARNING_C:
+                    elif (
+                        scattering_detected
+                        or sensor_thermal_celsius > CONFIG.THERMAL_WARNING_C
+                    ):
                         current_mode = "DEGRADED"
                     else:
                         current_mode = "FULL"
@@ -738,7 +762,8 @@ async def websocket_endpoint(websocket: WebSocket):
                         {
                             "mode": current_mode,
                             "scattering": scattering_detected,
-                            "thermal": thermal_celsius,
+                            "sensor_thermal_c": sensor_thermal_celsius,
+                            "sensor_thermal_source": sensor_thermal_source,
                         },
                     )
             except HTTPException:

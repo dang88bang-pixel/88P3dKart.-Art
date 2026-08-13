@@ -20,7 +20,11 @@
 > dieser Umgebung wegen nicht abrufbarer Gradle-/Maven-/Android-SDK-Artefakte
 > blockiert; Android-Compile-, Installations- und Hardwareevidenz existiert daher
 > weiterhin nicht. Details zum zusätzlich vorgeschlagenen KI-Agenten stehen in
-> [Integrierter Agent: Audit und Zielarchitektur](INTEGRATED_AGENT_AUDIT.md).
+> [Integrierter Agent: Audit und Zielarchitektur](INTEGRATED_AGENT_AUDIT.md). Die
+> Repository- und Physikprüfung der später vorgeschlagenen CSI-/UWB-/mmWave-/SDR-/
+> Radio-SLAM-Architektur einschließlich der Sicherheitsgrenze für
+> Hardwareautomation steht im
+> [RF-Sensor- und Hardwareautomations-Audit](RF_SENSOR_ARCHITECTURE_AUDIT.md).
 
 Dieses Audit ersetzt Statusangaben wie „vollständig“, „getestet“, „signiert“ oder
 „produktionsbereit“ durch überprüfbare Evidenz. Es ändert nicht die verbindliche

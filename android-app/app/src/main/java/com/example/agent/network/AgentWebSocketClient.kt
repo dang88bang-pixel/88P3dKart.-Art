@@ -288,17 +288,19 @@ class AgentWebSocketClient(
             },
         )
 
-    fun sendTelemetry(
+    /** Sensor-rig telemetry only; Android battery temperature must not use this path. */
+    fun sendSensorEnvironmentTelemetry(
         deviceId: String,
-        battery: Float?,
-        thermal: Float?,
+        temperatureSource: String,
+        sensorTemperatureC: Float,
         scattering: Boolean,
     ): Boolean = sendPayload(
         "telemetry",
         buildJsonObject {
             put("device_id", deviceId)
-            put("battery", battery?.let { JsonPrimitive(it) } ?: JsonNull)
-            put("thermal_c", thermal?.let { JsonPrimitive(it) } ?: JsonNull)
+            put("timestamp", System.currentTimeMillis() / 1000.0)
+            put("thermal_source", temperatureSource)
+            put("thermal_c", sensorTemperatureC)
             put("scattering", scattering)
         },
     )

@@ -16,6 +16,9 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.example.agent.health.DeviceHealthState
+import com.example.agent.health.DeviceThermalMonitor
+import com.example.agent.health.WorkloadMode
 import com.example.agent.network.AgentApiClient
 import com.example.agent.network.AgentWebSocketClient
 import com.example.agent.network.GatewayEndpoint
@@ -40,6 +43,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var serialManager: SerialManager
     private lateinit var bleManager: BleTokenManager
     private lateinit var imuManager: ImuManager
+    private lateinit var thermalMonitor: DeviceThermalMonitor
+    private var appliedWorkloadMode: WorkloadMode? = null
     lateinit var webSocketClient: AgentWebSocketClient
         private set
     lateinit var apiClient: AgentApiClient
@@ -49,6 +54,8 @@ class MainActivity : AppCompatActivity() {
     private var enrolledDeviceId: String? = null
     private val mutableAlarmUiState = MutableStateFlow(AlarmUiState())
     val alarmUiState: StateFlow<AlarmUiState> = mutableAlarmUiState.asStateFlow()
+    val deviceHealthState: StateFlow<DeviceHealthState>
+        get() = thermalMonitor.state
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
@@ -62,6 +69,7 @@ class MainActivity : AppCompatActivity() {
         serialManager = SerialManager(this)
         bleManager = BleTokenManager(this)
         imuManager = ImuManager(this)
+        thermalMonitor = DeviceThermalMonitor(this)
 
         val credentialStore = SecureCredentialStore(applicationContext)
         val enrollment = try {
@@ -270,22 +278,52 @@ class MainActivity : AppCompatActivity() {
     override fun onStart() {
         super.onStart()
         if (enrolledDeviceId == null) return
+        thermalMonitor.start()
+        appliedWorkloadMode = thermalMonitor.state.value.workloadMode
+        if (appliedWorkloadMode != WorkloadMode.PAUSED) startLocalSensors()
+    }
+
+    override fun onStop() {
+        stopLocalSensors()
+        thermalMonitor.stop()
+        appliedWorkloadMode = null
+        super.onStop()
+    }
+
+    private fun startLocalSensors() {
         serialManager.initDevices()
         serialManager.triggerLidarScan()
         startBleIfPermitted()
         imuManager.start()
     }
 
-    override fun onStop() {
+    private fun stopLocalSensors() {
         bleManager.stopScan()
         imuManager.stop()
         serialManager.stop()
-        super.onStop()
+    }
+
+    private fun applyWorkloadPolicy(state: DeviceHealthState) {
+        val previousMode = appliedWorkloadMode
+        if (previousMode == state.workloadMode) return
+        appliedWorkloadMode = state.workloadMode
+        if (!lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) return
+
+        if (state.workloadMode == WorkloadMode.PAUSED) {
+            Log.w(TAG, "Pausing local sensor workload due to ${state.thermalStatus}")
+            stopLocalSensors()
+        } else if (previousMode == WorkloadMode.PAUSED) {
+            Log.i(TAG, "Resuming local sensor workload after thermal recovery")
+            startLocalSensors()
+        }
     }
 
     private fun collectMeasurements() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
+                launch {
+                    thermalMonitor.state.collect(::applyWorkloadPolicy)
+                }
                 launch {
                     serialManager.lidarPoints.collect { points ->
                         enrolledDeviceId?.let { deviceId ->

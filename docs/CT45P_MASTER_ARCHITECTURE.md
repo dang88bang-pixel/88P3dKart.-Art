@@ -15,7 +15,10 @@ und sicheren Commands beschreibt die
 [Geräteverwaltung und Interaktionsplattform](DEVICE_MANAGEMENT_PLATFORM.md).
 Den dauerhaften gatewayautoritativen Alarmzustandsautomaten, seine Outbox sowie
 den begrenzten nativen Android-Fallback spezifiziert der
-[Hintergrund-Abstandsalarm](BACKGROUND_DISTANCE_ALARM.md).
+[Hintergrund-Abstandsalarm](BACKGROUND_DISTANCE_ALARM.md). Die gesonderte Prüfung
+von ESP32-CSI, X4-Impulsradar, HLK-LD2450, RTL-SDR, Radio-SLAM, SAR und
+Hardwareautomation steht im
+[RF-Sensor- und Hardwareautomations-Audit](RF_SENSOR_ARCHITECTURE_AUDIT.md).
 
 > **Verbindliche Deployment-Entscheidung:** Für das praktische Produktionsziel gilt
 > Option C der Alternativenanalyse: CT45P als Control Plane, Linux-Gateway als
