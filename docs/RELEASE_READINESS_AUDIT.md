@@ -100,7 +100,7 @@ Build bleibt ein offenes Gate.
 
 | Bereich | Ausgeführte Prüfung | Ergebnis | Reichweite |
 |---|---|---|---|
-| Edge-Agent | isolierte Python-Umgebung aus `requirements.txt`, `pytest -q` | **18 passed in 0.64 s** | vorhandene Python-Unit-/API-Tests; keine Hardware oder Alarmengine |
+| Edge-Agent | isolierte Python-Abhängigkeiten, `PYTHONPATH=/home/user/.cache/edge-agent-py python3 -m pytest -q` | **48 passed in 0.80 s** | bestehende Tests plus 30 reine Alarm-Reducer-/SQLite-Recovery-Tests; keine Hardware- oder Gateway-E2E-Prüfung |
 | Web-Visualizer | `npm ci --ignore-scripts` | erfolgreich, 0 gemeldete npm-Auditschwachstellen | Dependency-Auflösung des Webmoduls |
 | Web-Visualizer | Syntaxcheck von `server.js` und browserseitigem ES-Modul | erfolgreich | Syntax, kein Browser-E2E |
 | Web-Visualizer | Start und HTTP-GET `/` | **HTTP 200** | lokaler Start/Static-Serving; kein Gateway-E2E |
@@ -377,15 +377,15 @@ Legende: **ja** = nachgewiesen, **teilweise** = begrenzte Evidenz,
 
 | Komponente | Source | Build | automatisierte Tests | E2E integriert | reale Hardware | Security/Recovery | Release |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| Android-App | ja | blockiert | nein | nein | nein | nein | nein |
-| USB/LiDAR | teilweise | blockiert | nein | nein | nein | nein | nein |
-| mmWave | Platzhalter | blockiert | nein | nein | nein | nein | nein |
-| BLE Android | teilweise | blockiert | nein | Vertrag fehlerhaft | nein | nein | nein |
-| BLE-Firmware | teilweise | blockiert | nein | Vertrag fehlerhaft | nein | nein | nein |
-| UWB | teilweise/Modell | blockiert | nein | nicht gestartet | nein | nein | nein |
-| Kotlin-Fusion/Pipeline | teilweise | blockiert | nein | teilweise verdrahtet | nein | nein | nein |
-| Hintergrundalarm | Vertrag vorhanden | – | nein | nein | nein | Zielentwurf | nein |
-| Edge-Agent Bestand | ja | Python import-/testbar | 18 bestanden | teilweise | nein | unvollständig | nein |
+| Android-App | ja | blockiert | Tests vorhanden, nicht ausgeführt | nein | nein | teilweise gehärtet | nein |
+| USB/LiDAR | parser- und lifecycle-seitig vorhanden | blockiert | JVM-Tests vorhanden, nicht ausgeführt | nein | nein | Foreground-Gate im Quellcode | nein |
+| mmWave | Datenparser vorhanden; CLI-Profil bewusst deaktiviert | blockiert | JVM-Tests vorhanden, nicht ausgeführt | nein | nein | unvollständig | nein |
+| BLE Android | versionierter Bytevertrag vorhanden | blockiert | JVM-Tests vorhanden, nicht ausgeführt | source-level mit Firmware abgestimmt | nein | teilweise | nein |
+| BLE-Firmware | versionierter Bytevertrag vorhanden | blockiert | nein | source-level mit Android abgestimmt | nein | nein | nein |
+| UWB | Android-Lokalpfad entfernt; Gateway-Modell unkalibriert | blockiert | nein | nicht gestartet | nein | nein | nein |
+| Kotlin-Fusion/Pipeline | Altpfad teilweise, Produktionsaktivität bereinigt | blockiert | nein | nein | nein | nein | nein |
+| Hintergrundalarm | Reducer + SQLite-Repository vorhanden | Python import-/testbar | 30 bestanden | noch nicht an Mess-/API-Pfad angebunden | nein | Restart/CAS/Outbox unit-getestet | nein |
+| Edge-Agent Bestand | ja | Python import-/testbar | 48 bestanden | teilweise | nein | unvollständig | nein |
 | Web-Visualizer | ja | npm-Auflösung erfolgreich | Syntax + HTTP-Smoke | Gateway-E2E nein | – | unvollständig | nein |
 | JSON-Verträge | ja | 7 strikt validiert | Golden-Beispiele | Runtime noch nicht | – | Entwurf | nein |
 | APK/AAB | nein | nein | nein | nein | nein | keine Signatur | nein |
@@ -464,7 +464,11 @@ Die Phasen A–D aus
 [BACKGROUND_DISTANCE_ALARM.md](BACKGROUND_DISTANCE_ALARM.md) umsetzen:
 qualitätsbewusste Evidence, deterministischer Reducer, Dwell/Hysterese/Data Loss,
 transaktionale Events/Outbox, Recovery, revisionierte Commands, CT45P-Projektion und
-klar markierter optionaler Fallback.
+klar markierter optionaler Fallback. Der reine Reducer und das isolierte
+SQLite-Repository decken Evidence-Admissibilität, Unsicherheitsgrenzen, Dwell,
+Hysterese, Data Loss, CAS, Cursor, Restart-Rebase und Outbox-Leases inzwischen mit
+Unit-Tests ab. Event-Contract-Rendering, Messpfad-, API-, Dispatcher- und
+Asset-Projektionsintegration fehlen weiterhin.
 
 **Exit:** Crash-, Restart-, Duplikat-, Reihenfolge-, Netzwerk- und Clock-Tests
 bestehen ohne verlorene fachliche Events.
