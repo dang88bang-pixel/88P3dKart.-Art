@@ -1,0 +1,14 @@
+{
+  "name": "3dxagent-visualizer",
+  "version": "2.0.0",
+  "description": "3D Web Visualizer for 3dxAgent",
+  "main": "server.js",
+  "type": "commonjs",
+  "dependencies": {
+    "express": "^4.18.2",
+    "ws": "^8.14.2"
+  },
+  "scripts": {
+    "start": "node server.js"
+  }
+}

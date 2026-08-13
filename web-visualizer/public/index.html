@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3dxAgent — Web Visualizer</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="ui-overlay">
+        <h1>🧭 3dxAgent Live</h1>
+        <div id="status">🟡 Verbinde...</div>
+        <div id="scenario-status">⏸️ Bereit</div>
+    </div>
+    <div class="badge">🔒 Lokal</div>
+
+    <div id="controls">
+        <button id="btn-evacuation">🚨 Evakuierung</button>
+        <button id="btn-tactical">🎯 Taktik</button>
+        <button id="btn-stop" class="stop">⏹️ Stopp</button>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+    <script type="module" src="main.js"></script>
+</body>
+</html>

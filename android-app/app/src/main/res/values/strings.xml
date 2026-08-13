@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">3dxAgent</string>
+    <string name="app_version">v4.4.0</string>
+
+    <!-- Navigation -->
+    <string name="nav_live">Live 3D</string>
+    <string name="nav_map">Karte</string>
+    <string name="nav_scenario">Szenarien</string>
+    <string name="nav_analysis">Analyse</string>
+    <string name="nav_settings">Einstellungen</string>
+
+    <!-- Status -->
+    <string name="status_connected">Verbunden</string>
+    <string name="status_disconnected">Getrennt</string>
+    <string name="status_scanning">Scanne…</string>
+    <string name="status_healthy">🟢 Gesund</string>
+    <string name="status_degraded">🟡 Eingeschränkt</string>
+    <string name="status_critical">🔴 Kritisch</string>
+</resources>
