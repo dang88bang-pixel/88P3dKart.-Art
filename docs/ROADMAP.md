@@ -14,6 +14,11 @@
 | Triangulation 1.1 | Honeywell-SDK-Backend | 2. BLE-Hardware-Schnittstelle via Mobility SDK, AoA/AoD-Verifikation | ⏳ |
 | Triangulation 1.2 | Flottenrollout | EZConfig-/OEMConfig-Rezepte, Feldkalibrierung | ⏳ |
 | **Verbesserungen 1.0** | **OS-Adoption** | Robuste Trilateration (LTS-1), RSSI-Median-/Kalman-Filter, RTI-Glättungs-Regularisierung, RTT-Responder-Priorisierung (docs/VERBESSERUNGEN.md) | ✅ |
+| **Service Worker 1.0** | **Hintergrund-Analyse** | Machbarkeitsprüfung v10.2.0-Spec, WorkManager/Workbox-Korrektur, AdaptiveThresholdMonitor, BatteryHealthTracker, ExportPipeline, `/api/v1/export`, sw.js (docs/SERVICE_WORKER.md) | ✅ |
+| Service Worker 1.1 | WorkManager-Anbindung | CoroutineWorker-Jobs (Anomalie/Batterie/Export) mit Constraints | ⏳ |
+| Service Worker 1.2 | Export-UI + Cloud | Analyse-Tab-Anbindung, S3/R2-Upload | ⏳ |
+| Service Worker 1.3 | PWA offline | three.js vendoren, IndexedDB-Queue + Background Sync | ⏳ |
+| Service Worker 1.4 | OTA via MDM | Honeywell Mobility Edge (OEMConfig/SOTI) | ⏳ |
 | Aura 0.2 | SDR-USB-Treiber | RTL-SDR-v5 via USB Host (libusb-Portierung), `IqSource`-Anbindung | ⏳ |
 | Aura 0.3 | VPN-Einbindung | `com.wireguard.android:tunnel` im Flavour `aura-vpn` (VpnService) | ⏳ |
 | Aura 0.4 | Maps 3D Preview | Google Maps 3D SDK (Experimental): extrudierte Heatmap, RTI-Voxel, „Röntgenblick"-Kamera | ⏳ |

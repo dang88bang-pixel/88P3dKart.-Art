@@ -1,12 +1,13 @@
 openapi: 3.0.3
 info:
   title: 3dxAgent Edge-Agent API
-  version: 3.0.0
+  version: 3.1.0
   description: >
     REST-API des 3dxAgent Fusions-Kernels. Bietet EKF-Zustand, Historie,
-    Szenarien-Konfiguration, ICP-Map-Merging, die v2.0-Datenpipeline sowie
-    die Aura-Endpunkte (RTI/Heatmap) und die CT45P-Triangulation
-    (docs/AURA.md, docs/TRIANGULATION.md).
+    Szenarien-Konfiguration, ICP-Map-Merging, die v2.0-Datenpipeline, die
+    Aura-Endpunkte (RTI/Heatmap), die CT45P-Triangulation sowie den
+    Datenexport (GeoJSON/KML/JSON)
+    (docs/AURA.md, docs/TRIANGULATION.md, docs/SERVICE_WORKER.md).
 servers:
   - url: http://localhost:8080
 paths:
@@ -126,6 +127,20 @@ paths:
           description: Positionsschätzung (inkl. Residuum, Sigma, Konfidenz)
         '400':
           description: 'Weniger als 3 gültige Anker (3D: 4)'
+  /api/v1/export:
+    post:
+      summary: Datenexport — Annotationen/Punkte → GeoJSON/KML/JSON
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExportRequest'
+      responses:
+        '200':
+          description: Konvertierter Export-Inhalt
+        '400':
+          description: Unbekanntes Format oder keine Daten
 components:
   schemas:
     EkfState:
@@ -230,3 +245,24 @@ components:
           type: object
           additionalProperties: { type: number }
         use_z: { type: boolean, default: false }
+    ExportRequest:
+      type: object
+      properties:
+        format: { type: string, enum: [geojson, kml, json], default: geojson }
+        annotations:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              title: { type: string }
+              description: { type: string }
+              lon: { type: number }
+              lat: { type: number }
+              z: { type: number }
+        points:
+          type: array
+          items:
+            type: array
+            items: { type: number }
+        device_id: { type: string, default: CT45P-01 }

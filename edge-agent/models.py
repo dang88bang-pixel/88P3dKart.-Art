@@ -138,3 +138,12 @@ class TriangulationRequest(BaseModel):
 class TriangulationResponse(BaseModel):
     position: Optional[Dict[str, Any]] = None
     anchor_count: int = 0
+
+
+class ExportRequest(BaseModel):
+    """Export-Anfrage: Annotationen/Punkte → GeoJSON/KML/JSON."""
+
+    format: str = "geojson"  # "geojson" | "kml" | "json"
+    annotations: List[Dict[str, Any]] = Field(default_factory=list)
+    points: List[List[float]] = Field(default_factory=list)
+    device_id: str = "CT45P-01"

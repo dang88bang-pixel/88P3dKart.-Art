@@ -10,7 +10,7 @@
 > abgeglichen. Folgende **fehlende Teile** wurden ergänzt (Schritt 7–9).
 >
 > **Update Aura/Triangulation/UI (14.08.2026):** Dokumenten-Audit — SoC-Angaben
-> auf Qualcomm QCM4290 korrigiert, Testzahlen aktualisiert (38 Python / 56 JVM),
+> auf Qualcomm QCM4290 korrigiert, Testzahlen aktualisiert (44 Python / 77 JVM),
 > neue Schritte 10–12 ergänzt.
 
 ---
@@ -39,7 +39,7 @@
 | 1.10 | `agent.py` | ✅ |
 | 1.11 | `requirements.txt`, `Dockerfile`, `openapi.yaml` | ✅ |
 | 1.12 | **Test**: `pip install` aller Abhängigkeiten | ✅ |
-| 1.13 | **Test**: Unit-Tests grün (38/38 — inkl. RTI, Trilateration, robuste Filter) | ✅ |
+| 1.13 | **Test**: Unit-Tests grün (44/44 — inkl. RTI, Trilateration, Export) | ✅ |
 | 1.14 | **Test**: Server + REST-Endpunkte (health, state, pipeline, merge, history, aura, triangulation) | ✅ |
 | 1.15 | **Test**: WebSocket Binär-/JSON-Stream + Telemetrie + Persistenz | ✅ |
 
@@ -174,3 +174,16 @@
 | 13.5 | Machbarkeitsmatrix (LCI/LCR, TSVD, L-Curve, TV, Dead-Reckoning, Bermuda-Netz) | ✅ dokumentiert |
 | 13.6 | **Test**: Python 38/38 grün; JVM-Tests gespiegelt (56) | ✅ |
 | 13.7 | LCI/LCR-Auswertung, TSVD, Dead-Reckoning-Fusion | ⏳ Roadmap |
+
+## ⚙️ Schritt 14 — Service Worker Bedarf (docs/SERVICE_WORKER.md)
+
+| # | Aufgabe | Status |
+|---|---------|--------|
+| 14.1 | Machbarkeitsanalyse der v10.2.0-Spec (13 Worker, Fehlerkatalog, Mapping) | ✅ |
+| 14.2 | `maintenance/AdaptiveThresholdMonitor.kt` (richtungskorrekte Schwellwerte, Spikes, Trends, Lernmodus) | ✅ |
+| 14.3 | `maintenance/BatteryHealthTracker.kt` (Zyklusäquivalente, Alterung, Restlaufzeit) | ✅ |
+| 14.4 | `maintenance/ExportPipeline.kt` (JSON/GeoJSON/KML + Retention) + `edge-agent/export_formats.py` | ✅ |
+| 14.5 | REST `POST /api/v1/export` + OpenAPI 3.1.0 (10 Pfade) | ✅ |
+| 14.6 | Web-Visualizer `sw.js` (Workbox-Strategien, Offline-Shell) + Registrierung | ✅ |
+| 14.7 | **Test**: Python 44/44 grün; 20 neue JVM-Tests (77 gesamt) | ✅ |
+| 14.8 | WorkManager-Anbindung, Export-UI, PWA-Volloffline, OTA-MDM | ⏳ Roadmap |

@@ -50,6 +50,17 @@ Positionsbestimmung:
 - Kotlin-Paket `triangulation/` + Python-Port `edge-agent/trilateration.py`,
   REST `/api/v1/triangulation/solve`
 
+**Betrieb & Wartung** (docs/SERVICE_WORKER.md) ergänzt die Plattform um die
+Hintergrundverarbeitung nach WorkManager-/Workbox-Standards:
+- **AdaptiveThresholdMonitor** — Schwellwerte (richtungskorrekt), 3σ-Spikes,
+  Trends, Kontextregeln, selbstlernende Schwellwerte
+- **BatteryHealthTracker** — Zyklusäquivalente (kumulierte Entladung),
+  Alterungsmodell, Restlaufzeit, Empfehlungen
+- **ExportPipeline** — JSON/GeoJSON/KML + Retention (Kotlin); REST
+  `POST /api/v1/export` (Python-Port)
+- **Web-Visualizer `sw.js`** — Offline-App-Shell (Cache-First /
+  Network-First / Stale-While-Revalidate)
+
 ---
 
 ## 📁 Monorepo-Struktur
@@ -122,10 +133,10 @@ curl -X POST http://localhost:8080/api/v1/triangulation/solve \
 ```bash
 cd edge-agent
 source .venv/bin/activate
-python -m pytest tests/ -v    # 38 Tests: EKF, ICP, UWB, Pipeline, RTI, Trilateration, robuste Filter
+python -m pytest tests/ -v    # 44 Tests: EKF, ICP, UWB, Pipeline, RTI, Trilateration, Export
 ```
 
-Kotlin: 56 JVM-Unit-Tests in `android-app/app/src/test/` (X25519 gegen
+Kotlin: 77 JVM-Unit-Tests in `android-app/app/src/test/` (X25519 gegen
 RFC-7748-Vektoren, IQ-Datagramm, FFT/Korrelation, RTI, Path-Loss,
 Fusions-Gate) — Ausführung in Android Studio/CI (`./gradlew test`).
 
@@ -147,7 +158,8 @@ Weitere Details: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md),
 [`docs/AURA.md`](docs/AURA.md) (Projekt Aura — SDR/RTI/3D),
 [`docs/TRIANGULATION.md`](docs/TRIANGULATION.md) (WiFi-/BLE-Triangulation auf dem CT45P),
 [`docs/UI_UX_PLAN.md`](docs/UI_UX_PLAN.md) (UI/UX-Detailplan: Aktionen & Interaktionen der 3D-Oberfläche),
-[`docs/VERBESSERUNGEN.md`](docs/VERBESSERUNGEN.md) (Machbarkeitsanalyse & übernommene Optimierungen aus Open-Source-Projekten).
+[`docs/VERBESSERUNGEN.md`](docs/VERBESSERUNGEN.md) (Machbarkeitsanalyse & übernommene Optimierungen aus Open-Source-Projekten),
+[`docs/SERVICE_WORKER.md`](docs/SERVICE_WORKER.md) (Service-Worker-Bedarfsanalyse: WorkManager/Workbox-Architektur, Wartungsmodule, Offline-Shell).
 
 ---
 

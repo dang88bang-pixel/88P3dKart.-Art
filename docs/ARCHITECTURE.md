@@ -15,6 +15,8 @@ REST/WebSocket und MQTT kommunizieren.
 | | Edge-Agent | Python (`rti_solver.py`) | RTI-Rekonstruktion (Tikhonov/Backprojection), Heatmap-Aggregation |
 | **5. Triangulation** | Android-App (`triangulation/`-Paket) | Kotlin, `WifiRttManager` (802.11mc), dual-BLE | Trilateration (LM), Path-Loss, Fingerprinting (k-NN), Fusion + 6-DOF-EKF |
 | | Edge-Agent | Python (`trilateration.py`) | REST-Solver `/api/v1/triangulation/solve`, Positions-Broadcast |
+| **6. Betrieb & Wartung** | Android-App (`maintenance/`-Paket) | Kotlin (Coroutines, WorkManager Roadmap) | Adaptive Schwellwerte, Batterie-Health, Export-Formate |
+| | Edge-Agent / Web | Python (`export_formats.py`), `sw.js` | `/api/v1/export`, Offline-App-Shell (Workbox-Strategien) |
 
 ---
 
@@ -55,6 +57,11 @@ Sensor-/Netzwerkdaten → Analyse → Mesh → 3D-Umgebung → Exakte Abbildung 
   Log-Distance-Path-Loss mit Regressionskalibrierung, gewichtetes k-NN-
   Fingerprinting; Fusion über Frische-Prüfung + Mahalanobis-Gate +
   inverse Varianz, eingespeist in den 6-DOF-EKF.
+- **Betrieb & Wartung** — adaptive Schwellwerte (richtungskorrekt,
+  3σ-Spikes, Trends, Lernmodus), Batterie-Health (Zyklusäquivalente,
+  Alterungsmodell, Restlaufzeit), Export (GeoJSON/KML/Retention); Hintergrund-
+  ausführung nach WorkManager-/Workbox-Standard (docs/SERVICE_WORKER.md).
 
 Weitere Details in [`docs/EXECUTIVE_SUMMARY.md`](EXECUTIVE_SUMMARY.md),
-[`docs/AURA.md`](AURA.md) und [`docs/TRIANGULATION.md`](TRIANGULATION.md).
+[`docs/AURA.md`](AURA.md), [`docs/TRIANGULATION.md`](TRIANGULATION.md) und
+[`docs/SERVICE_WORKER.md`](SERVICE_WORKER.md).

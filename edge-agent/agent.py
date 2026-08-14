@@ -14,12 +14,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from config import CONFIG
 from database import LocalVectorStore
 from ekf_fusion import AdaptiveEKF
+from export_formats import (
+    annotations_to_geojson,
+    annotations_to_json,
+    annotations_to_kml,
+    points_to_geojson,
+)
 from icp_merger import ICPMerger
 from models import (
     AuraHeatmapRequest,
     AuraRtiRequest,
     BleTokenUpdate,
     EkfState,
+    ExportRequest,
     LidarFrame,
     MergeRequest,
     MmwaveTarget,
@@ -315,6 +322,59 @@ async def triangulation_solve(request: TriangulationRequest):
             detail="Mindestens 3 Anker mit gültigen Distanzen benötigt (3D: 4)",
         )
     return {"position": result, "anchor_count": result["anchor_count"]}
+
+
+# ─── Export (docs/SERVICE_WORKER.md §Export Worker) ───────────────
+
+
+@app.post("/api/v1/export")
+async def export_data(request: ExportRequest):
+    """Datenexport: Annotationen/Punkte → GeoJSON/KML/JSON (Retention in der App)."""
+    if request.format not in ("geojson", "kml", "json"):
+        raise HTTPException(status_code=400, detail="Unbekanntes Format (geojson|kml|json)")
+
+    if request.annotations:
+        if request.format == "geojson":
+            content = annotations_to_geojson(request.annotations)
+        elif request.format == "kml":
+            content = annotations_to_kml(request.annotations)
+        else:
+            content = annotations_to_json(request.annotations)
+    elif request.points:
+        if request.format == "geojson":
+            content = points_to_geojson(request.points, device_id=request.device_id)
+        elif request.format == "kml":
+            # Punkte als Pseudo-Annotationen für KML abbilden
+            anns = [
+                {
+                    "id": f"p{i}",
+                    "title": f"Punkt {i}",
+                    "description": "",
+                    "lon": p[0],
+                    "lat": p[1],
+                    "z": p[2] if len(p) > 2 else 0.0,
+                }
+                for i, p in enumerate(request.points)
+            ]
+            content = annotations_to_kml(anns)
+        else:
+            content = annotations_to_json(
+                [
+                    {
+                        "id": f"p{i}",
+                        "title": f"Punkt {i}",
+                        "description": "",
+                        "lon": p[0],
+                        "lat": p[1],
+                        "z": p[2] if len(p) > 2 else 0.0,
+                    }
+                    for i, p in enumerate(request.points)
+                ]
+            )
+    else:
+        raise HTTPException(status_code=400, detail="Keine annotations/points übergeben")
+
+    return {"format": request.format, "content": content}
 
 
 # ─── WebSocket-Endpunkt ──────────────────────────────────────

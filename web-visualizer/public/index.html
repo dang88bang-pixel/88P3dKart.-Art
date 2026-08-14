@@ -33,5 +33,14 @@
         }
     </script>
     <script type="module" src="main.js"></script>
+    <script>
+        // Offline-App-Shell: Service Worker registrieren (docs/SERVICE_WORKER.md)
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js')
+                    .catch((err) => console.warn('Service-Worker-Registrierung:', err));
+            });
+        }
+    </script>
 </body>
 </html>

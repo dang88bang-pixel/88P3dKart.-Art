@@ -190,6 +190,25 @@ EMA `RssiSmoother`, Median `RssiMedianFilter`, 1D-Kalman
 **Fingerprinting:** gewichtetes k-NN (k = 3) mit Gauß-Kern über die
 gemeinsamen BSSIDs (`WifiRssiFingerprinter.kt`).
 
+## 16. Betrieb & Wartung (docs/SERVICE_WORKER.md)
+
+**Adaptive Schwellwerte** (`maintenance/AdaptiveThresholdMonitor.kt`):
+richtungskorrekte Schwellwertprüfung (HIGHER/LOWER_IS_WORSE), Spike-
+Erkennung über z-Score (|z| > 3σ, ≥ 20 Samples), Trendanalyse über
+lineare Regression (Steigung pro Sample, richtungskorrekter Alarm),
+Kontextregeln (CPU+Temp, Latenz+Paketverlust), Lernmodus:
+Warning = mean ± 1,5σ, Critical = mean ± 3σ, begrenzt adaptierend
+(±10 % je Schritt, nie über die statischen Grenzen).
+
+**Batterie-Health** (`maintenance/BatteryHealthTracker.kt`):
+Zyklusäquivalente aus kumulierter Entladung (Σ Δlevel/100),
+Health = 100 − Zyklen·0,01 − Jahre·0,5, Restlaufzeit aus der
+Entladerate der letzten Samples (Fallback 12,5 %/h ≈ 8 h Laufzeit).
+
+**Export** (`maintenance/ExportPipeline.kt`, `edge-agent/export_formats.py`):
+GeoJSON (RFC 7946), KML (OGC 2.2, XML-Escaping), JSON; Retention
+(Altersschwelle).
+
 **Fusion** (`EstimateGate.kt`, `TriangulationService.kt`):
 Frische (RTT ≤ 5 s, BLE ≤ 3 s, FP ≤ 10 s) → Mahalanobis-Gate
 `‖Δ‖ ≤ k√(σ_A²+σ_B²)` (k = 3) → invers-varianz-gewichteter Mittelwert →
