@@ -5,7 +5,7 @@ REST/WebSocket und MQTT kommunizieren.
 
 | Schicht | Komponente | Technologie / Hardware | Funktion |
 | :--- | :--- | :--- | :--- |
-| **1. Edge-Sensorik** | Honeywell CT45P | Snapdragon 662, USB-OTG, Android 13 | LiDAR (RPLIDAR), mmWave (TI IWR6843), UWB (Qorvo), BLE (nRF52) & IMU |
+| **1. Edge-Sensorik** | Honeywell CT45P | Qualcomm QCM4290 (2,0 GHz), USB-OTG, Android 11/13 (Mobility Edge™, Updates bis 15) | LiDAR (RPLIDAR), mmWave (TI IWR6843), UWB (Qorvo), BLE (nRF52) & IMU |
 | | BLE-Token (2. Akku) | nRF52840 + BMI270 (IMU) | Bewegungsverfolgung, RSSI-Triangulation, adaptive Advertising-Rate |
 | **2. Fusions-Kernel** | Edge-Agent | Python 3.11, FastAPI, WebSockets, NumPy/SciPy | 6-DOF EKF, UWB-Atemfrequenz (FFT), ICP-Map-Merging, Datenpipeline, SQLite-WAL |
 | | MQTT-Bridge | Eclipse Mosquitto | Anbindung externer Smartphones (BLE-Relay) |

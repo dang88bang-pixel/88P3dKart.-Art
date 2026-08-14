@@ -23,9 +23,10 @@
 | Sicherheit | WPA3-Enterprise | Sichere Anbindung der Anker-Infrastruktur in Unternehmensnetzen |
 
 > **Hinweis zur Modellbezeichnung:** „XON" entspricht der
-> Produktnummer-Struktur `CT45P-X0N…` (CT45 XP). Der im Repo
-> (`docs/ARCHITECTURE.md`) als „Snapdragon 662" geführte SoC ist auf dem
-> Gerät zu verifizieren — Datenblätter nennen den **QCM4290**.
+> Produktnummer-Struktur `CT45P-X0N…` (CT45 XP). Der SoC ist laut
+> Datenblatt der **Qualcomm QCM4290 (2,0 GHz)** — die älteren
+> Docs-Angaben („Snapdragon 662") wurden im Zuge des Dokumenten-Audits
+> korrigiert (siehe `docs/ARCHITECTURE.md`, `docs/ALGORITHMS.md`).
 
 ## 2. Technische Präzisierungen (wichtig für die Umsetzung)
 

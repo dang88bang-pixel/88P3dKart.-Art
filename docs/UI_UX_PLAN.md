@@ -604,13 +604,13 @@ Vertikaler Verlauf + Min/Max-Beschriftung + interaktive Handles (A-21). Zusätzl
 ## 14. Akzeptanzkriterien (Definition of Done)
 
 1. **Alle 41 Aktionen (§5)** sind über Button *oder* Geste erreichbar; jede hat sichtbares Feedback (visuell/haptisch) ≤ 100 ms.
-2. **Layer-Kombinatorik:** jede der 7 Layer-Kombinationen rendert ohne Fehler; RF-Layer erreichen 6 000 Instanzen bei ≥ 30 FPS auf Referenzhardware (CT45P, Snapdragon 662).
+2. **Layer-Kombinatorik:** jede der 7 Layer-Kombinationen rendert ohne Fehler; RF-Layer erreichen 6 000 Instanzen bei ≥ 30 FPS auf Referenzhardware (CT45P, Qualcomm QCM4290).
 3. **Gesten-Matrix:** Pinch, 2-Finger-Drag, Rotation, 3-Finger-Tab, Tap, Doppeltipp, Long-Press funktionieren im Feldversuch mit Handschuhen (5/5 Testpersonen).
 4. **Röntgenblick:** Heading/Tilt/Roll folgen der Gerätepose (Fehler < 5° im Vergleichstest); Exit-Geste funktioniert in < 1,5 s.
 5. **Alert-Kette:** CRITICAL-Alert → Banner + Vibration in < 1 s; Quittierung reduziert Badge; Whitelist unterdrückt Folge-Alerts (Unit-Test in `GatekeeperTest` vorhanden).
 6. **Export:** glTF < 5 MB mit Draco (AURA.md §2), IFC/JSON valide (Schema-Check).
 7. **Barrierefreiheit:** Kontrast-Audit bestanden, TalkBack-Fokus-Reihenfolge logisch, Farbenblind-Modus aktivierbar.
-8. **Kein Regression:** bestehende 25 Edge-Agent-Tests + 18 JVM-Tests grün, `node --check` sauber, kein UI-Code im Render-Thread.
+8. **Kein Regression:** bestehende 33 Edge-Agent-Tests + 51 JVM-Tests grün, `node --check` sauber, kein UI-Code im Render-Thread.
 9. **Offline:** Web-Visualizer lädt und interagiert ohne Agent (Layer-Manager, Kamera, Messen), Android-App voll funktional im Offline-Modus (`offline/`-Paket).
 10. **Doku:** dieses Dokument ist bei Abweichungen aktualisiert; UX.md verlinkt auf die neuen Tabs.
 

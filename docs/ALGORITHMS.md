@@ -1,7 +1,7 @@
-# 🧠 Algorithmen & Implementierungstiefe (v4.1/4.3)
+# 🧠 Algorithmen & Implementierungstiefe (v4.1/4.3 + Aura/Triangulation)
 
 Vollständige mathematische Grundlagen der Kernalgorithmen. Alle sind **offline-fähig**
-und **ressourcenschonend** in Kotlin implementiert (CT45P, Snapdragon 662).
+und **ressourcenschonend** in Kotlin implementiert (CT45P, Qualcomm QCM4290).
 
 ## 1. Adaptiver 6-DOF EKF
 
@@ -92,5 +92,94 @@ Implementierung: `offline/MotionDetector.kt`.
 - Gebündelte Integration (100 ms Debounce)
 - LOD im Renderer
 
-Richtwerte (CT45P, Snapdragon 662): EKF < 5 ms, Octree-Suche < 1 ms,
+Richtwerte (CT45P, Qualcomm QCM4290): EKF < 5 ms, Octree-Suche < 1 ms,
 Punktwolke ~28 fps, Akku ~4 h Dauer-Scan.
+
+## 11. Aura — IQ-Datagramm & Paketverlust-Erkennung
+
+Header 12 Byte Big-Endian: Sequenznummer (UInt32) + Zeitstempel (UInt64 µs).
+MTU 1420 − Header = **1408 Byte Payload = 704 IQ-Paare** (8-Bit I/Q).
+Durchsatz: 2,4 MS/s × 8 Bit × 2 = 38,4 Mbit/s.
+
+Lückenstatistik über UInt32-Differenzen (`(seq − last).toUInt()`, mod 2³² —
+wickelt Sequenznummer-Überläufe korrekt ab), Reordering-Erkennung bei
+Differenz > 2³¹. Implementierung: `aura/IqDatagram.kt`.
+
+## 12. Aura — WireGuard/X25519 (RFC 7748)
+
+Curve25519-Skalarmultiplikation über die Montgomery-Leiter
+(`x₂/z₂`-Projektion, 255 Iterationen, konstante Laufzeit):
+
+```
+x1 = u; x2,z2 = 1,0; x3,z3 = u,1; swap = 0
+für t = 254 … 0:
+    k_t = Bit t des (geclampten) Skalars; swap ^= k_t; cswap(x2,x3); cswap(z2,z3)
+    A = x2+z2; AA = A²; B = x2−z2; BB = B²; E = AA−BB
+    C = x3+z3; D = x3−z3; DA = D·A; CB = C·B
+    x3 = (DA+CB)²; z3 = x1·(DA−CB)²; x2 = AA·BB; z2 = E·(AA+A24·E)
+Ergebnis: x2·z2⁻¹ mod (2²⁵⁵−19)
+```
+
+Clamping: `k[0] &= 248, k[31] &= 127, k[31] |= 64`. **Verifiziert gegen die
+offiziellen RFC-7748-Testvektoren (§5.2, §6.1).**
+Implementierung: `aura/WireGuardKeys.kt` (BigInteger, JVM-testbar) +
+Konfigurations-Blueprint `aura/WireGuardConfig.kt`.
+
+## 13. Aura — FFT & Cross-Korrelation
+
+Radix-2-FFT (Cooley-Tukey, iterativ, Bit-Reversal) — `aura/Fft.kt`.
+
+Kreuzkorrelation im Frequenzbereich (lineare Korrelation über Zero-Padding
+auf N ≥ len(rx)+len(ref)−1):
+
+```
+R(τ) = F⁻¹{ F{S_rx} · F{S_ref}* }
+```
+
+- Laufzeit des direkten Pfads = Peak-Lage: `τ = (idx − (len(ref)−1)) / fs`
+- Multipath: lokale Maxima mit Prominenz ≥ 12 dB, Mindestabstand 8 Samples
+- Distanz: `d = τ · c`
+
+Implementierung: `aura/CrossCorrelator.kt`, Referenzsignale (Chirp, 15-Bit-
+LFSR-PN) in `aura/ReferenceSignals.kt`.
+
+## 14. Aura — Radio-Tomographie (RTI)
+
+Dämpfung je Link: `y_i = ∫ φ(x,y,z) ds + n`. Diskretisierung über Voxelgitter
++ **normalisiertes Ellipsen-Gewichtungsmodell**:
+
+```
+w_i(v) = 1/√(d_tx(v) + d_rx(v))   falls d_tx + d_rx < d_link + λ_w, sonst 0
+(zeilennormiert: Σ_v w_i(v) = 1)
+```
+
+Lösung des linearen Systems `y = A·φ`:
+
+- **Tikhonov:** `min ‖Aφ − y‖² + λ‖φ‖²` über matrixfreies
+  Conjugate-Gradient (AᵀA-Anwendung ohne explizite Matrix) —
+  `aura/RtiSolver.kt` (Kotlin) und `edge-agent/rti_solver.py` (scipy.sparse).
+- **Backprojection** (Echtzeit-Vorschau): `φ_v = Σ_i w_i,v·y_i / Σ_i w_i,v`.
+- **Peak-Lokalisierung:** Schwellwert 30 % des Maximums + Chebyshev-
+  Mindestabstand (Objekt-/Personenkandidaten).
+
+Verifiziert mit synthetischem Szenario (12 Links, Ellipse 0,5 m): Tikhonov
+lokalisiert den Dämpfungs-Blob auf ≤ 1 Voxel genau.
+
+## 15. CT45P-Triangulation (docs/TRIANGULATION.md)
+
+**Trilateration** (`triangulation/TrilaterationEngine.kt`, `trilateration.py`):
+lineare Startlösung (Referenz-Anker-Subtraktion) + **Levenberg-Marquardt**
+mit analytischer Jacobi-Matrix und Gewichtung `w_i = 1/σ_i²`; Qualität über
+Residuum-RMS und Positions-Sigma `√tr((JᵀWJ)⁻¹)`.
+
+**Path-Loss:** `d = 10^((RSSI₀ − RSSI)/(10n))`; Kalibrierung per linearer
+Regression über `x = 10·log10(d)` (Steigung = −n, Achsenabschnitt = RSSI₀)
++ R²; RSSI-Vorglättung über EMA je MAC (`PathLossModel.kt`, `RssiSmoother`).
+
+**Fingerprinting:** gewichtetes k-NN (k = 3) mit Gauß-Kern über die
+gemeinsamen BSSIDs (`WifiRssiFingerprinter.kt`).
+
+**Fusion** (`EstimateGate.kt`, `TriangulationService.kt`):
+Frische (RTT ≤ 5 s, BLE ≤ 3 s, FP ≤ 10 s) → Mahalanobis-Gate
+`‖Δ‖ ≤ k√(σ_A²+σ_B²)` (k = 3) → invers-varianz-gewichteter Mittelwert →
+EKF-Messupdate `EkfFusion.updateAbsolutePosition(z, R = σ²)`.

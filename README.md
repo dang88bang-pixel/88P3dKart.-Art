@@ -101,6 +101,20 @@ curl -X POST http://localhost:8080/api/v1/pipeline/run \
   -d '{"device_id":"CT45P-01","points":[...]}'
 ```
 
+```bash
+# Aura-Demo: synthetische RTI-/RF-Daten an den Agent senden
+# (→ Voxel + Heatmap erscheinen im Web-Visualizer)
+cd edge-agent && source .venv/bin/activate
+python aura_demo.py --loop 12
+
+# Triangulation (REST-Fallback zur App)
+curl -X POST http://localhost:8080/api/v1/triangulation/solve \
+  -H "Content-Type: application/json" \
+  -d '{"anchors":[{"id":"AP-1","x":0,"y":0,"z":0},{"id":"AP-2","x":10,"y":0,"z":0},
+       {"id":"AP-3","x":10,"y":10,"z":0},{"id":"AP-4","x":0,"y":10,"z":0}],
+       "distances":{"AP-1":7.07,"AP-2":7.07,"AP-3":7.07,"AP-4":7.07}}'
+```
+
 ---
 
 ## ✅ Tests
@@ -108,8 +122,12 @@ curl -X POST http://localhost:8080/api/v1/pipeline/run \
 ```bash
 cd edge-agent
 source .venv/bin/activate
-python -m pytest tests/ -v
+python -m pytest tests/ -v    # 33 Tests: EKF, ICP, UWB, Pipeline, RTI, Trilateration
 ```
+
+Kotlin: 51 JVM-Unit-Tests in `android-app/app/src/test/` (X25519 gegen
+RFC-7748-Vektoren, IQ-Datagramm, FFT/Korrelation, RTI, Path-Loss,
+Fusions-Gate) — Ausführung in Android Studio/CI (`./gradlew test`).
 
 ---
 

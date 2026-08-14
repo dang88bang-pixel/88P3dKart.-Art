@@ -1,13 +1,17 @@
 # ✅ 3dxAgent — Step-by-Step Build & Verification Checklist
 
-**Version:** 2.0.0-DataPipeline · **Datum:** 13. August 2026
-**Repository:** `dang88bang-pixel/88P3dKart.-Art` · **Branch:** `arena/019ff93c-88p3dkart-art`
+**Version:** 2.0.0-DataPipeline + Aura 0.1 + Triangulation 1.0 · **Datum:** 14. August 2026
+**Repository:** `dang88bang-pixel/88P3dKart.-Art` · **Branch:** `arena/01a0018e-88p3dkart-art`
 
 **Legende:** ✅ = erledigt & verifiziert · 🧩 = geliefert (benötigt externe Hardware/SDK) ·
 ⚠️ = offen
 
 > **Update v4.4.0:** Die Dokumente `88p3Kart.txt` (Versionen 2.0 → 4.4.0) wurden
 > abgeglichen. Folgende **fehlende Teile** wurden ergänzt (Schritt 7–9).
+>
+> **Update Aura/Triangulation/UI (14.08.2026):** Dokumenten-Audit — SoC-Angaben
+> auf Qualcomm QCM4290 korrigiert, Testzahlen aktualisiert (33 Python / 51 JVM),
+> neue Schritte 10–12 ergänzt.
 
 ---
 
@@ -35,8 +39,8 @@
 | 1.10 | `agent.py` | ✅ |
 | 1.11 | `requirements.txt`, `Dockerfile`, `openapi.yaml` | ✅ |
 | 1.12 | **Test**: `pip install` aller Abhängigkeiten | ✅ |
-| 1.13 | **Test**: Unit-Tests grün (18/18) | ✅ |
-| 1.14 | **Test**: Server + REST-Endpunkte (health, state, pipeline, merge, history) | ✅ |
+| 1.13 | **Test**: Unit-Tests grün (33/33 — inkl. RTI + Trilateration) | ✅ |
+| 1.14 | **Test**: Server + REST-Endpunkte (health, state, pipeline, merge, history, aura, triangulation) | ✅ |
 | 1.15 | **Test**: WebSocket Binär-/JSON-Stream + Telemetrie + Persistenz | ✅ |
 
 ## 🌐 Schritt 2 — Web-Visualizer (Node/Three.js, lauffähig)
@@ -84,8 +88,8 @@
 | # | Aufgabe | Status |
 |---|---------|--------|
 | 6.1 | Alle Dateien committen | ✅ |
-| 6.2 | Push auf `arena/019ff93c-88p3dkart-art` | ✅ |
-| 6.3 | Pull Request öffnen | ✅ |
+| 6.2 | Push auf `arena/019ff93c-88p3dkart-art` (historisch; aktuelle Session: `arena/01a0018e-88p3dkart-art`) | ✅ |
+| 6.3 | Pull Request öffnen (aktuell: PR #4) | ✅ |
 
 ## 🧩 Schritt 7 — Offline-Paket (v3.x, neu ergänzt)
 
@@ -119,3 +123,42 @@
 | 9.3 | `proguard-rules.pro`, `gradle.properties`, `build.gradle.kts` (+Java-WebSocket) | ✅ |
 | 9.4 | `docs/ALGORITHMS.md`, `CLIENT_RULES.md`, `OFFLINE.md`, `UX.md` | ✅ |
 | 9.5 | **Build**: Android-App mit Android-SDK | 🧩 (nicht in Sandbox kompilierbar) |
+
+## 📡 Schritt 10 — Projekt Aura (SDR/RTI, docs/AURA.md)
+
+| # | Aufgabe | Status |
+|---|---------|--------|
+| 10.1 | `aura/IqDatagram.kt` (12-Byte-Header, MTU 1420, GapTracker) | ✅ |
+| 10.2 | `aura/IqTunnelReceiver.kt` (UDP, DROP_OLDEST) | ✅ |
+| 10.3 | `aura/WireGuardKeys.kt` (X25519, RFC-7748-Vektoren) + `WireGuardConfig.kt` | ✅ |
+| 10.4 | `aura/Fft.kt`, `CrossCorrelator.kt`, `ReferenceSignals.kt` | ✅ |
+| 10.5 | `aura/RtiSolver.kt` (Tikhonov/Backprojection, Peaks) + `edge-agent/rti_solver.py` | ✅ |
+| 10.6 | `aura/RfBandClassifier.kt`, `Gatekeeper.kt` | ✅ |
+| 10.7 | `aura/TagVelocityTracker.kt`, `GeoPoseMapper.kt`, `RfHeatmapBuilder.kt`, `AuraIntegrator.kt` | ✅ |
+| 10.8 | Integration: `LiveSensorPipeline`, `MainActivity`, `AgentWebSocketClient`, REST `/api/v1/aura/*` | ✅ |
+| 10.9 | Web-Visualizer: RF-Voxel-/Heatmap-Layer + `edge-agent/aura_demo.py` | ✅ |
+| 10.10 | **Test**: JVM-Unit-Tests Aura (36) + Python-Tests RTI (7) grün | ✅ |
+| 10.11 | WireGuard-Bibliothek (`com.wireguard.android:tunnel`), SDR-USB-Treiber, Maps-3D-Preview | ⏳ Roadmap |
+
+## 📶 Schritt 11 — Triangulation (Wi-Fi RTT / BLE, docs/TRIANGULATION.md)
+
+| # | Aufgabe | Status |
+|---|---------|--------|
+| 11.1 | `triangulation/TrilaterationEngine.kt` (LSQ + Levenberg-Marquardt) + `trilateration.py` | ✅ |
+| 11.2 | `triangulation/PathLossModel.kt` (Kalibrierung) + `RssiSmoother` | ✅ |
+| 11.3 | `triangulation/WifiRttTriangulator.kt` (802.11mc, Feature-Checks) | ✅ |
+| 11.4 | `triangulation/BleRadioBackend.kt` + `BleBeaconTriangulator.kt` | ✅ |
+| 11.5 | `triangulation/WifiRssiFingerprinter.kt` (k-NN) | ✅ |
+| 11.6 | `triangulation/TriangulationService.kt` (Fusion) + `PositionEstimate.kt`/`EstimateGate.kt` | ✅ |
+| 11.7 | EKF-Anbindung (`EkfFusion.updateAbsolutePosition`), Manifest, `MainActivity` | ✅ |
+| 11.8 | REST `/api/v1/triangulation/solve` + WS-Broadcast + Visualizer-Layer | ✅ |
+| 11.9 | **Test**: JVM-Unit-Tests (15) + Python-Tests (8) grün, End-to-End-Broadcast | ✅ |
+| 11.10 | Honeywell-SDK-Backend (2. BLE-Hardware), AoA/AoD, EZConfig/OEMConfig-Rollout | ⏳ Roadmap |
+
+## 🎛️ Schritt 12 — UI/UX-Detailplan (docs/UI_UX_PLAN.md)
+
+| # | Aufgabe | Status |
+|---|---------|--------|
+| 12.1 | Detailplan: 5 Tabs, Wireframes, HUD, Panels, 41 Aktionen, Kamera-Modi, Gesten, Datenbindung, Zustandsmaschine | ✅ |
+| 12.2 | Umsetzungsphasen 0–5 mit Datei-Mapping und Definition of Done | ✅ |
+| 12.3 | Umsetzung Phase 0 (Web) + Phase 1–5 (Android) | ⏳ Roadmap |

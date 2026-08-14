@@ -1,10 +1,12 @@
 openapi: 3.0.3
 info:
   title: 3dxAgent Edge-Agent API
-  version: 2.0.0
+  version: 3.0.0
   description: >
     REST-API des 3dxAgent Fusions-Kernels. Bietet EKF-Zustand, Historie,
-    Szenarien-Konfiguration, ICP-Map-Merging sowie die v2.0-Datenpipeline.
+    Szenarien-Konfiguration, ICP-Map-Merging, die v2.0-Datenpipeline sowie
+    die Aura-Endpunkte (RTI/Heatmap) und die CT45P-Triangulation
+    (docs/AURA.md, docs/TRIANGULATION.md).
 servers:
   - url: http://localhost:8080
 paths:
@@ -82,6 +84,48 @@ paths:
       responses:
         '200':
           description: Pipeline-Ergebnis
+  /api/v1/aura/rti:
+    post:
+      summary: Aura RTI-Rekonstruktion (Messlinien → Voxel-Dämpfungsfeld)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuraRtiRequest'
+      responses:
+        '200':
+          description: Voxel-Feld, Peaks, Rekonstruktions-Metadaten
+        '400':
+          description: Weniger als 2 Messlinien
+  /api/v1/aura/heatmap:
+    post:
+      summary: Aura RF-Samples → extrudierte Heatmap-Zellen
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuraHeatmapRequest'
+      responses:
+        '200':
+          description: Extrudierte Zellen (Höhe ∝ Signalstärke)
+        '400':
+          description: Keine Samples übergeben
+  /api/v1/triangulation/solve:
+    post:
+      summary: Trilateration — Anker + Distanzen → Position
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TriangulationRequest'
+      responses:
+        '200':
+          description: Positionsschätzung (inkl. Residuum, Sigma, Konfidenz)
+        '400':
+          description: 'Weniger als 3 gültige Anker (3D: 4)'
 components:
   schemas:
     EkfState:
@@ -125,3 +169,64 @@ components:
         metadata:
           type: object
           additionalProperties: true
+    AuraRtiRequest:
+      type: object
+      properties:
+        device_id: { type: string, default: CT45P-01 }
+        bounds_min:
+          type: array
+          items: { type: number }
+        bounds_max:
+          type: array
+          items: { type: number }
+        voxel_size: { type: number, default: 0.5 }
+        ellipse_width: { type: number, default: 0.05 }
+        regularization: { type: number, default: 0.1 }
+        method: { type: string, enum: [tikhonov, backprojection], default: tikhonov }
+        links:
+          type: array
+          items:
+            type: object
+            required: [tx, rx, attenuation_db]
+            properties:
+              tx:
+                type: array
+                items: { type: number }
+              rx:
+                type: array
+                items: { type: number }
+              attenuation_db: { type: number }
+    AuraHeatmapRequest:
+      type: object
+      properties:
+        device_id: { type: string, default: CT45P-01 }
+        samples:
+          type: array
+          items:
+            type: object
+            properties:
+              x: { type: number }
+              y: { type: number }
+              z: { type: number }
+              dbm: { type: number }
+              frequency_hz: { type: number }
+        cell_size_m: { type: number, default: 1.0 }
+    TriangulationRequest:
+      type: object
+      properties:
+        anchors:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              x: { type: number }
+              y: { type: number }
+              z: { type: number }
+        distances:
+          type: object
+          additionalProperties: { type: number }
+        uncertainties:
+          type: object
+          additionalProperties: { type: number }
+        use_z: { type: boolean, default: false }
