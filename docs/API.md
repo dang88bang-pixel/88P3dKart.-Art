@@ -13,6 +13,8 @@ Die vollständige OpenAPI-3.0-Spezifikation liegt unter
 | GET | `/api/v1/agent/history` | 3D-Transformations-Historie |
 | POST | `/api/v1/agent/merge` | ICP-Map-Merging mehrerer CT45P |
 | POST | `/api/v1/pipeline/run` | v2.0-Datenpipeline ausführen |
+| POST | `/api/v1/aura/rti` | Aura: RTI-Rekonstruktion (Messlinien → Voxel-Feld) |
+| POST | `/api/v1/aura/heatmap` | Aura: RF-Samples → extrudierte Heatmap-Zellen |
 
 ### Beispiel: Zustand
 
@@ -46,6 +48,31 @@ curl -X POST http://localhost:8080/api/v1/pipeline/run \
   -d '{"device_id":"CT45P-01","points":[0,0,0,1,0,0,1,1,0,0,1,0,0.5,0.5,2.5]}'
 ```
 
+### Beispiel: Aura RTI (docs/AURA.md)
+
+```bash
+curl -X POST http://localhost:8080/api/v1/aura/rti \
+  -H "Content-Type: application/json" \
+  -d '{
+    "device_id": "CT45P-01",
+    "bounds_min": [-5, -5, 0], "bounds_max": [5, 5, 1],
+    "voxel_size": 0.5, "regularization": 0.05,
+    "links": [
+      {"tx": [-5, 0, 0.5], "rx": [5, 0, 0.5], "attenuation_db": 2.1},
+      {"tx": [0, -5, 0.5], "rx": [0, 5, 0.5], "attenuation_db": 1.8}
+    ]
+  }'
+```
+
+### Beispiel: Aura Heatmap
+
+```bash
+curl -X POST http://localhost:8080/api/v1/aura/heatmap \
+  -H "Content-Type: application/json" \
+  -d '{"device_id":"CT45P-01","cell_size_m":1.0,
+       "samples":[{"x":0.3,"y":0.3,"z":0,"dbm":-45,"frequency_hz":433920000}]}'
+```
+
 ## WebSocket (`/ws/agent/events`)
 
 Nachrichtentypen (JSON `{type, payload}`):
@@ -58,6 +85,8 @@ Nachrichtentypen (JSON `{type, payload}`):
 | `ble` | → | BLE-Token-Updates |
 | `uwb_phase` | → | UWB-Phase für Micro-Doppler |
 | `telemetry` | → | Batterie/Temperatur/Scattering |
+| `aura_voxels` | → / ← | RTI-Voxel-Feld (App → Agent → Visualizer) |
+| `aura_heatmap` | → / ← | Extrudierte RF-Heatmap-Zellen |
 
 Binary-Ausgabe: Punktwolke `[N (uint32 LE), N*3 float32]`.
 

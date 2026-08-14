@@ -16,6 +16,8 @@ from database import LocalVectorStore
 from ekf_fusion import AdaptiveEKF
 from icp_merger import ICPMerger
 from models import (
+    AuraHeatmapRequest,
+    AuraRtiRequest,
     BleTokenUpdate,
     EkfState,
     LidarFrame,
@@ -27,6 +29,7 @@ from models import (
 )
 from pipeline import DataPipeline
 from pointcloud_compressor import PointCloudCompressor
+from rti_solver import Link, RfSample, RtiSolver, build_heatmap
 from uwb_processor import UwbDopplerProcessor
 
 logging.basicConfig(
@@ -188,6 +191,105 @@ async def run_pipeline(request: PipelineRequest):
     return result
 
 
+# ─── Aura (SDR/RTI) — docs/AURA.md §8 ─────────────────────────
+
+
+@app.post("/api/v1/aura/rti")
+async def aura_rti(request: AuraRtiRequest):
+    """RTI-Rekonstruktion: Messlinien → Voxel-Dämpfungsfeld (Tikhonov/Backprojection)."""
+    if len(request.links) < 2:
+        raise HTTPException(status_code=400, detail="Mindestens 2 Messlinien benötigt")
+
+    solver = RtiSolver(
+        bounds_min=tuple(request.bounds_min),
+        bounds_max=tuple(request.bounds_max),
+        voxel_size=request.voxel_size,
+        ellipse_width=request.ellipse_width,
+        regularization=request.regularization,
+    )
+    for link in request.links:
+        solver.add_link(Link(tx=tuple(link.tx), rx=tuple(link.rx), attenuation_db=link.attenuation_db))
+
+    if request.method == "backprojection":
+        field = solver.solve_backprojection()
+    else:
+        field = solver.solve()
+
+    # Nur signifikante Voxel übertragen (Reduktion der WebSocket-Last)
+    threshold = max((v.attenuation for v in field), default=0.0) * 0.1
+    voxels = [
+        {
+            "x": v.x,
+            "y": v.y,
+            "z": v.z,
+            "attenuation": v.attenuation,
+            "weight": v.weight,
+        }
+        for v in field
+        if v.attenuation >= threshold
+    ]
+    peaks = solver.locate_peaks(field, top_k=8)
+
+    response = {
+        "type": "aura_voxels",
+        "payload": {
+            "device_id": request.device_id,
+            "voxel_count": solver.voxel_count,
+            "link_count": solver.link_count,
+            "voxels": voxels,
+        },
+    }
+    await manager.broadcast_json(response)
+
+    return {
+        "device_id": request.device_id,
+        "method": request.method,
+        "voxel_count": solver.voxel_count,
+        "link_count": solver.link_count,
+        "voxels": voxels[:5000],
+        "peaks": [{"x": p.x, "y": p.y, "z": p.z, "attenuation": p.attenuation} for p in peaks],
+    }
+
+
+@app.post("/api/v1/aura/heatmap")
+async def aura_heatmap(request: AuraHeatmapRequest):
+    """RF-Samples → extrudierte Heatmap-Zellen (Höhe ∝ Signalstärke)."""
+    if not request.samples:
+        raise HTTPException(status_code=400, detail="Keine Samples übergeben")
+
+    samples = [
+        RfSample(
+            timestamp_ms=int(s.get("timestamp_ms", 0)),
+            x=float(s["x"]),
+            y=float(s["y"]),
+            z=float(s.get("z", 0.0)),
+            dbm=float(s["dbm"]),
+            frequency_hz=float(s.get("frequency_hz", 433.92e6)),
+        )
+        for s in request.samples
+    ]
+    cells = build_heatmap(samples, cell_size_m=request.cell_size_m)
+    cells_payload = [
+        {
+            "x": c.center_x,
+            "y": c.center_y,
+            "z": c.base_z,
+            "height": c.height_m,
+            "dbm": c.dbm,
+            "size": c.cell_size_m,
+        }
+        for c in cells
+    ]
+
+    await manager.broadcast_json(
+        {
+            "type": "aura_heatmap",
+            "payload": {"device_id": request.device_id, "cells": cells_payload},
+        }
+    )
+    return {"device_id": request.device_id, "cells": cells_payload}
+
+
 @app.get("/api/v1/health")
 async def health():
     return {"status": "ok", "mode": current_mode, "mqtt": getattr(app.state, "mqtt_bridge", None).available if hasattr(app.state, "mqtt_bridge") else False}
@@ -247,6 +349,13 @@ async def websocket_endpoint(websocket: WebSocket):
                     current_mode = "DEGRADED"
                 else:
                     current_mode = "FULL"
+
+            elif msg_type == "aura_voxels":
+                # RTI-Voxel der CT45P-App → an alle Visualizer-Clients weiterreichen
+                await manager.broadcast_json(data)
+
+            elif msg_type == "aura_heatmap":
+                await manager.broadcast_json(data)
 
             # Persistenz nach Positions-Updates
             if msg_type in ("lidar", "mmwave"):

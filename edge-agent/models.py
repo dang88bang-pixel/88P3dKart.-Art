@@ -79,3 +79,45 @@ class PipelineResult(BaseModel):
 class MergeRequest(BaseModel):
     device_ids: List[str]
     reference: Optional[str] = None
+
+
+# ─── Aura (SDR/RTI) — docs/AURA.md ────────────────────────────
+
+
+class AuraLink(BaseModel):
+    """Eine RTI-Messlinie: Sender, Empfänger, gemessene Dämpfung."""
+
+    tx: List[float]  # [x, y, z]
+    rx: List[float]  # [x, y, z]
+    attenuation_db: float
+
+
+class AuraRtiRequest(BaseModel):
+    device_id: str = "CT45P-01"
+    bounds_min: List[float] = [-15.0, -15.0, 0.0]
+    bounds_max: List[float] = [15.0, 15.0, 3.0]
+    voxel_size: float = 0.5
+    ellipse_width: float = 0.05
+    regularization: float = 0.1
+    method: str = "tikhonov"  # "tikhonov" | "backprojection"
+    links: List[AuraLink] = Field(default_factory=list)
+
+
+class AuraRtiResponse(BaseModel):
+    device_id: str
+    method: str
+    voxel_count: int
+    link_count: int
+    voxels: List[Dict[str, Any]] = Field(default_factory=list)
+    peaks: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class AuraHeatmapRequest(BaseModel):
+    device_id: str = "CT45P-01"
+    samples: List[Dict[str, Any]] = Field(default_factory=list)
+    cell_size_m: float = 1.0
+
+
+class AuraHeatmapResponse(BaseModel):
+    device_id: str
+    cells: List[Dict[str, Any]] = Field(default_factory=list)

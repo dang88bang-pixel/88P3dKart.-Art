@@ -24,6 +24,19 @@ Die Erweiterungen **v3.x–v4.4.0** ergänzen zudem:
 - **Client-Regelwerk** — Anbindung beliebiger externer Geräte (Token, Relay,
   Sensor, Gateway, Wearable) mit Authentifizierung, Signalauswertung und Health-Check
 
+**Projekt Aura** (docs/AURA.md) erweitert die Plattform um die Erfassung und
+3D-Visualisierung der elektromagnetischen Umgebung:
+- **SDR-Tunnel** — WireGuard-Blueprint (MTU 1420) + UDP-IQ-Datagramme
+  (12-Byte-Header, 704 IQ-Paare/Paket, DROP_OLDEST-Pufferung)
+- **Radio-Tomographie (RTI)** — Voxel-Rekonstruktion per Tikhonov/Backprojection
+  (Kotlin `aura/`-Paket + Python-Port `edge-agent/rti_solver.py`),
+  Cross-Korrelation (FFT) für Laufzeit/Multipath
+- **Gatekeeper** — RF-Bandklassifikation 433/868 MHz, Anomalie-Alerts,
+  Port-Scan-/DNS-Heuristik
+- **Smart Tags** — Live-Geschwindigkeit aus BLE/UWB-Positionsänderungen
+- **Integration** — Aura-Kanäle in `LiveSensorPipeline`, REST-Endpunkte
+  `/api/v1/aura/*`, RF-Voxel-/Heatmap-Layer im Web-Visualizer
+
 ---
 
 ## 📁 Monorepo-Struktur
@@ -99,7 +112,8 @@ Weitere Details: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md),
 [`docs/EXECUTIVE_SUMMARY.md`](docs/EXECUTIVE_SUMMARY.md),
 [`docs/API.md`](docs/API.md),
 [`docs/ROADMAP.md`](docs/ROADMAP.md),
-[`docs/CHECKLIST.md`](docs/CHECKLIST.md).
+[`docs/CHECKLIST.md`](docs/CHECKLIST.md),
+[`docs/AURA.md`](docs/AURA.md) (Projekt Aura — SDR/RTI/3D).
 
 ---
 

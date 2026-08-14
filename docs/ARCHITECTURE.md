@@ -10,7 +10,9 @@ REST/WebSocket und MQTT kommunizieren.
 | **2. Fusions-Kernel** | Edge-Agent | Python 3.11, FastAPI, WebSockets, NumPy/SciPy | 6-DOF EKF, UWB-Atemfrequenz (FFT), ICP-Map-Merging, Datenpipeline, SQLite-WAL |
 | | MQTT-Bridge | Eclipse Mosquitto | Anbindung externer Smartphones (BLE-Relay) |
 | **3. Visualisierung** | Android-App (CT45P) | Kotlin, OpenGL ES 2.0, Retrofit | Live-3D-Punktwolke, 2D-Karte, Szenarien-Controller |
-| | Web-Visualizer | Node.js, Three.js, Binary WebSocket | Multi-Client-3D-Ansicht, LOD, Avatare, Export |
+| | Web-Visualizer | Node.js, Three.js, Binary WebSocket | Multi-Client-3D-Ansicht, LOD, Avatare, Export, RF-Feld-Layer (Aura) |
+| **4. Aura (SDR/RTI)** | Android-App (`aura/`-Paket) | Kotlin, WireGuard-Tunnel, UDP, FFT | IQ-Datagramme, Cross-Korrelation, RTI-Voxel, Gatekeeper, Tag-Geschwindigkeit |
+| | Edge-Agent | Python (`rti_solver.py`) | RTI-Rekonstruktion (Tikhonov/Backprojection), Heatmap-Aggregation |
 
 ---
 
@@ -42,5 +44,11 @@ Sensor-/Netzwerkdaten → Analyse → Mesh → 3D-Umgebung → Exakte Abbildung 
   Peak 0.15–0.6 Hz, Konfidenz > 30 %.
 - **ICP-Map-Merging** — Kabsch-Umeyama (SVD), Toleranz 1e-6, max. 50 Iterationen.
 - **Binary WebSocket** — `uint32 N + N*3 float32`, > 80 % Overhead-Reduktion.
+- **Aura RTI** — Voxel-Modell + Ellipsen-Gewichtung, Tikhonov-Regularisierung
+  (Conjugate-Gradient, matrixfrei) bzw. Backprojection; Kotlin- und
+  Python-Implementierung mit identischem Datenmodell.
+- **Aura IQ-Tunnel** — 12-Byte-Datagramm-Header (Seq + µs-Timestamp), MTU 1420,
+  704 IQ-Paare/Paket, WireGuard (ChaCha20-Poly1305, UDP) als Backbone.
 
-Weitere Details in [`docs/EXECUTIVE_SUMMARY.md`](EXECUTIVE_SUMMARY.md).
+Weitere Details in [`docs/EXECUTIVE_SUMMARY.md`](EXECUTIVE_SUMMARY.md) und
+[`docs/AURA.md`](AURA.md).

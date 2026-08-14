@@ -20,6 +20,7 @@ body {
 #ui-overlay h1 { margin: 0; font-size: 18px; font-weight: 300; letter-spacing: 2px; }
 #status { font-size: 14px; margin-top: 4px; }
 #scenario-status { margin-top: 4px; color: #88ddff; font-size: 14px; }
+#aura-status { margin-top: 4px; color: #ddaaff; font-size: 12px; }
 
 #controls {
     position: absolute;
@@ -45,6 +46,7 @@ body {
     transition: 0.2s;
 }
 #controls button:hover { background: #3d6b9e; transform: scale(1.05); }
+#controls button.active { background: #7a2a8b; box-shadow: 0 0 10px #c86adf; }
 #controls button.stop { background: #8b2a2a; }
 #controls button.stop:hover { background: #b33a3a; }
 

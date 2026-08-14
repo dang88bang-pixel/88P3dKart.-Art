@@ -89,6 +89,98 @@ for (let i = 0; i < 5; i++) {
     avatar.userData = { speed: 0.5 + Math.random() * 0.5, phase: Math.random() * Math.PI * 2 };
 }
 
+// ─── Aura RF-Feld (RTI-Voxel & Heatmap) ────────────────────────
+// docs/AURA.md §2/§4: halbtransparente Voxel (Dämpfung) und extrudierte
+// Zellen (Signalstärke) — InstancedMesh für tausende Instanzen.
+const rfGroup = new THREE.Group();
+rfGroup.visible = false;
+scene.add(rfGroup);
+
+const MAX_RF_INSTANCES = 6000;
+const DUMMY = new THREE.Object3D();
+const COLOR_TMP = new THREE.Color();
+
+function colorFor(value, minV, maxV) {
+    const t = maxV > minV ? Math.min(1, Math.max(0, (value - minV) / (maxV - minV))) : 0.5;
+    return COLOR_TMP.setHSL(0.66 - 0.66 * t, 0.9, 0.5); // blau → rot
+}
+
+// RTI-Voxel-Layer
+const voxelGeo = new THREE.BoxGeometry(1, 1, 1);
+const voxelMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.45 });
+const voxelMesh = new THREE.InstancedMesh(voxelGeo, voxelMat, MAX_RF_INSTANCES);
+voxelMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+voxelMesh.count = 0;
+voxelMesh.frustumCulled = false;
+rfGroup.add(voxelMesh);
+
+// Heatmap-Layer (extrudierte Zellen)
+const cellGeo = new THREE.BoxGeometry(1, 1, 1);
+const cellMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.35 });
+const cellMesh = new THREE.InstancedMesh(cellGeo, cellMat, MAX_RF_INSTANCES);
+cellMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+cellMesh.count = 0;
+cellMesh.frustumCulled = false;
+rfGroup.add(cellMesh);
+
+function applyAuraVoxels(voxels) {
+    const sorted = [...voxels].sort((a, b) => b.attenuation - a.attenuation);
+    const use = sorted.slice(0, MAX_RF_INSTANCES);
+    const maxAtt = use.length ? use[0].attenuation : 1;
+    const minAtt = use.length ? use[use.length - 1].attenuation : 0;
+
+    use.forEach((v, i) => {
+        const scale = 0.4; // Voxel-Kantenlänge
+        DUMMY.position.set(v.x, v.y, v.z);
+        DUMMY.scale.setScalar(scale);
+        DUMMY.updateMatrix();
+        voxelMesh.setMatrixAt(i, DUMMY.matrix);
+        voxelMesh.setColorAt(i, colorFor(v.attenuation, minAtt, maxAtt));
+    });
+    voxelMesh.count = use.length;
+    voxelMesh.instanceMatrix.needsUpdate = true;
+    if (voxelMesh.instanceColor) voxelMesh.instanceColor.needsUpdate = true;
+    updateAuraStatus(`📡 RF-Feld: ${use.length} RTI-Voxel (${maxAtt.toFixed(1)} dB max)`);
+    rfGroup.visible = rfVisible;
+}
+
+function applyAuraHeatmap(cells) {
+    const use = cells.slice(0, MAX_RF_INSTANCES);
+    const dbms = use.map(c => c.dbm);
+    const maxDbm = dbms.length ? Math.max(...dbms) : -30;
+    const minDbm = dbms.length ? Math.min(...dbms) : -90;
+
+    use.forEach((c, i) => {
+        const h = Math.max(0.05, c.height || 0.5);
+        DUMMY.position.set(c.x, c.y, (c.z || 0) + h / 2);
+        DUMMY.scale.set(c.size || 1, h, c.size || 1);
+        DUMMY.updateMatrix();
+        cellMesh.setMatrixAt(i, DUMMY.matrix);
+        cellMesh.setColorAt(i, colorFor(c.dbm, minDbm, maxDbm));
+    });
+    cellMesh.count = use.length;
+    cellMesh.instanceMatrix.needsUpdate = true;
+    if (cellMesh.instanceColor) cellMesh.instanceColor.needsUpdate = true;
+    updateAuraStatus(`📡 RF-Feld: ${use.length} Heatmap-Zellen (${minDbm.toFixed(0)}…${maxDbm.toFixed(0)} dBm)`);
+    rfGroup.visible = rfVisible;
+}
+
+function updateAuraStatus(text) {
+    const el = document.getElementById('aura-status');
+    if (el) el.textContent = text;
+}
+
+let rfVisible = false;
+const btnAura = document.getElementById('btn-aura');
+if (btnAura) {
+    btnAura.addEventListener('click', () => {
+        rfVisible = !rfVisible;
+        rfGroup.visible = rfVisible;
+        btnAura.classList.toggle('active', rfVisible);
+        if (!rfVisible) updateAuraStatus('📡 RF-Feld: ausgeblendet');
+    });
+}
+
 // ─── WebSocket ──────────────────────────────────────────────────
 const WS_PROTO = window.location.protocol === 'https:' ? 'wss' : 'ws';
 const WS_URL = `${WS_PROTO}://${window.location.host}/ws`;
@@ -119,6 +211,10 @@ function connect() {
                 if (msg.type === 'avatar_update') updateAvatars(msg.avatars);
                 else if (msg.type === 'scenario_status') {
                     document.getElementById('scenario-status').textContent = msg.status;
+                } else if (msg.type === 'aura_voxels' && msg.payload && msg.payload.voxels) {
+                    applyAuraVoxels(msg.payload.voxels);
+                } else if (msg.type === 'aura_heatmap' && msg.payload && msg.payload.cells) {
+                    applyAuraHeatmap(msg.payload.cells);
                 }
             } catch (_) { /* ignore */ }
         }

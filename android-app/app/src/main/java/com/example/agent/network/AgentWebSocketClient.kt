@@ -170,6 +170,49 @@ class AgentWebSocketClient(
         )
     }
 
+    /** Aura: rekonstruierte RTI-Voxel an den Edge-Agent (→ Web-Visualizer). */
+    fun sendAuraVoxels(deviceId: String, voxels: List<com.example.agent.aura.RtiSolver.Voxel>) {
+        if (voxels.isEmpty()) return
+        sendPayload(
+            "aura_voxels",
+            mapOf(
+                "device_id" to deviceId,
+                "timestamp" to System.currentTimeMillis() / 1000.0,
+                "voxels" to voxels.map {
+                    mapOf(
+                        "x" to it.x,
+                        "y" to it.y,
+                        "z" to it.z,
+                        "attenuation" to it.attenuation,
+                        "weight" to it.weight,
+                    )
+                },
+            )
+        )
+    }
+
+    /** Aura: extrudierte RF-Heatmap-Zellen an den Edge-Agent (→ Web-Visualizer). */
+    fun sendAuraHeatmap(deviceId: String, cells: List<com.example.agent.aura.RfHeatmapBuilder.ExtrudedCell>) {
+        if (cells.isEmpty()) return
+        sendPayload(
+            "aura_heatmap",
+            mapOf(
+                "device_id" to deviceId,
+                "timestamp" to System.currentTimeMillis() / 1000.0,
+                "cells" to cells.map {
+                    mapOf(
+                        "x" to it.centerX,
+                        "y" to it.centerY,
+                        "z" to it.baseZ,
+                        "height" to it.heightM,
+                        "dbm" to it.dbm,
+                        "size" to it.cellSizeM,
+                    )
+                },
+            )
+        )
+    }
+
     fun disconnect() {
         reconnectJob?.cancel()
         webSocket?.close(1000, "App beendet")
