@@ -13,6 +13,8 @@ REST/WebSocket und MQTT kommunizieren.
 | | Web-Visualizer | Node.js, Three.js, Binary WebSocket | Multi-Client-3D-Ansicht, LOD, Avatare, Export, RF-Feld-Layer (Aura) |
 | **4. Aura (SDR/RTI)** | Android-App (`aura/`-Paket) | Kotlin, WireGuard-Tunnel, UDP, FFT | IQ-Datagramme, Cross-Korrelation, RTI-Voxel, Gatekeeper, Tag-Geschwindigkeit |
 | | Edge-Agent | Python (`rti_solver.py`) | RTI-Rekonstruktion (Tikhonov/Backprojection), Heatmap-Aggregation |
+| **5. Triangulation** | Android-App (`triangulation/`-Paket) | Kotlin, `WifiRttManager` (802.11mc), dual-BLE | Trilateration (LM), Path-Loss, Fingerprinting (k-NN), Fusion + 6-DOF-EKF |
+| | Edge-Agent | Python (`trilateration.py`) | REST-Solver `/api/v1/triangulation/solve`, Positions-Broadcast |
 
 ---
 
@@ -49,6 +51,10 @@ Sensor-/Netzwerkdaten → Analyse → Mesh → 3D-Umgebung → Exakte Abbildung 
   Python-Implementierung mit identischem Datenmodell.
 - **Aura IQ-Tunnel** — 12-Byte-Datagramm-Header (Seq + µs-Timestamp), MTU 1420,
   704 IQ-Paare/Paket, WireGuard (ChaCha20-Poly1305, UDP) als Backbone.
+- **CT45P-Triangulation** — Trilateration (lineares LSQ + Levenberg-Marquardt),
+  Log-Distance-Path-Loss mit Regressionskalibrierung, gewichtetes k-NN-
+  Fingerprinting; Fusion über Frische-Prüfung + Mahalanobis-Gate +
+  inverse Varianz, eingespeist in den 6-DOF-EKF.
 
-Weitere Details in [`docs/EXECUTIVE_SUMMARY.md`](EXECUTIVE_SUMMARY.md) und
-[`docs/AURA.md`](AURA.md).
+Weitere Details in [`docs/EXECUTIVE_SUMMARY.md`](EXECUTIVE_SUMMARY.md),
+[`docs/AURA.md`](AURA.md) und [`docs/TRIANGULATION.md`](TRIANGULATION.md).

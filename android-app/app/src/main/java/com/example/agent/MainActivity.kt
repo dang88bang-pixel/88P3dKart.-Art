@@ -12,6 +12,7 @@ import com.example.agent.network.AgentWebSocketClient
 import com.example.agent.aura.AuraIntegrator
 import com.example.agent.pipeline.LiveSensorPipeline
 import com.example.agent.pipeline.PipelineOrchestrator
+import com.example.agent.triangulation.TriangulationService
 import com.example.agent.sensors.BleTokenManager
 import com.example.agent.sensors.EkfFusion
 import com.example.agent.sensors.ImuManager
@@ -36,6 +37,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var pipeline: PipelineOrchestrator
     private lateinit var livePipeline: LiveSensorPipeline
     private lateinit var auraIntegrator: AuraIntegrator
+    private lateinit var triangulation: TriangulationService
     lateinit var webSocketClient: AgentWebSocketClient
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
@@ -93,6 +95,24 @@ class MainActivity : AppCompatActivity() {
             auraIntegrator.start()
         } catch (e: Exception) {
             Log.w("Aura", "Tunnel-Start übersprungen: ${e.message}")
+        }
+
+        // Triangulation (Wi-Fi RTT / BLE / Fingerprinting) — docs/TRIANGULATION.md
+        triangulation = TriangulationService(this, ekf)
+        scope.launch {
+            triangulation.fused.collect { estimate ->
+                webSocketClient.sendPositionEstimate("CT45P-01", estimate)
+            }
+        }
+        scope.launch {
+            triangulation.mode.collect { mode ->
+                Log.d("Triangulation", "Modus: $mode (RTT verfügbar: ${triangulation.wifiRttSupported})")
+            }
+        }
+        try {
+            triangulation.start(wifiRttEnabled = true, bleEnabled = true)
+        } catch (e: Exception) {
+            Log.w("Triangulation", "Start übersprungen: ${e.message}")
         }
 
         // LiDAR → EKF + Pipeline + WebSocket
@@ -182,6 +202,7 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
         webSocketClient.disconnect()
         auraIntegrator.stop()
+        triangulation.stop()
         serialManager.close()
         bleManager.stopScan()
         imuManager.stop()

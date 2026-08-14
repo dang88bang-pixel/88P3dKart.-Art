@@ -181,6 +181,75 @@ if (btnAura) {
     });
 }
 
+// ─── Triangulation (Wi-Fi RTT / BLE-Anker) ───────────────────────
+// docs/TRIANGULATION.md §8: Anker-Ringe + Geräteposition im Weltraum.
+// Konvention: Schätzungen (x, y_horizontal, z_Höhe) → Three.js (x, y=Höhe, z=horizontal).
+const triGroup = new THREE.Group();
+scene.add(triGroup);
+
+const anchorMeshes = [];
+const deviceMarker = new THREE.Mesh(
+    new THREE.ConeGeometry(0.35, 0.9, 8),
+    new THREE.MeshBasicMaterial({ color: 0xffdd00 })
+);
+deviceMarker.position.set(0, 0.45, 0);
+triGroup.add(deviceMarker);
+
+const deviceLabelDiv = document.createElement('div');
+deviceLabelDiv.textContent = 'CT45P';
+deviceLabelDiv.style.cssText = 'color:white;font-size:11px;font-weight:bold;text-shadow:1px 1px 3px black;background:rgba(255,200,0,0.35);padding:1px 6px;border-radius:4px;';
+const deviceLabel = new CSS2DObject(deviceLabelDiv);
+deviceLabel.position.set(0, 1.4, 0);
+triGroup.add(deviceLabel);
+
+function applyTriangulationAnchors(anchors) {
+    while (anchorMeshes.length) {
+        const m = anchorMeshes.pop();
+        triGroup.remove(m);
+    }
+    anchors.forEach(a => {
+        const ring = new THREE.Mesh(
+            new THREE.TorusGeometry(0.5, 0.06, 8, 32),
+            new THREE.MeshBasicMaterial({ color: a.type === 'wifi' ? 0x00c8a0 : 0x4488ff })
+        );
+        ring.rotation.x = Math.PI / 2;
+        ring.position.set(a.x, (a.z || 0) + 0.1, a.y);
+        triGroup.add(ring);
+        anchorMeshes.push(ring);
+
+        const div = document.createElement('div');
+        div.textContent = a.id;
+        div.style.cssText = 'color:white;font-size:10px;text-shadow:1px 1px 2px black;background:rgba(0,0,0,0.5);padding:1px 5px;border-radius:3px;';
+        const label = new CSS2DObject(div);
+        label.position.set(a.x, (a.z || 0) + 1.2, a.y);
+        triGroup.add(label);
+        anchorMeshes.push(label);
+    });
+}
+
+function applyPositionUpdate(p) {
+    deviceMarker.position.set(p.x, p.z || 0, p.y);
+    deviceLabel.position.set(p.x, (p.z || 0) + 1.4, p.y);
+    updateTriStatus(
+        `📶 ${p.source}: (${p.x.toFixed(1)}, ${p.y.toFixed(1)}) ±${p.accuracy_m.toFixed(1)} m`
+    );
+}
+
+function updateTriStatus(text) {
+    const el = document.getElementById('tri-status');
+    if (el) el.textContent = text;
+}
+
+let triVisible = true;
+const btnTri = document.getElementById('btn-triangulation');
+if (btnTri) {
+    btnTri.addEventListener('click', () => {
+        triVisible = !triVisible;
+        triGroup.visible = triVisible;
+        btnTri.classList.toggle('active', triVisible);
+    });
+}
+
 // ─── WebSocket ──────────────────────────────────────────────────
 const WS_PROTO = window.location.protocol === 'https:' ? 'wss' : 'ws';
 const WS_URL = `${WS_PROTO}://${window.location.host}/ws`;
@@ -215,6 +284,10 @@ function connect() {
                     applyAuraVoxels(msg.payload.voxels);
                 } else if (msg.type === 'aura_heatmap' && msg.payload && msg.payload.cells) {
                     applyAuraHeatmap(msg.payload.cells);
+                } else if (msg.type === 'triangulation_anchors' && msg.payload && msg.payload.anchors) {
+                    applyTriangulationAnchors(msg.payload.anchors);
+                } else if (msg.type === 'position_update' && msg.payload) {
+                    applyPositionUpdate(msg.payload);
                 }
             } catch (_) { /* ignore */ }
         }

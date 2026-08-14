@@ -10,6 +10,9 @@
 | **2.0** | **Datenpipeline** | Sensor→Analyse→Mesh→Umgebung→Abbildung→Evaluation | ✅ |
 | **Aura 0.1** | **SDR/RTI-Kern** | IQ-Datagramm/Tunnel, WireGuard-Blueprint, FFT/Cross-Korrelation, RTI-Solver (Kotlin + Python), Gatekeeper, Tag-Geschwindigkeit, Web-Visualizer-Layer | ✅ |
 | **UI/UX 1.0** | **3D-Oberflächenplan** | Detailplan: 5 Tabs, HUD, Panels, 39 Aktionen, Kamera-Modi (inkl. Röntgenblick), Gesten-Matrix, Datenbindung (docs/UI_UX_PLAN.md) | 📋 geplant |
+| **Triangulation 1.0** | **WiFi/BLE-Kern (CT45P)** | Trilateration (LM), Path-Loss + Kalibrierung, Fingerprinting, Wi-Fi-RTT-Wrapper, dual-BLE-Backend, Fusion + EKF, REST/WS/Visualizer (docs/TRIANGULATION.md) | ✅ |
+| Triangulation 1.1 | Honeywell-SDK-Backend | 2. BLE-Hardware-Schnittstelle via Mobility SDK, AoA/AoD-Verifikation | ⏳ |
+| Triangulation 1.2 | Flottenrollout | EZConfig-/OEMConfig-Rezepte, Feldkalibrierung | ⏳ |
 | Aura 0.2 | SDR-USB-Treiber | RTL-SDR-v5 via USB Host (libusb-Portierung), `IqSource`-Anbindung | ⏳ |
 | Aura 0.3 | VPN-Einbindung | `com.wireguard.android:tunnel` im Flavour `aura-vpn` (VpnService) | ⏳ |
 | Aura 0.4 | Maps 3D Preview | Google Maps 3D SDK (Experimental): extrudierte Heatmap, RTI-Voxel, „Röntgenblick"-Kamera | ⏳ |

@@ -125,7 +125,7 @@ Einstellungen: Toolbar-`⚙️` → `SettingsFragment` (neu, ersetzt kein Tab).
 
 Bestehender `SurfaceView` (Canvas-Zeichnung in `MapRenderer.kt`) wird ergänzt:
 
-- **Overlays (Zeichenreihenfolge):** Gebäudeumriss → RF-Heatmap-Fußabdruck (Zellfarben, blau→rot, Alpha 0.45) → BLE-Token (Kreis, semantische Farbe) → Personen (Avatar-Punkt, `person`) → Bewegte Objekte (Pulsring 2 s) → markierte Objekte (gelber Rahmen).
+- **Overlays (Zeichenreihenfolge):** Gebäudeumriss → RF-Heatmap-Fußabdruck (Zellfarben, blau→rot, Alpha 0.45) → **Triangulations-Anker** (Wi-Fi = grüne Ringe, BLE = blaue Ringe, A-40) → BLE-Token (Kreis, semantische Farbe) → Personen (Avatar-Punkt, `person`) → Bewegte Objekte (Pulsring 2 s) → markierte Objekte (gelber Rahmen).
 - **Interaktionen:** 1-Finger-Pan, Pinch-Zoom (min 1:2000, max 1:20), Tap auf Token → Tooltip-Callout (MAC, RSSI, Batterie, Geschwindigkeit aus `TagVelocityTracker`), Long-Press → Markierung (gelb).
 - **HUD:** Nordpfeil, Maßstabsleiste (unten links, dynamisch), Koordinaten des Kartenmittelpunkts.
 - **Modus-Umschalter (oben rechts):** `Karte` ⇄ `Heatmap` ⇄ `Live` (blendet Overlays um).
@@ -333,6 +333,17 @@ Jede Aktion: **ID · Name · Trigger · Verhalten · Feedback · Datenquelle**.
 | A-37 | HUD ein/aus | Taste `H` / Einstellungen |
 | A-38 | Handschuh-Modus | alle Targets auf 56 dp, Haptik verstärkt, Doppeltipp-Zone vergrößert |
 | A-39 | Farbenblind-Modus | zusätzlich Muster (Schraffur) in Heatmap/Voxel |
+
+### 5.8 Triangulations-Aktionen (CT45P, docs/TRIANGULATION.md)
+
+| ID | Name | Trigger | Verhalten | Feedback |
+|----|------|---------|-----------|----------|
+| A-40 | Anker anzeigen | Toggle `📶 Triang.` / Layer-Chip | Wi-Fi-Anker (grüne Ringe) + BLE-Anker (blaue Ringe) mit Labels auf Karte/3D-View | sofort |
+| A-41 | Positions-Trail | Marker-Tap / Panel „Trail" | Historienlinie der fusionierten Position (60 s) mit Genauigkeits-Halo (±accuracyM) | Linie + Halo |
+
+Datenquellen: `TriangulationService.fused`, `position_update` (WebSocket),
+Anker-Konfiguration via `triangulation_anchors`. Status-Chip `📶` in HUD-Zone 1:
+Modus `FULL` (RTT) / `DEGRADED` (BLE/FP) / `MINIMAL` + `±Genauigkeit`.
 
 ---
 
@@ -592,7 +603,7 @@ Vertikaler Verlauf + Min/Max-Beschriftung + interaktive Handles (A-21). Zusätzl
 
 ## 14. Akzeptanzkriterien (Definition of Done)
 
-1. **Alle 39 Aktionen (§5)** sind über Button *oder* Geste erreichbar; jede hat sichtbares Feedback (visuell/haptisch) ≤ 100 ms.
+1. **Alle 41 Aktionen (§5)** sind über Button *oder* Geste erreichbar; jede hat sichtbares Feedback (visuell/haptisch) ≤ 100 ms.
 2. **Layer-Kombinatorik:** jede der 7 Layer-Kombinationen rendert ohne Fehler; RF-Layer erreichen 6 000 Instanzen bei ≥ 30 FPS auf Referenzhardware (CT45P, Snapdragon 662).
 3. **Gesten-Matrix:** Pinch, 2-Finger-Drag, Rotation, 3-Finger-Tab, Tap, Doppeltipp, Long-Press funktionieren im Feldversuch mit Handschuhen (5/5 Testpersonen).
 4. **Röntgenblick:** Heading/Tilt/Roll folgen der Gerätepose (Fehler < 5° im Vergleichstest); Exit-Geste funktioniert in < 1,5 s.

@@ -15,6 +15,7 @@ Die vollständige OpenAPI-3.0-Spezifikation liegt unter
 | POST | `/api/v1/pipeline/run` | v2.0-Datenpipeline ausführen |
 | POST | `/api/v1/aura/rti` | Aura: RTI-Rekonstruktion (Messlinien → Voxel-Feld) |
 | POST | `/api/v1/aura/heatmap` | Aura: RF-Samples → extrudierte Heatmap-Zellen |
+| POST | `/api/v1/triangulation/solve` | Triangulation: Anker + Distanzen → Position (docs/TRIANGULATION.md) |
 
 ### Beispiel: Zustand
 
@@ -73,6 +74,25 @@ curl -X POST http://localhost:8080/api/v1/aura/heatmap \
        "samples":[{"x":0.3,"y":0.3,"z":0,"dbm":-45,"frequency_hz":433920000}]}'
 ```
 
+### Beispiel: Triangulation
+
+```bash
+curl -X POST http://localhost:8080/api/v1/triangulation/solve \
+  -H "Content-Type: application/json" \
+  -d '{
+    "anchors": [
+      {"id": "AP-1", "x": 0, "y": 0, "z": 0},
+      {"id": "AP-2", "x": 10, "y": 0, "z": 0},
+      {"id": "AP-3", "x": 10, "y": 10, "z": 0},
+      {"id": "AP-4", "x": 0, "y": 10, "z": 0}
+    ],
+    "distances": {"AP-1": 7.07, "AP-2": 7.07, "AP-3": 7.07, "AP-4": 7.07},
+    "use_z": false
+  }'
+```
+
+→ Position (5, 5): Schnittpunkt der vier Distanzkreise um die Anker.
+
 ## WebSocket (`/ws/agent/events`)
 
 Nachrichtentypen (JSON `{type, payload}`):
@@ -87,6 +107,8 @@ Nachrichtentypen (JSON `{type, payload}`):
 | `telemetry` | → | Batterie/Temperatur/Scattering |
 | `aura_voxels` | → / ← | RTI-Voxel-Feld (App → Agent → Visualizer) |
 | `aura_heatmap` | → / ← | Extrudierte RF-Heatmap-Zellen |
+| `position_update` | → / ← | Fusionierte Triangulations-Position (RTT/BLE) |
+| `triangulation_anchors` | → / ← | Anker-Konfiguration für Karte/Visualizer |
 
 Binary-Ausgabe: Punktwolke `[N (uint32 LE), N*3 float32]`.
 

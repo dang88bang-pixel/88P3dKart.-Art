@@ -121,3 +121,20 @@ class AuraHeatmapRequest(BaseModel):
 class AuraHeatmapResponse(BaseModel):
     device_id: str
     cells: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+# ─── Triangulation (CT45P Wi-Fi RTT / BLE) — docs/TRIANGULATION.md ───
+
+
+class TriangulationRequest(BaseModel):
+    """Trilaterations-Anfrage: Anker + Distanzmessungen."""
+
+    anchors: List[Dict[str, Any]] = Field(default_factory=list)  # {id, x, y, z}
+    distances: Dict[str, float] = Field(default_factory=dict)  # anchor_id → Meter
+    uncertainties: Optional[Dict[str, float]] = None  # anchor_id → σ [m]
+    use_z: bool = False
+
+
+class TriangulationResponse(BaseModel):
+    position: Optional[Dict[str, Any]] = None
+    anchor_count: int = 0

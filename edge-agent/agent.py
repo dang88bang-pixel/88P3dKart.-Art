@@ -25,11 +25,13 @@ from models import (
     MmwaveTarget,
     PipelineRequest,
     ScenarioConfig,
+    TriangulationRequest,
     UwbPhaseData,
 )
 from pipeline import DataPipeline
 from pointcloud_compressor import PointCloudCompressor
 from rti_solver import Link, RfSample, RtiSolver, build_heatmap
+from trilateration import solve_trilateration
 from uwb_processor import UwbDopplerProcessor
 
 logging.basicConfig(
@@ -295,6 +297,26 @@ async def health():
     return {"status": "ok", "mode": current_mode, "mqtt": getattr(app.state, "mqtt_bridge", None).available if hasattr(app.state, "mqtt_bridge") else False}
 
 
+# ─── Triangulation (CT45P) — docs/TRIANGULATION.md §8 ────────────
+
+
+@app.post("/api/v1/triangulation/solve")
+async def triangulation_solve(request: TriangulationRequest):
+    """Trilateration: Anker + Distanzen → Position (REST-Fallback zur App)."""
+    result = solve_trilateration(
+        request.anchors,
+        request.distances,
+        request.uncertainties,
+        use_z=request.use_z,
+    )
+    if result is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Mindestens 3 Anker mit gültigen Distanzen benötigt (3D: 4)",
+        )
+    return {"position": result, "anchor_count": result["anchor_count"]}
+
+
 # ─── WebSocket-Endpunkt ──────────────────────────────────────
 @app.websocket("/ws/agent/events")
 async def websocket_endpoint(websocket: WebSocket):
@@ -355,6 +377,27 @@ async def websocket_endpoint(websocket: WebSocket):
                 await manager.broadcast_json(data)
 
             elif msg_type == "aura_heatmap":
+                await manager.broadcast_json(data)
+
+            elif msg_type == "position_update":
+                # Fusionierte Triangulations-Position → Visualizer + Persistenz
+                await manager.broadcast_json(data)
+                x = float(payload.get("x", 0.0))
+                y = float(payload.get("y", 0.0))
+                z = float(payload.get("z", 0.0))
+                accuracy = float(payload.get("accuracy_m", 1.0))
+                db.save_transform(
+                    device_id,
+                    (x, y, z),
+                    (accuracy, accuracy),
+                    {
+                        "kind": "triangulation",
+                        "source": payload.get("source", "unknown"),
+                        "confidence": payload.get("confidence", 0.0),
+                    },
+                )
+
+            elif msg_type == "triangulation_anchors":
                 await manager.broadcast_json(data)
 
             # Persistenz nach Positions-Updates

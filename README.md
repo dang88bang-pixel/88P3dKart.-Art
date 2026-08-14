@@ -37,6 +37,19 @@ Die Erweiterungen **v3.x–v4.4.0** ergänzen zudem:
 - **Integration** — Aura-Kanäle in `LiveSensorPipeline`, REST-Endpunkte
   `/api/v1/aura/*`, RF-Voxel-/Heatmap-Layer im Web-Visualizer
 
+**WiFi-/BLE-Triangulation** (docs/TRIANGULATION.md) nutzt die
+CT45P-Hardwarefähigkeiten (Wi-Fi 6/802.11mc RTT, dual-BLE) für die
+Positionsbestimmung:
+- **Wi-Fi RTT (802.11mc)** — `WifiRttManager`-Wrapper mit Feature-Checks
+  (1–2 m Zielgenauigkeit)
+- **BLE-RSSI-Triangulation** — dedizierter Scan-Kanal (`BleRadioBackend`),
+  Path-Loss-Kalibrierung, EMA-Glättung
+- **Fingerprinting** — gewichtetes k-NN über eingemessene RSSI-Vektoren
+- **Sensorfusion** — Frische-Prüfung + Mahalanobis-Gate + invers-varianz-
+  gewichteter Mittelwert → 6-DOF-EKF (`EkfFusion`) → WebSocket/Visualizer
+- Kotlin-Paket `triangulation/` + Python-Port `edge-agent/trilateration.py`,
+  REST `/api/v1/triangulation/solve`
+
 ---
 
 ## 📁 Monorepo-Struktur
@@ -114,6 +127,7 @@ Weitere Details: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md),
 [`docs/ROADMAP.md`](docs/ROADMAP.md),
 [`docs/CHECKLIST.md`](docs/CHECKLIST.md),
 [`docs/AURA.md`](docs/AURA.md) (Projekt Aura — SDR/RTI/3D),
+[`docs/TRIANGULATION.md`](docs/TRIANGULATION.md) (WiFi-/BLE-Triangulation auf dem CT45P),
 [`docs/UI_UX_PLAN.md`](docs/UI_UX_PLAN.md) (UI/UX-Detailplan: Aktionen & Interaktionen der 3D-Oberfläche).
 
 ---
