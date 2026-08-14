@@ -27,6 +27,8 @@ Die vollständige OpenAPI-3.0-Spezifikation liegt unter
 | POST | `/api/v1/devices/upsert` | Geräteinteraktion: Gerät upserten (Merge) + Broadcast |
 | POST | `/api/v1/devices/action` | Geräteinteraktion: Capability-geprüfte Aktion |
 | GET/POST | `/api/v1/devices/layers` | Geräteinteraktion: Layer lesen / Sichtbarkeit setzen |
+| POST | `/api/v1/network/traffic` | Netzwerk-LiveView: Live-Traffic-Ingest (Flüsse → Broadcast) |
+| POST | `/api/v1/network/traffic/simulate` | Netzwerk-LiveView: Flusssimulation auf den Topologie-Kanten |
 
 ### Beispiel: Zustand
 
@@ -155,6 +157,8 @@ Nachrichtentypen (JSON `{type, payload}`):
 | `devices_update` | → / ← | Geräte-Ingest (DeviceSync) / Registry-Broadcast |
 | `device_action` | → | Client → Agent: Geräteaktion ausführen |
 | `device_action_result` | ← | Ergebnis der Geräteaktion (HUD) |
+| `network_traffic` | → | Live-Traffic-Ingest (Flüsse) |
+| `network_traffic_update` | ← | Flüsse + Aktivität + Heatmap (→ LiveView-Layer) |
 
 Binary-Ausgabe: Punktwolke `[N (uint32 LE), N*3 float32]`.
 

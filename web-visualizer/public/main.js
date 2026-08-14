@@ -286,13 +286,19 @@ const netGroup = new THREE.Group();
 scene.add(netGroup);
 
 const netNodes = new Map();   // id → mesh
-const netEdges = [];          // { curve, color, particles: [...] }
+const netEdges = new Map();   // "src|dst" → { curve, line, particles: [...] }
+const netHeatBars = new Map(); // nodeId → Heatmap-Säule
 const NODE_COLORS = {
     router: 0x4488ff, switch: 0x44aaff, firewall: 0xff8800,
     vm: 0xaa44ff, container: 0xff44aa, cloud: 0xffffff,
     server: 0x88cc44, sensor: 0x44ff88,
 };
 const MAX_NET_NODES = 300;
+
+// Schwellen identisch zu Kotlin/Python (NetworkTraffic)
+const BW_HIGH = 100, BW_MEDIUM = 50, BW_LOW = 20, BW_MIN = 10;
+const LAT_HIGH = 100, LAT_MEDIUM = 40;
+const MAX_PARTICLES_PER_EDGE = 5;
 
 const netParticleGeo = new THREE.SphereGeometry(0.06, 6, 6);
 const netParticleMat = new THREE.MeshBasicMaterial({ color: 0x00ffcc });
@@ -305,12 +311,30 @@ function nodeColor(type, status) {
     return NODE_COLORS[type] || 0x888888;
 }
 
+/** Zentrale Bandbreiten-/Latenz-Farbe (identisch zu NetworkTraffic.kt/py). */
+function trafficColorHex(bandwidthMbps, latencyMs) {
+    if (latencyMs > LAT_HIGH) return 0xff3333;
+    if (bandwidthMbps > BW_HIGH) return 0xff3333;
+    if (bandwidthMbps > BW_MEDIUM || latencyMs > LAT_MEDIUM) return 0xff8800;
+    if (bandwidthMbps > BW_LOW) return 0xffff00;
+    if (bandwidthMbps > BW_MIN) return 0x44ff88;
+    return 0x4488ff;
+}
+
+function particleCountFor(bandwidthMbps) {
+    if (bandwidthMbps < 1) return 1;
+    return Math.min(MAX_PARTICLES_PER_EDGE, Math.max(1, Math.floor(bandwidthMbps / 10)));
+}
+
 function applyNetworkTopology(topo) {
     // Aufräumen
     netNodes.forEach(mesh => netGroup.remove(mesh));
     netNodes.clear();
     netEdges.forEach(edge => edge.particles.forEach(p => netGroup.remove(p)));
-    netEdges.length = 0;
+    netEdges.forEach(edge => netGroup.remove(edge.line));
+    netEdges.clear();
+    netHeatBars.forEach(bar => netGroup.remove(bar));
+    netHeatBars.clear();
 
     const nodes = (topo.nodes || []).slice(0, MAX_NET_NODES);
     const nodeById = new Map(nodes.map(n => [n.id, n]));
@@ -321,7 +345,7 @@ function applyNetworkTopology(topo) {
             new THREE.MeshBasicMaterial({ color: nodeColor(n.type, n.status) })
         );
         mesh.position.set(n.x, n.z || 0, n.y);
-        mesh.userData = { id: n.id, status: n.status, phase: Math.random() * Math.PI * 2 };
+        mesh.userData = { id: n.id, status: n.status, phase: Math.random() * Math.PI * 2, trafficActive: false };
         netGroup.add(mesh);
         netNodes.set(n.id, mesh);
     });
@@ -343,16 +367,96 @@ function applyNetworkTopology(topo) {
             })
         );
         netGroup.add(line);
-        const particles = Array.from({ length: 3 }, (_, i) => {
+        const particles = Array.from({ length: MAX_PARTICLES_PER_EDGE }, (_, i) => {
             const p = new THREE.Mesh(netParticleGeo, netParticleMat);
-            p.userData = { t: i / 3, speed: 0.005 + (e.utilization || 0) * 0.02 };
+            p.userData = { t: i / MAX_PARTICLES_PER_EDGE, speed: 0.005 + (e.utilization || 0) * 0.02, active: i < 3 };
+            p.visible = i < 3;
             netGroup.add(p);
             return p;
         });
-        netEdges.push({ curve, color: 0x00ffcc, particles });
+        const key = `${e.source}|${e.target}`;
+        netEdges.set(key, { curve, line, particles, sourceId: e.source, targetId: e.target });
     });
 
     updateNetStatus(`🌐 ${nodes.length} Nodes · ${(topo.edges || []).length} Links`);
+}
+
+/**
+ * Live-Traffic-Update (v14.1.0): Flüsse steuern Linienfarbe, Partikel-
+ * anzahl/-geschwindigkeit/-farbe, Knoten-Aktivität und Heatmap-Säulen.
+ */
+function applyNetworkTraffic(payload) {
+    const flows = payload.flows || [];
+    const activity = payload.activity || {};
+    const heatmap = payload.heatmap || {};
+
+    // 1) Flüsse auf die Kanten abbilden (bidirektional)
+    const edgeTraffic = new Map();
+    flows.forEach(flow => {
+        const bw = flow.bandwidth_mbps || 0;
+        const lat = flow.latency_ms || 0;
+        for (const key of [`${flow.source}|${flow.target}`, `${flow.target}|${flow.source}`]) {
+            const prev = edgeTraffic.get(key);
+            if (!prev || bw > prev.bandwidth_mbps) {
+                edgeTraffic.set(key, { bandwidth_mbps: bw, latency_ms: lat });
+            }
+        }
+    });
+
+    netEdges.forEach((edge, key) => {
+        const traffic = edgeTraffic.get(key);
+        const bw = traffic ? traffic.bandwidth_mbps : 0;
+        const lat = traffic ? traffic.latency_ms : 0;
+        const color = trafficColorHex(bw, lat);
+        edge.line.material.color.setHex(color);
+        edge.line.material.opacity = traffic ? Math.min(0.9, 0.35 + bw / 200) : 0.25;
+        const count = particleCountFor(bw);
+        edge.particles.forEach((p, i) => {
+            if (i < count && traffic) {
+                p.userData.active = true;
+                p.userData.speed = 0.005 + bw / 1000; // ∝ Bandbreite (Spec-Formel, szenenskaliert)
+                p.visible = true;
+                p.material.color.setHex(color);
+            } else {
+                p.userData.active = false;
+                p.visible = false;
+            }
+        });
+    });
+
+    // 2) Knoten-Aktivität + Latenz-Alarm
+    netNodes.forEach(mesh => {
+        const nodeActivity = activity[mesh.userData.id];
+        mesh.userData.trafficActive = !!nodeActivity && nodeActivity.active;
+        if (nodeActivity && nodeActivity.max_latency_ms > LAT_HIGH) {
+            mesh.material.color.setHex(0xff3333);
+        }
+    });
+
+    // 3) Bandbreiten-Heatmap: Säulen unter den Knoten
+    netHeatBars.forEach(bar => netGroup.remove(bar));
+    netHeatBars.clear();
+    for (const [nodeId, value] of Object.entries(heatmap)) {
+        const mesh = netNodes.get(nodeId);
+        if (!mesh || value <= 0) continue;
+        const nodeActivity = activity[nodeId];
+        const color = nodeActivity
+            ? trafficColorHex(nodeActivity.total_mbps, nodeActivity.max_latency_ms)
+            : 0x4488ff;
+        const bar = new THREE.Mesh(
+            new THREE.BoxGeometry(0.12, 1, 0.12),
+            new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.7 })
+        );
+        const height = Math.max(0.1, value * 3); // max. 3 Welteinheiten
+        bar.scale.set(1, height, 1);
+        bar.position.copy(mesh.position);
+        bar.position.y -= 0.4 + height / 2; // Säule unterhalb des Knotens
+        netGroup.add(bar);
+        netHeatBars.set(nodeId, bar);
+    }
+
+    const totalMbps = flows.reduce((sum, f) => sum + (f.bandwidth_mbps || 0), 0);
+    updateNetStatus(`🌐 Live: ${flows.length} Flüsse · Σ ${totalMbps.toFixed(0)} Mbit/s`);
 }
 
 function updateNetStatus(text) {
@@ -366,10 +470,15 @@ function animateNetwork(time) {
         if (mesh.userData.status === 'critical') {
             const pulse = 1 + 0.35 * Math.sin(tSec * 5 + mesh.userData.phase);
             mesh.scale.setScalar(pulse);
+        } else if (mesh.userData.trafficActive) {
+            // Aktiver Datenfluss → sanfter Aktivitätspuls (Spec: ActivityIndicator)
+            const pulse = 1 + 0.15 * Math.sin(tSec * 6 + mesh.userData.phase);
+            mesh.scale.setScalar(pulse);
         }
     });
     netEdges.forEach(edge => {
         edge.particles.forEach(p => {
+            if (!p.userData.active) return;
             const d = p.userData;
             d.t = (d.t + d.speed) % 1;
             p.position.copy(edge.curve.getPoint(d.t));
@@ -782,6 +891,8 @@ function connect() {
                         `${msg.payload.rerouted_flows} reroutet, ` +
                         `${msg.payload.unreachable_flows} unerreichbar`
                     );
+                } else if (msg.type === 'network_traffic_update' && msg.payload) {
+                    applyNetworkTraffic(msg.payload);
                 } else if (msg.type === 'floorplan_buildings' && msg.payload) {
                     applyFloorPlanBuildings(msg.payload);
                 } else if (msg.type === 'devices_update' && msg.payload) {

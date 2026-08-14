@@ -33,6 +33,8 @@
 | PersonDetect 1.1 | SerialManager-Anbindung + Pose-Modelle | mmWave-Targets → CFAR → Tracker; mm-Pose/mmHPE-Modell-Assets | ⏳ |
 | **DeviceInteract 1.0** | **Geräte-Steuerungsebene** | DeviceRegistry (Merge/Layer/Staleness), Action-Engine (Capability-Gating), SourceMapper, REST/WS, Visualizer-Layer (docs/DEVICE_INTERACTION.md) | ✅ |
 | DeviceInteract 1.1 | MainActivity-Anbindung + UI | SourceMapper ← Scanner; Layer-Bottom-Sheet; Transport-Adapter (BLE-Kommandos) | ⏳ |
+| **NetworkLive 1.0** | **Aktive Netzwerkvisualisierung** | Traffic-Simulator, zentrales Farb-Mapping, Aktivitäts-/Heatmap-Aggregation, REST/WS, Visualizer-Upgrade (docs/NETWORK_LIVEVIEW.md) | ✅ |
+| NetworkLive 1.1 | SNMP/NetFlow-Adapter + Zeitreihen | Adapter hinter /api/v1/network/traffic; Latenz-/Durchsatz-Diagramme | ⏳ |
 | Aura 0.2 | SDR-USB-Treiber | RTL-SDR-v5 via USB Host (libusb-Portierung), `IqSource`-Anbindung | ⏳ |
 | Aura 0.3 | VPN-Einbindung | `com.wireguard.android:tunnel` im Flavour `aura-vpn` (VpnService) | ⏳ |
 | Aura 0.4 | Maps 3D Preview | Google Maps 3D SDK (Experimental): extrudierte Heatmap, RTI-Voxel, „Röntgenblick"-Kamera | ⏳ |

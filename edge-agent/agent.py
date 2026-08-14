@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import time
+from typing import List
 
 import numpy as np
 import uvicorn
@@ -41,6 +42,7 @@ from models import (
     LidarFrame,
     MergeRequest,
     MmwaveTarget,
+    NetworkTrafficRequest,
     PipelineRequest,
     ScenarioConfig,
     SimulationRequest,
@@ -50,6 +52,7 @@ from models import (
 )
 from network_tracker import DeviceTracker
 from network_topology import TopologyGraph, TopologyHistory
+from network_traffic import NetworkTrafficSimulator, TrafficFlow, aggregate_activity, heatmap_columns
 from pipeline import DataPipeline
 from pointcloud_compressor import PointCloudCompressor
 from rti_solver import Link, RfSample, RtiSolver, build_heatmap
@@ -72,6 +75,7 @@ topology_history = TopologyHistory()  # Time Machine: Snapshot-Replay
 device_tracker = DeviceTracker()      # Live-Netzwerk: Change-/Anomalie-Erkennung
 device_registry = DeviceRegistry()    # Geräteinteraktion (docs/DEVICE_INTERACTION.md)
 device_action_engine = DeviceActionEngine(device_registry)
+traffic_simulator = NetworkTrafficSimulator(seed=42)  # LiveView-Demo (docs/NETWORK_LIVEVIEW.md)
 
 
 def _devices_payload() -> dict:
@@ -570,6 +574,43 @@ async def devices_layers_set(request: DeviceLayerRequest):
     return {"status": "ok", "layer_id": request.layer_id, "visible": request.visible}
 
 
+# ─── Aktive Netzwerkvisualisierung (docs/NETWORK_LIVEVIEW.md) ─────
+
+
+def _traffic_broadcast(flows: List[TrafficFlow]) -> dict:
+    """Broadcast-Payload: Flüsse + Aktivitäts-Aggregation + Heatmap-Säulen."""
+    activity = aggregate_activity(flows)
+    return {
+        "type": "network_traffic_update",
+        "payload": {
+            "flows": [f.to_dict() for f in flows],
+            "activity": {k: v.to_dict() for k, v in activity.items()},
+            "heatmap": heatmap_columns(activity, max_height=1.0),
+        },
+    }
+
+
+@app.post("/api/v1/network/traffic")
+async def network_traffic_ingest(request: NetworkTrafficRequest):
+    """Live-Traffic-Ingest (SNMP/NetFlow-Adapter oder App) → Broadcast."""
+    flows = [TrafficFlow.from_dict(f) for f in request.flows]
+    if not flows:
+        raise HTTPException(status_code=400, detail="Keine Flüsse übergeben")
+    await manager.broadcast_json(_traffic_broadcast(flows))
+    return {"status": "ok", "flow_count": len(flows)}
+
+
+@app.post("/api/v1/network/traffic/simulate")
+async def network_traffic_simulate():
+    """Deterministische Flusssimulation auf den Topologie-Kanten (Demo)."""
+    edges = [(e.source, e.target) for e in topology_graph.edges.values()]
+    if not edges:
+        raise HTTPException(status_code=404, detail="Keine Topologie geladen")
+    flows = traffic_simulator.simulate(edges)
+    await manager.broadcast_json(_traffic_broadcast(flows))
+    return {"status": "ok", "flow_count": len(flows)}
+
+
 # ─── WebSocket-Endpunkt ──────────────────────────────────────
 @app.websocket("/ws/agent/events")
 async def websocket_endpoint(websocket: WebSocket):
@@ -681,6 +722,12 @@ async def websocket_endpoint(websocket: WebSocket):
                 await manager.broadcast_json(
                     {"type": "device_action_result", "payload": result.to_dict()}
                 )
+
+            elif msg_type == "network_traffic":
+                # Live-Traffic-Ingest (DeviceSync/Adapter) → Broadcast
+                flows = [TrafficFlow.from_dict(f) for f in payload.get("flows", [])]
+                if flows:
+                    await manager.broadcast_json(_traffic_broadcast(flows))
 
             # Persistenz nach Positions-Updates
             if msg_type in ("lidar", "mmwave"):

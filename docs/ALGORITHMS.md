@@ -310,6 +310,23 @@ toggle_led).
 NETWORK (Typ-Normalisierung über Kind-String), mmWave-Target → SENSOR
 (Tracking); Staleness-Status aus lastSeen.
 
+## 24. Aktive Netzwerkvisualisierung (docs/NETWORK_LIVEVIEW.md)
+
+**Zentrales Farb-Mapping** (Kotlin/Python/JS identisch): Latenz > 100 ms
+**oder** Bandbreite > 100 Mbit/s → Rot/critical; > 50 Mbit/s oder
+> 40 ms → Orange/warning; > 20 Mbit/s → Gelb; > 10 Mbit/s → Grün;
+sonst Blau/idle. Latenz dominiert (Link trägt dann nachweislich Verkehr).
+
+**Partikel:** Anzahl = min(5, max(1, bw/10)), Geschwindigkeit = 0,2 + bw/1000,
+Größe = 0,03 + bw/5000.
+
+**Aggregation:** je Knoten Gesamtdurchsatz Σ bw, Flusszahl, max. Latenz;
+Heatmap-Säulen relativ zum Peak-Knoten.
+
+**Simulator:** seeded; Bursts ×3 mit Wahrscheinlichkeit 0,15; Latenz
+sättigend an die Auslastung gekoppelt (2 + 45·bw/(Basis·3) ms);
+Paketverlust = max(0, (Latenz−40)·0,02).
+
 **Fusion** (`EstimateGate.kt`, `TriangulationService.kt`):
 Frische (RTT ≤ 5 s, BLE ≤ 3 s, FP ≤ 10 s) → Mahalanobis-Gate
 `‖Δ‖ ≤ k√(σ_A²+σ_B²)` (k = 3) → invers-varianz-gewichteter Mittelwert →

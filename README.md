@@ -117,6 +117,16 @@ alle Geräte im Raum (ein-/ausblendbar, capability-geprüfte Aktionen):
 - REST `/api/v1/devices*` + WS `devices_update`/`device_action` +
   Geräte-Layer im Web-Visualizer (Raycast-Auswahl, Kontextmenü)
 
+**Aktive Netzwerkvisualisierung** (docs/NETWORK_LIVEVIEW.md) — Live-Traffic
+in der 3D-Ansicht (v14.1.0):
+- **Traffic-Simulator** (seeded, Bursts, Latenz-Auslastungs-Kopplung) +
+  zentrales Bandbreiten-/Latenz-Farb-Mapping (Kotlin/Python/JS identisch)
+- **Aktivitäts-Aggregation** — Durchsatz je Knoten, Flusszahl, max. Latenz;
+  **Bandbreiten-Heatmap** (relative Säulenhöhen)
+- REST `/api/v1/network/traffic|simulate` + WS `network_traffic_update`
+- Visualizer: Partikelzahl/-geschwindigkeit/-farbe ∝ Bandbreite,
+  Knoten-Aktivitätspuls, Latenz-Alarm, Heatmap-Säulen
+
 ---
 
 ## 📁 Monorepo-Struktur
@@ -189,10 +199,10 @@ curl -X POST http://localhost:8080/api/v1/triangulation/solve \
 ```bash
 cd edge-agent
 source .venv/bin/activate
-python -m pytest tests/ -v    # 111 Tests: EKF, ICP, UWB, Pipeline, RTI, Trilateration, Export, Topologie, Taktik, Ressourcenpolitik, Grundriss, Radar, Geräteinteraktion
+python -m pytest tests/ -v    # 122 Tests: EKF, ICP, UWB, Pipeline, RTI, Trilateration, Export, Topologie, Taktik, Ressourcenpolitik, Grundriss, Radar, Geräteinteraktion, LiveTraffic
 ```
 
-Kotlin: 148 JVM-Unit-Tests in `android-app/app/src/test/` (X25519 gegen
+Kotlin: 157 JVM-Unit-Tests in `android-app/app/src/test/` (X25519 gegen
 RFC-7748-Vektoren, IQ-Datagramm, FFT/Korrelation, RTI, Path-Loss,
 Fusions-Gate) — Ausführung in Android Studio/CI (`./gradlew test`).
 
@@ -222,7 +232,8 @@ Weitere Details: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md),
 [`docs/RESOURCE_OPT.md`](docs/RESOURCE_OPT.md) (Ressourcensparende 3D-Kartierung: Scan-Politik, Energieprofile, ROI, Voxel-Fusion),
 [`docs/FLOORPLAN.md`](docs/FLOORPLAN.md) (Grundriss-Integration: verifizierte Quellen, Overpass/Nominatim/Photon-Adapter, 3D-Extrusion),
 [`docs/PERSON_DETECTION.md`](docs/PERSON_DETECTION.md) (Personen-/Gegenstandserkennung: Projekt-Verifikation, CA-CFAR/MTI/Doppler/Tracker),
-[`docs/DEVICE_INTERACTION.md`](docs/DEVICE_INTERACTION.md) (Geräteinteraktion: Registry, Action-Engine, Source-Mapper, 3D-Marker mit Kontextmenü).
+[`docs/DEVICE_INTERACTION.md`](docs/DEVICE_INTERACTION.md) (Geräteinteraktion: Registry, Action-Engine, Source-Mapper, 3D-Marker mit Kontextmenü),
+[`docs/NETWORK_LIVEVIEW.md`](docs/NETWORK_LIVEVIEW.md) (Aktive Netzwerkvisualisierung: Traffic-Simulator, Farb-Mapping, Heatmap, Live-Stream).
 
 ---
 

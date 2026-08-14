@@ -196,3 +196,9 @@ class DeviceLayerRequest(BaseModel):
 
     layer_id: str
     visible: bool
+
+
+class NetworkTrafficRequest(BaseModel):
+    """Aktive Netzwerkvisualisierung: Live-Traffic-Ingest."""
+
+    flows: List[Dict[str, Any]] = Field(default_factory=list)

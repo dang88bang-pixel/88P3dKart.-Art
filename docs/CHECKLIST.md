@@ -10,7 +10,7 @@
 > abgeglichen. Folgende **fehlende Teile** wurden ergänzt (Schritt 7–9).
 >
 > **Update Aura/Triangulation/UI (14.08.2026):** Dokumenten-Audit — SoC-Angaben
-> auf Qualcomm QCM4290 korrigiert, Testzahlen aktualisiert (111 Python / 148 JVM),
+> auf Qualcomm QCM4290 korrigiert, Testzahlen aktualisiert (122 Python / 157 JVM),
 > neue Schritte 10–12 ergänzt.
 
 ---
@@ -39,7 +39,7 @@
 | 1.10 | `agent.py` | ✅ |
 | 1.11 | `requirements.txt`, `Dockerfile`, `openapi.yaml` | ✅ |
 | 1.12 | **Test**: `pip install` aller Abhängigkeiten | ✅ |
-| 1.13 | **Test**: Unit-Tests grün (111/111 — inkl. RTI, Trilateration, Export, Topologie, Taktik, Ressourcenpolitik, Grundriss, Radar, Geräteinteraktion) | ✅ |
+| 1.13 | **Test**: Unit-Tests grün (122/122 — inkl. RTI, Trilateration, Export, Topologie, Taktik, Ressourcenpolitik, Grundriss, Radar, Geräteinteraktion, LiveTraffic) | ✅ |
 | 1.14 | **Test**: Server + REST-Endpunkte (health, state, pipeline, merge, history, aura, triangulation) | ✅ |
 | 1.15 | **Test**: WebSocket Binär-/JSON-Stream + Telemetrie + Persistenz | ✅ |
 
@@ -267,3 +267,15 @@
 | 21.6 | Spec-Fehlerkatalog (JS-Tippfehler `capabilitie`, `type.name` im JSON, Map<String,Any>, Alpha-Farben, Engine-Duplikation) | ✅ |
 | 21.7 | **Test**: Python 111/111 grün; JVM gesamt 148; OpenAPI 21 Pfade | ✅ |
 | 21.8 | MainActivity-Anbindung, Layer-Bottom-Sheet, Transport-Adapter (BLE-Kommandos) | ⏳ Roadmap |
+
+## 🌐 Schritt 22 — Aktive Netzwerkvisualisierung (docs/NETWORK_LIVEVIEW.md)
+
+| # | Aufgabe | Status |
+|---|---------|--------|
+| 22.1 | `edge-agent/network_traffic.py` (Simulator, zentrales Farb-Mapping, Aggregation, Heatmap) | ✅ |
+| 22.2 | Kotlin-Spiegelung `network/NetworkTraffic.kt` (identische Numerik) | ✅ |
+| 22.3 | REST `/api/v1/network/traffic|simulate` + WS `network_traffic`/`network_traffic_update` | ✅ |
+| 22.4 | Web-Visualizer: Live-Traffic-Upgrade (Partikel ∝ Bandbreite, Aktivitätspuls, Latenz-Alarm, Heatmap-Säulen) | ✅ |
+| 22.5 | Spec-Fehlerkatalog (NaN-Opacity via p.id, linewidth ohne Wirkung, inkonsistente Farben, fiktive WS-URL, fehlender Simulator) | ✅ |
+| 22.6 | **Test**: Python 122/122 grün (11 neue); JVM gesamt 157 (9 neue); OpenAPI 23 Pfade | ✅ |
+| 22.7 | SNMP/NetFlow-Adapter, Latenz-/Durchsatz-Diagramme, Android LiveView-Fragment | ⏳ Roadmap |

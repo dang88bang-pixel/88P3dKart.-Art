@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: 3dxAgent Edge-Agent API
-  version: 3.4.0
+  version: 3.5.0
   description: >
     REST-API des 3dxAgent Fusions-Kernels. Bietet EKF-Zustand, Historie,
     Szenarien-Konfiguration, ICP-Map-Merging, die v2.0-Datenpipeline, die
@@ -274,6 +274,28 @@ paths:
           description: Status
         '404':
           description: Layer nicht gefunden
+  /api/v1/network/traffic:
+    post:
+      summary: Netzwerk-LiveView — Live-Traffic-Ingest (Flüsse → Broadcast)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NetworkTrafficRequest'
+      responses:
+        '200':
+          description: Status + Flussanzahl
+        '400':
+          description: Keine Flüsse übergeben
+  /api/v1/network/traffic/simulate:
+    post:
+      summary: Netzwerk-LiveView — deterministische Flusssimulation auf den Topologie-Kanten
+      responses:
+        '200':
+          description: Status + Flussanzahl (Broadcast network_traffic_update)
+        '404':
+          description: Keine Topologie geladen
 components:
   schemas:
     EkfState:
@@ -491,3 +513,18 @@ components:
       properties:
         layer_id: { type: string }
         visible: { type: boolean }
+    NetworkTrafficRequest:
+      type: object
+      properties:
+        flows:
+          type: array
+          items:
+            type: object
+            required: [source, target]
+            properties:
+              source: { type: string }
+              target: { type: string }
+              bandwidth_mbps: { type: number }
+              latency_ms: { type: number }
+              packet_loss_pct: { type: number }
+              timestamp: { type: integer }

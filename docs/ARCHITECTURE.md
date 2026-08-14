@@ -28,6 +28,8 @@ REST/WebSocket und MQTT kommunizieren.
 | | Edge-Agent | Python (`radar_processing.py`) | Identische Numerik (Referenz + Server-Auswertung) |
 | **11. Geräteinteraktion** | Android-App (`device/`-Paket) | Kotlin, StateFlow-Registry | DeviceRegistry (Merge/Layer/Staleness), Action-Engine (Capability-Gating), Source-Mapper |
 | | Edge-Agent / Web | Python (`device_registry.py`), Three.js-Layer | `/api/v1/devices*`, `devices_update`-Broadcast, 3D-Marker mit Kontextmenü |
+| **12. Aktive Netzwerkvisualisierung** | Edge-Agent | Python (`network_traffic.py`) | Traffic-Simulator, zentrales Farb-Mapping, Aktivitäts-/Heatmap-Aggregation, Live-Traffic-Broadcast |
+| | Android-App / Web | Kotlin (`network/NetworkTraffic.kt`), Three.js-Upgrade | Partikel ∝ Bandbreite, Aktivitätspuls, Latenz-Alarm, Heatmap-Säulen |
 
 ---
 
