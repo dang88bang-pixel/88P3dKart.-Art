@@ -61,6 +61,10 @@ räumlich korrekt platziert werden.
   Marker-Kollisionseigenschaften so konfigurieren, dass bei hoher Signaldichte
   nur die relevantesten Peaks angezeigt werden.
 
+> Die vollständige UI/UX-Spezifikation (Bildschirmaufbau, HUD, Panels,
+> Aktionskatalog, Kamera-Modi inkl. „Röntgenblick", Gesten, Farb-/Legendensystem)
+> liegt in [`UI_UX_PLAN.md`](UI_UX_PLAN.md).
+
 ## 3. Netzwerkarchitektur für die SDR-Tunnelkommunikation
 
 Ein Nooelec RTL-SDR v5 mit typischer Abtastrate $2{,}4\ \text{MS/s}$ und

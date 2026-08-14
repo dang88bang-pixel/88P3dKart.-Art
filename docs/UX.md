@@ -40,3 +40,8 @@
 
 Die `res/values/colors.xml`, `strings.xml` und `themes.xml` setzen das
 Material-Design-3-Farbsystem und die semantischen Farben um.
+
+> **Weiterführend:** Der vollständige UI/UX-Detailplan (Bildschirmaufbau,
+> HUD, Panels, alle 39 Aktionen, Kamera-Modi, Gesten, Datenbindung,
+> Zustandsmaschine und phasenweiser Umsetzungsplan) liegt in
+> [`UI_UX_PLAN.md`](UI_UX_PLAN.md).

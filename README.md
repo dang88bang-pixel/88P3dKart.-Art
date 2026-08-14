@@ -113,7 +113,8 @@ Weitere Details: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md),
 [`docs/API.md`](docs/API.md),
 [`docs/ROADMAP.md`](docs/ROADMAP.md),
 [`docs/CHECKLIST.md`](docs/CHECKLIST.md),
-[`docs/AURA.md`](docs/AURA.md) (Projekt Aura — SDR/RTI/3D).
+[`docs/AURA.md`](docs/AURA.md) (Projekt Aura — SDR/RTI/3D),
+[`docs/UI_UX_PLAN.md`](docs/UI_UX_PLAN.md) (UI/UX-Detailplan: Aktionen & Interaktionen der 3D-Oberfläche).
 
 ---
 
