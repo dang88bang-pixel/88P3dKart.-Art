@@ -4,6 +4,7 @@
 Lädt aus den öffentlichen Quellen und baut `data/device_db.json`:
 - Zigbee2MQTT-Geräteliste (Koenkk/zigbee2mqtt.io, docgen-JSON),
 - Bluetooth-Numbers-DB (NordicSemiconductor, 16-Bit-Service-UUIDs),
+- Bluetooth-Numbers-DB (NordicSemiconductor, Company-IDs),
 - MAC-OUI-Datenbank (mac-address-vendor-database, JSON-Export).
 
 Hinweise:
@@ -36,7 +37,13 @@ DEFAULT_USER_AGENT = "3dxAgent-device-db-builder/1.0 (https://github.com/dang88b
 # Quellen (öffentlich; URLs als Konstanten, überschreibbar)
 Z2M_DEVICES_URL = "https://raw.githubusercontent.com/Koenkk/zigbee2mqtt.io/master/docgen/data/devices.json"
 BT_NUMBERS_SERVICES_URL = "https://raw.githubusercontent.com/NordicSemiconductor/bluetooth-numbers-database/master/v1/service_uuids.json"
+BT_NUMBERS_COMPANY_URL = "https://raw.githubusercontent.com/NordicSemiconductor/bluetooth-numbers-database/master/v1/company_ids.json"
 MAC_VENDORS_URL = "https://raw.githubusercontent.com/nickoala/mac-address-vendor-database/main/mac-vendors-export.json"
+
+# LoRaWAN Device Repository (TTN) wird NICHT automatisch importiert:
+# vendor/<hersteller>/*.yaml (kein JSON-Index) bräuchte eine YAML-Abhängigkeit
+# im Edge-Agent — die EU868-Auswahl ist kuratiert im Seed (⏳ Roadmap:
+# Builder-Snapshot mit PyYAML auf einer Maschine mit Netzwerkzugang).
 
 
 def fetch_json(url: str, timeout: float = 30.0, user_agent: str = DEFAULT_USER_AGENT) -> Any:
@@ -82,6 +89,24 @@ def parse_bluetooth_services(data: Any) -> Dict[str, str]:
 def re_short_uuid(uuid: str) -> bool:
     cleaned = uuid.replace("0x", "").replace("0X", "")
     return len(cleaned) == 4 and all(c in "0123456789abcdefABCDEF" for c in cleaned)
+
+
+def parse_company_ids(data: Any) -> Dict[int, str]:
+    """Nordic company_ids.json → {Company-ID int: Herstellername}.
+
+    Struktur: [{"code": 76, "name": "Apple, Inc."}, …] — Werte > 0xFFFF
+    bzw. fehlende Felder werden übersprungen.
+    """
+    items = data if isinstance(data, list) else data.get("company_ids", [])
+    result: Dict[int, str] = {}
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        code = item.get("code")
+        name = str(item.get("name", "")).strip()
+        if isinstance(code, int) and 0 <= code <= 0xFFFF and name:
+            result[code] = name
+    return result
 
 
 def parse_z2m_devices(data: Any, limit: Optional[int] = None) -> List[DeviceRecord]:
@@ -133,6 +158,7 @@ def parse_z2m_devices(data: Any, limit: Optional[int] = None) -> List[DeviceReco
 def build(
     z2m_json: Any = None,
     bt_numbers_json: Any = None,
+    company_ids_json: Any = None,
     mac_vendors_json: Any = None,
     limit_z2m: Optional[int] = None,
 ) -> Dict[str, Any]:
@@ -154,10 +180,16 @@ def build(
     if bt_numbers_json is not None:
         services.update(parse_bluetooth_services(bt_numbers_json))
 
+    company_ids: Dict[str, str] = {}
+    if company_ids_json is not None:
+        company_ids = {f"0x{code:04X}": name for code, name in
+                       sorted(parse_company_ids(company_ids_json).items())}
+
     return {
         "records": db.to_dict()["records"],
         "oui": oui_entries,
         "gatt_services": services,
+        "company_ids": company_ids,
     }
 
 
@@ -165,12 +197,13 @@ def build_from_network(
     output_path: str,
     z2m_url: str = Z2M_DEVICES_URL,
     bt_url: str = BT_NUMBERS_SERVICES_URL,
+    company_url: str = BT_NUMBERS_COMPANY_URL,
     oui_url: str = MAC_VENDORS_URL,
     limit_z2m: Optional[int] = None,
 ) -> Dict[str, int]:
     """Lädt die Quellen live und schreibt `data/device_db.json`."""
     errors: List[str] = []
-    payload: Dict[str, Any] = {"records": [], "oui": {}, "gatt_services": {}}
+    payload: Dict[str, Any] = {"records": [], "oui": {}, "gatt_services": {}, "company_ids": {}}
 
     try:
         z2m = fetch_json(z2m_url)
@@ -181,11 +214,18 @@ def build_from_network(
     except Exception as exc:  # noqa: BLE001
         bt, errors = errors, errors + [f"bluetooth-numbers: {exc}"]
     try:
+        company = fetch_json(company_url)
+    except Exception as exc:  # noqa: BLE001
+        company, errors = None, errors + [f"company-ids: {exc}"]
+    try:
         oui = fetch_json(oui_url)
     except Exception as exc:  # noqa: BLE001
         oui, errors = None, errors + [f"oui: {exc}"]
 
-    payload = build(z2m_json=z2m, bt_numbers_json=bt, mac_vendors_json=oui, limit_z2m=limit_z2m)
+    payload = build(
+        z2m_json=z2m, bt_numbers_json=bt, company_ids_json=company,
+        mac_vendors_json=oui, limit_z2m=limit_z2m,
+    )
     with open(output_path, "w", encoding="utf-8") as fh:
         json.dump(payload, fh, ensure_ascii=False, indent=2)
 
@@ -193,5 +233,6 @@ def build_from_network(
         "records": len(payload["records"]),
         "oui_entries": len(payload["oui"]),
         "gatt_services": len(payload["gatt_services"]),
+        "company_ids": len(payload["company_ids"]),
         "errors": errors,
     }

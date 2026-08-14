@@ -952,6 +952,111 @@ document.getElementById('btn-tactical').addEventListener('click', () =>
     send('scenario_start', { scenario: 'tactical', units: 6 }));
 document.getElementById('btn-stop').addEventListener('click', () => send('scenario_stop'));
 
+// ─── Geräte-DB-Panel (docs/DEVICE_DATABASE.md §Erweiterte Kategorien) ───
+const dbPanel = document.getElementById('devicedb-panel');
+const dbSummary = document.getElementById('devicedb-summary');
+const dbResults = document.getElementById('devicedb-results');
+const dbCompanyInput = document.getElementById('devicedb-company');
+const dbCompanyResult = document.getElementById('devicedb-company-result');
+const dbSearchInput = document.getElementById('devicedb-search');
+const dbTechSelect = document.getElementById('devicedb-tech');
+const dbCatSelect = document.getElementById('devicedb-cat');
+let dbOpen = false;
+
+async function apiGet(path) {
+    const response = await fetch(path);
+    if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error((body && body.detail) || `HTTP ${response.status}`);
+    }
+    return response.json();
+}
+
+function dbEscape(text) {
+    const div = document.createElement('div');
+    div.textContent = String(text ?? '');
+    return div.innerHTML;
+}
+
+async function loadDbMeta() {
+    try {
+        const status = await apiGet('/api/v1/devicedb/status');
+        const cats = Object.entries(status.categories || {}).sort((a, b) => a[0].localeCompare(b[0]));
+        const techs = Object.entries(status.technologies || {}).sort((a, b) => a[0].localeCompare(b[0]));
+        dbTechSelect.innerHTML = '<option value="">Technologie: alle</option>' +
+            techs.map(([t, n]) => `<option value="${dbEscape(t)}">${dbEscape(t)} (${n})</option>`).join('');
+        dbCatSelect.innerHTML = '<option value="">Kategorie: alle</option>' +
+            cats.map(([c, n]) => `<option value="${dbEscape(c)}">${dbEscape(c)} (${n})</option>`).join('');
+        dbSummary.textContent =
+            `📦 ${status.records} Geräte (${status.source}) · ${status.company_ids} Company-IDs · ` +
+            `${status.oui_entries} OUI-Präfixe · ${status.gatt_services} GATT-Services`;
+        runDbSearch();
+    } catch (err) {
+        dbSummary.textContent = `⚠️ Geräte-DB nicht erreichbar: ${err.message}`;
+    }
+}
+
+async function runDbSearch() {
+    const params = new URLSearchParams();
+    const q = dbSearchInput.value.trim();
+    if (q) params.set('q', q);
+    if (dbTechSelect.value) params.set('technology', dbTechSelect.value);
+    if (dbCatSelect.value) params.set('category', dbCatSelect.value);
+    params.set('limit', '60');
+    try {
+        const data = await apiGet(`/api/v1/devicedb/search?${params.toString()}`);
+        if (!data.results.length) {
+            dbResults.innerHTML = '<div class="db-empty">Keine Treffer.</div>';
+            return;
+        }
+        dbResults.innerHTML = data.results.map((r) => `
+            <div class="db-item">
+                <div class="db-name">${dbEscape(r.name)}</div>
+                <div class="db-sub">${dbEscape(r.vendor)}${r.model ? ' · ' + dbEscape(r.model) : ''} · ${dbEscape(r.id)}</div>
+                <div class="db-tags">
+                    <span class="db-tag">${dbEscape(r.category)}</span>
+                    ${r.technologies.map((t) => `<span class="db-tag">${dbEscape(t)}</span>`).join('')}
+                    ${(r.frequency_bands || []).map((b) => `<span class="db-tag band">${dbEscape(b)}</span>`).join('')}
+                    ${r.verified ? '' : '<span class="db-tag warn">⚠ unverifiziert</span>'}
+                </div>
+            </div>
+        `).join('');
+    } catch (err) {
+        dbResults.innerHTML = `<div class="db-empty">Fehler: ${dbEscape(err.message)}</div>`;
+    }
+}
+
+async function lookupCompanyId() {
+    const value = dbCompanyInput.value.trim();
+    dbCompanyResult.className = '';
+    if (!value) { dbCompanyResult.textContent = ''; return; }
+    try {
+        const data = await apiGet(`/api/v1/devicedb/lookup/company/${encodeURIComponent(value)}`);
+        dbCompanyResult.textContent = `✅ ${data.company_id} → ${data.name}`;
+        dbCompanyResult.className = 'ok';
+    } catch (err) {
+        dbCompanyResult.textContent = `❌ ${err.message}`;
+        dbCompanyResult.className = 'err';
+    }
+}
+
+document.getElementById('btn-devicedb').addEventListener('click', () => {
+    dbOpen = !dbOpen;
+    dbPanel.classList.toggle('hidden', !dbOpen);
+    document.getElementById('btn-devicedb').classList.toggle('active', dbOpen);
+    if (dbOpen) loadDbMeta();
+});
+document.getElementById('devicedb-close').addEventListener('click', () => {
+    dbOpen = false;
+    dbPanel.classList.add('hidden');
+    document.getElementById('btn-devicedb').classList.remove('active');
+});
+document.getElementById('devicedb-company-btn').addEventListener('click', lookupCompanyId);
+dbCompanyInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') lookupCompanyId(); });
+dbSearchInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') runDbSearch(); });
+dbTechSelect.addEventListener('change', runDbSearch);
+dbCatSelect.addEventListener('change', runDbSearch);
+
 // ─── Renderloop ────────────────────────────────────────────────
 function animate(time) {
     requestAnimationFrame(animate);

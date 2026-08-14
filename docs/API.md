@@ -29,11 +29,16 @@ Die vollständige OpenAPI-3.0-Spezifikation liegt unter
 | GET/POST | `/api/v1/devices/layers` | Geräteinteraktion: Layer lesen / Sichtbarkeit setzen |
 | POST | `/api/v1/network/traffic` | Netzwerk-LiveView: Live-Traffic-Ingest (Flüsse → Broadcast) |
 | POST | `/api/v1/network/traffic/simulate` | Netzwerk-LiveView: Flusssimulation auf den Topologie-Kanten |
-| GET | `/api/v1/devicedb/status` | Gerätedatenbank: Status (Quelle, Größen, Kategorien) |
+| GET | `/api/v1/devicedb/status` | Gerätedatenbank: Status (Quelle, Größen, Company-IDs, Kategorien, Technologien) |
 | GET | `/api/v1/devicedb/lookup/mac/{mac}` | Gerätedatenbank: MAC → OUI-Hersteller + Geräte |
 | GET | `/api/v1/devicedb/lookup/service/{uuid}` | Gerätedatenbank: UUID → GATT/Tracker/Geräte |
-| GET | `/api/v1/devicedb/search` | Gerätedatenbank: Volltext-/Kategorie-Suche |
+| GET | `/api/v1/devicedb/lookup/company/{company_id}` | Gerätedatenbank: Company-ID (hex/dezimal) → SIG-Hersteller |
+| GET | `/api/v1/devicedb/search` | Gerätedatenbank: Volltext-/Kategorie-/Technologie-Suche |
 | GET | `/api/v1/devicedb/categories` | Gerätedatenbank: Kategorie-Statistik |
+
+Der Web-Visualizer (Port 3000) proxyt alle `/api/*`-Anfragen an den
+Edge-Agent (`AGENT_REST_URL`, Standard `http://localhost:8080`) — das
+„🗃️ Geräte-DB"-Panel nutzt die devicedb-Endpunkte darüber.
 
 ### Beispiel: Zustand
 

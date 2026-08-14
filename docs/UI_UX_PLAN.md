@@ -362,6 +362,12 @@ Modus `FULL` (RTT) / `DEGRADED` (BLE/FP) / `MINIMAL` + `±Genauigkeit`.
 | A-47 | Geräte-Layer ein-/ausblenden | Toggle `🛰️ Geräte` / Layer-Sheet | Kategorie-Sichtbarkeit (Sensoren/Netzwerk/Aktoren/Fahrzeuge/Sonstige) → Marker ein-/ausblenden | sofort; Zähler je Kategorie |
 | A-48 | Geräte-Aktion ausführen | Rechtsklick auf Marker → Kontextmenü | Capability-geprüfte Aktionen (Status, Position, LED, Ausblenden) via `device_action` | `device_action_result` im HUD |
 
+### 5.11 Gerätedatenbank-Aktionen (docs/DEVICE_DATABASE.md)
+
+| ID | Name | Trigger | Verhalten | Feedback |
+|----|------|---------|-----------|----------|
+| A-49 | Offline-Gerätedatenbank durchsuchen | Button `🗃️ Geräte-DB` → Panel | Company-ID-Lookup (`0x004C` → Apple), Volltext-Suche mit Technologie-/Kategorie-Filter (Thread/Matter/LoRaWAN/wM-Bus/ISM 433/Medizin-BLE), Frequenzband-Badges, ⚠ unverifiziert-Markierung | Ergebnisliste; Fehlermeldung bei 400/404/502 |
+
 ---
 
 ## 6. HUD-Element-Spezifikation
@@ -627,7 +633,7 @@ Vertikaler Verlauf + Min/Max-Beschriftung + interaktive Handles (A-21). Zusätzl
 5. **Alert-Kette:** CRITICAL-Alert → Banner + Vibration in < 1 s; Quittierung reduziert Badge; Whitelist unterdrückt Folge-Alerts (Unit-Test in `GatekeeperTest` vorhanden).
 6. **Export:** glTF < 5 MB mit Draco (AURA.md §2), IFC/JSON valide (Schema-Check).
 7. **Barrierefreiheit:** Kontrast-Audit bestanden, TalkBack-Fokus-Reihenfolge logisch, Farbenblind-Modus aktivierbar.
-8. **Kein Regression:** bestehende 137 Edge-Agent-Tests + 167 JVM-Tests grün, `node --check` sauber, kein UI-Code im Render-Thread.
+8. **Kein Regression:** bestehende 144 Edge-Agent-Tests + 172 JVM-Tests grün, `node --check` sauber, kein UI-Code im Render-Thread.
 9. **Offline:** Web-Visualizer lädt und interagiert ohne Agent (Layer-Manager, Kamera, Messen), Android-App voll funktional im Offline-Modus (`offline/`-Paket).
 10. **Doku:** dieses Dokument ist bei Abweichungen aktualisiert; UX.md verlinkt auf die neuen Tabs.
 

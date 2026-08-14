@@ -9,13 +9,21 @@ from device_db import (
     DeviceDatabase,
     DeviceRecord,
     OuiDatabase,
+    lookup_company,
     lookup_gatt_service,
     lookup_tracker,
+    normalize_company_id,
     normalize_mac,
     normalize_uuid16,
     oui_prefix,
 )
-from device_db_builder import build, parse_bluetooth_services, parse_oui_export, parse_z2m_devices
+from device_db_builder import (
+    build,
+    parse_bluetooth_services,
+    parse_company_ids,
+    parse_oui_export,
+    parse_z2m_devices,
+)
 
 # ─── Normalisierung ─────────────────────────────────────────────────────────
 
@@ -94,6 +102,43 @@ def test_company_ids_verified_vendors():
     assert COMPANY_IDS[0x00E0] == "Google"
 
 
+def test_company_ids_spec_v17_corrections():
+    """Spec v17: falsche Company-IDs korrigiert (Nordic/SIG-Verifikation)."""
+    assert COMPANY_IDS[0x0000] == "Ericsson AB"          # Spec: „Ericsson Technology Licensing"
+    assert COMPANY_IDS[0x017A] == "Telemonitor, Inc."    # Spec: „Telemontior" (Tippfehler)
+    assert COMPANY_IDS[0x038F] == "Xiaomi Inc."          # Spec: 0xFDAB (existiert nicht)
+    assert COMPANY_IDS[0x0065] == "HP, Inc."             # Spec: 0xFDB4 (existiert nicht)
+    # 0xFDxx-Claims der Spec existieren nicht als Company-IDs
+    for bogus in (0xFDAB, 0xFDB0, 0xFDB4, 0xFDB5):
+        assert bogus not in COMPANY_IDS
+    # Verifizierte Zusätze (Spec-Tabelle bestätigt)
+    assert COMPANY_IDS[0x0093] == "Universal Electronics, Inc."
+    assert COMPANY_IDS[0x00C4] == "LG Electronics"
+    assert COMPANY_IDS[0x017B] == "taskit GmbH"
+    assert COMPANY_IDS[0x017E] == "BluDotz Ltd"
+    assert COMPANY_IDS[0x03D5] == "Wyzelink Systems Inc."
+    assert COMPANY_IDS[0x0520] == "Target Corporation"
+    assert COMPANY_IDS[0x0544] == "OrthoSensor, Inc."
+    assert COMPANY_IDS[0x0568] == "Bodyport Inc."
+    assert COMPANY_IDS[0x0739] == "Jiangsu Qinheng Co., Ltd."
+    assert COMPANY_IDS[0x0A53] == "KKM COMPANY LIMITED"
+    assert COMPANY_IDS[0x0A54] == "SQL Technologies Corp."
+
+
+def test_normalize_and_lookup_company():
+    assert normalize_company_id(76) == 0x004C
+    assert normalize_company_id("76") == 0x004C
+    assert normalize_company_id("0x004C") == 0x004C
+    assert normalize_company_id("004c") == 0x004C
+    assert normalize_company_id(" 0x00d0 ") == 0x00D0
+    assert normalize_company_id("zz") is None
+    assert normalize_company_id("") is None
+    assert lookup_company("0x004C") == "Apple, Inc."
+    assert lookup_company(0x00D0) == "Dexcom, Inc."
+    assert lookup_company("0xFDAB") is None
+    assert lookup_company("xyz") is None
+
+
 # ─── DeviceDatabase ─────────────────────────────────────────────────────────
 
 
@@ -110,6 +155,64 @@ def test_seed_database_queries():
     assert not db.search("dwm", category="SMART_HOME")
     # Service-Lookup
     assert any(r.id == "xiaomi_m365" for r in db.by_service("0xFFE0"))
+
+
+def test_seed_extended_categories_v17():
+    """Spec v17: Thread/Matter, LoRaWAN, wM-Bus, ISM 433, Medizin-BLE."""
+    db = DeviceDatabase.seed()
+    categories = db.categories()
+    assert categories.get("LORAWAN", 0) >= 16
+    assert categories.get("METERING", 0) >= 8
+    assert categories.get("ISM_433", 0) >= 6
+    assert categories.get("MEDICAL", 0) >= 7
+    tech = db.technologies()
+    assert tech.get("Thread", 0) >= 20
+    assert tech.get("Matter", 0) >= 20
+    assert tech.get("LoRaWAN", 0) >= 16
+    assert tech.get("Wireless M-Bus", 0) >= 8
+    assert tech.get("ISM 433 MHz", 0) >= 6
+
+
+def test_search_by_technology():
+    db = DeviceDatabase.seed()
+    lorawan = db.search("", technology="LoRaWAN")
+    assert lorawan and all("LoRaWAN" in r.technologies for r in lorawan)
+    assert all(r.frequency_bands == ["EU868"] for r in lorawan)
+    thread = db.search("", technology="thread")  # case-insensitiv
+    assert thread and all("Thread" in r.technologies for r in thread)
+    combined = db.search("", category="SMART_HOME", technology="Thread")
+    assert combined and all(r.category == "SMART_HOME" for r in combined)
+    assert not db.search("", category="MEDICAL", technology="LoRaWAN")
+    assert any(r.id == "ikea_alpstuga" for r in db.search("alpstuga", technology="Matter"))
+
+
+def test_seed_v17_specifics():
+    db = DeviceDatabase.seed()
+    # IKEA-2025-Sensoren (5 Stück, nicht „7" wie in der Spec)
+    ikea2025 = [r.id for r in db.search("", category="SMART_HOME") if r.vendor == "IKEA"
+                and r.model in ("MYGGSPRAY", "MYGGBETT", "KLIPPBOK", "TIMMERFLOTTE", "ALPSTUGA")]
+    assert len(ikea2025) == 5
+    # LoRaWAN-Modelle mit EU868-Band
+    assert db.by_id("dragino_lps8").frequency_bands == ["EU868"]
+    assert db.by_id("wilsen_node").vendor.startswith("Pepperl+Fuchs")
+    # wM-Bus: verifizierte vs. Spec-only-Einträge
+    assert db.by_id("zenner_wmbus_water_meter").verified is True
+    assert db.by_id("weptech_myna").verified is False
+    # Medizin: Company-IDs der Hersteller verifiziert
+    assert db.by_id("dexcom_g7").category == "MEDICAL"
+    assert db.by_id("abbott_freestyle_libre3").technologies == ["BLE", "NFC"]
+
+
+def test_frequency_bands_roundtrip():
+    record = DeviceRecord(
+        id="demo_lorawan", name="Demo", type="gateway", category="LORAWAN",
+        vendor="V", technologies=["LoRaWAN"], frequency_bands=["EU868"],
+    )
+    data = record.to_dict()
+    assert data["frequency_bands"] == ["EU868"]
+    restored = DeviceRecord.from_dict(data)
+    assert restored.frequency_bands == ["EU868"]
+    assert restored.technologies == ["LoRaWAN"]
 
 
 def test_database_json_roundtrip(tmp_path):
@@ -184,14 +287,31 @@ def test_parse_z2m_devices():
     assert ikea.technologies == ["Zigbee"]
 
 
+def test_parse_company_ids():
+    data = [
+        {"code": 76, "name": "Apple, Inc."},
+        {"code": 911, "name": "Xiaomi Inc."},
+        {"code": 65536, "name": "Ungültig (> 0xFFFF)"},
+        {"code": 117, "name": ""},
+        {"name": "Ohne Code"},
+    ]
+    company_ids = parse_company_ids(data)
+    assert company_ids == {76: "Apple, Inc.", 911: "Xiaomi Inc."}
+
+
 def test_build_combines_sources():
     result = build(
         z2m_json=[{"vendor": "IKEA", "models": [{"model": "E1603", "description": "Bulb"}]}],
         bt_numbers_json={"service_uuids": [{"uuid": "180D", "name": "Heart Rate"}]},
+        company_ids_json=[{"code": 76, "name": "Apple, Inc."}, {"code": 911, "name": "Xiaomi Inc."}],
         mac_vendors_json=[{"macPrefix": "00:1A:22", "vendorName": "Honeywell"}],
         limit_z2m=10,
     )
-    assert len(result["records"]) >= 9  # Seed + Z2M
+    assert len(result["records"]) >= 55  # Seed (inkl. Spec-17-Kategorien) + Z2M
     assert any(r["id"] == "z2m_ikea_e1603" for r in result["records"])
     assert result["oui"]["00:1A:22"] == "Honeywell"
     assert result["gatt_services"]["0x180D"] == "Heart Rate"
+    assert result["company_ids"] == {"0x004C": "Apple, Inc.", "0x038F": "Xiaomi Inc."}
+    # Frequenzbänder der Spec-17-Records bleiben im Build erhalten
+    lorawan = next(r for r in result["records"] if r["id"] == "dragino_lps8")
+    assert lorawan["frequency_bands"] == ["EU868"]

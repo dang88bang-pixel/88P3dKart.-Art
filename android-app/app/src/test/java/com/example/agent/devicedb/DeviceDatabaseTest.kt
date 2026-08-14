@@ -1,6 +1,7 @@
 package com.example.agent.devicedb
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -109,5 +110,85 @@ class DeviceDatabaseTest {
         ))
         assertEquals(1, db.byMac("00:1A:22:AA:BB:CC").size)
         assertTrue(db.byMac("00:1A:23:AA:BB:CC").isEmpty())
+    }
+
+    // ── Spec v17: erweiterte Kategorien & Company-IDs ────────────
+
+    @Test
+    fun `company-ids enthalten die verifizierten v17-korrekturen`() {
+        val ids = DeviceDbCore.COMPANY_IDS
+        assertEquals("Ericsson AB", ids[0x0000])            // Spec: „Ericsson Technology Licensing"
+        assertEquals("Telemonitor, Inc.", ids[0x017A])      // Spec: „Telemontior" (Tippfehler)
+        assertEquals("Xiaomi Inc.", ids[0x038F])            // Spec: 0xFDAB (existiert nicht)
+        assertEquals("HP, Inc.", ids[0x0065])               // Spec: 0xFDB4 (existiert nicht)
+        for (bogus in listOf(0xFDAB, 0xFDB0, 0xFDB4, 0xFDB5)) {
+            assertTrue(bogus !in ids)
+        }
+        assertEquals("Universal Electronics, Inc.", ids[0x0093])
+        assertEquals("LG Electronics", ids[0x00C4])
+        assertEquals("taskit GmbH", ids[0x017B])
+        assertEquals("Dexcom, Inc.", ids[0x00D0])
+        assertEquals("Abbott", ids[0x03BB])
+        assertEquals("Honeywell International Inc.", ids[0x0526])
+        assertEquals("KKM COMPANY LIMITED", ids[0x0A53])
+        assertEquals("SQL Technologies Corp.", ids[0x0A54])
+    }
+
+    @Test
+    fun `company-id-normalisierung und lookup`() {
+        assertEquals(0x004C, DeviceDbCore.normalizeCompanyId("0x004c"))
+        assertEquals(0x004C, DeviceDbCore.normalizeCompanyId("76"))
+        assertEquals(0x00D0, DeviceDbCore.normalizeCompanyId(" 0x00d0 "))
+        assertNull(DeviceDbCore.normalizeCompanyId("zz"))
+        assertNull(DeviceDbCore.normalizeCompanyId(""))
+        assertEquals("Apple, Inc.", DeviceDbCore.lookupCompany("0x004C"))
+        assertEquals("Dexcom, Inc.", DeviceDbCore.lookupCompany("208"))
+        assertNull(DeviceDbCore.lookupCompany("0xFDAB"))
+        assertNull(DeviceDbCore.lookupCompany("xyz"))
+    }
+
+    @Test
+    fun `seed enthaelt die erweiterten v17-kategorien`() {
+        val db = DeviceDatabase()
+        val categories = db.categories()
+        assertTrue(categories.getOrDefault("LORAWAN", 0) >= 16)
+        assertTrue(categories.getOrDefault("METERING", 0) >= 8)
+        assertTrue(categories.getOrDefault("ISM_433", 0) >= 6)
+        assertTrue(categories.getOrDefault("MEDICAL", 0) >= 7)
+        val tech = db.technologies()
+        assertTrue(tech.getOrDefault("Thread", 0) >= 20)
+        assertTrue(tech.getOrDefault("Matter", 0) >= 20)
+        assertTrue(tech.getOrDefault("LoRaWAN", 0) >= 16)
+        assertTrue(tech.getOrDefault("Wireless M-Bus", 0) >= 8)
+        assertTrue(tech.getOrDefault("ISM 433 MHz", 0) >= 6)
+    }
+
+    @Test
+    fun `technologie-filter in der suche`() {
+        val db = DeviceDatabase()
+        val lorawan = db.search("", technology = "LoRaWAN")
+        assertTrue(lorawan.isNotEmpty())
+        assertTrue(lorawan.all { "LoRaWAN" in it.technologies })
+        assertTrue(lorawan.all { it.frequencyBands == listOf("EU868") })
+        val thread = db.search("", technology = "thread")
+        assertTrue(thread.isNotEmpty())
+        assertTrue(thread.all { "Thread" in it.technologies })
+        assertTrue(db.search("", category = "MEDICAL", technology = "LoRaWAN").isEmpty())
+        assertTrue(db.search("alpstuga", technology = "Matter").any { it.id == "ikea_alpstuga" })
+    }
+
+    @Test
+    fun `v17-seed-spezifika`() {
+        val db = DeviceDatabase()
+        val ikea2025 = db.search("", category = "SMART_HOME").filter {
+            it.vendor == "IKEA" && it.model in listOf("MYGGSPRAY", "MYGGBETT", "KLIPPBOK", "TIMMERFLOTTE", "ALPSTUGA")
+        }
+        assertEquals(5, ikea2025.size) // 5 Sensoren, nicht „7" wie in der Spec
+        assertEquals(listOf("EU868"), db.byId("dragino_lps8")!!.frequencyBands)
+        assertTrue(db.byId("wilsen_node")!!.vendor.startsWith("Pepperl+Fuchs"))
+        assertTrue(db.byId("zenner_wmbus_water_meter")!!.verified)
+        assertFalse(db.byId("weptech_myna")!!.verified)
+        assertEquals("MEDICAL", db.byId("dexcom_g7")!!.category)
+        assertEquals(listOf("BLE", "NFC"), db.byId("abbott_freestyle_libre3")!!.technologies)
     }
 }

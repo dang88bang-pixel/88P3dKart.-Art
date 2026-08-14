@@ -128,14 +128,19 @@ in der 3D-Ansicht (v14.1.0):
   Knoten-Aktivitätspuls, Latenz-Alarm, Heatmap-Säulen
 
 **Offline-Gerätedatenbank** (docs/DEVICE_DATABASE.md) — Erkennung von
-Drahtlosgeräten ohne Cloud (v16.0.0):
+Drahtlosgeräten ohne Cloud (v16.0.0 + v17.x):
 - **OUI-Lookup** (MAC → Hersteller, 24/28/36-Bit), **GATT-Standard-
   Services** (Bluetooth-SIG-verifiziert), **Tracker-Profile** (Apple/
   Samsung/Tile/Google — mit korrigierter Tile-UUID-Zuordnung)
-- **DeviceDatabase-Kern** (Python + Kotlin identisch) mit kuratiertem
-  Seed + **Konsolidierungs-Builder** (Zigbee2MQTT, Bluetooth-Numbers-DB,
-  MAC-Vendor-DB → `data/device_db.json`)
-- REST `/api/v1/devicedb/*` (Status, MAC-/Service-Lookup, Suche)
+- **SIG-Company-IDs** (34 verifizierte Einträge inkl. aller
+  v17-Korrekturen) + erweiterte Kategorien: **Thread/Matter, LoRaWAN
+  (EU868), Wireless M-Bus, ISM 433, Medizin-BLE** (Seed: 71 Records)
+- **DeviceDatabase-Kern** (Python + Kotlin identisch) mit Technologie-
+  Filter, Frequenzband-Metadaten + **Konsolidierungs-Builder**
+  (Zigbee2MQTT, Bluetooth-Numbers-DB inkl. Company-IDs, MAC-Vendor-DB
+  → `data/device_db.json`)
+- REST `/api/v1/devicedb/*` (Status, MAC-/Service-/Company-Lookup,
+  Suche) + Visualizer-Panel „🗃️ Geräte-DB" über REST-Proxy
 
 ---
 
@@ -209,10 +214,10 @@ curl -X POST http://localhost:8080/api/v1/triangulation/solve \
 ```bash
 cd edge-agent
 source .venv/bin/activate
-python -m pytest tests/ -v    # 137 Tests: EKF, ICP, UWB, Pipeline, RTI, Trilateration, Export, Topologie, Taktik, Ressourcenpolitik, Grundriss, Radar, Geräteinteraktion, LiveTraffic, Gerätedatenbank
+python -m pytest tests/ -v    # 144 Tests: EKF, ICP, UWB, Pipeline, RTI, Trilateration, Export, Topologie, Taktik, Ressourcenpolitik, Grundriss, Radar, Geräteinteraktion, LiveTraffic, Gerätedatenbank (inkl. Company-IDs/Kategorien)
 ```
 
-Kotlin: 167 JVM-Unit-Tests in `android-app/app/src/test/` (X25519 gegen
+Kotlin: 172 JVM-Unit-Tests in `android-app/app/src/test/` (X25519 gegen
 RFC-7748-Vektoren, IQ-Datagramm, FFT/Korrelation, RTI, Path-Loss,
 Fusions-Gate) — Ausführung in Android Studio/CI (`./gradlew test`).
 
@@ -244,7 +249,7 @@ Weitere Details: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md),
 [`docs/PERSON_DETECTION.md`](docs/PERSON_DETECTION.md) (Personen-/Gegenstandserkennung: Projekt-Verifikation, CA-CFAR/MTI/Doppler/Tracker),
 [`docs/DEVICE_INTERACTION.md`](docs/DEVICE_INTERACTION.md) (Geräteinteraktion: Registry, Action-Engine, Source-Mapper, 3D-Marker mit Kontextmenü),
 [`docs/NETWORK_LIVEVIEW.md`](docs/NETWORK_LIVEVIEW.md) (Aktive Netzwerkvisualisierung: Traffic-Simulator, Farb-Mapping, Heatmap, Live-Stream),
-[`docs/DEVICE_DATABASE.md`](docs/DEVICE_DATABASE.md) (Offline-Gerätedatenbank: OUI/GATT/Tracker-Erkennung, Builder, REST-Lookups).
+[`docs/DEVICE_DATABASE.md`](docs/DEVICE_DATABASE.md) (Offline-Gerätedatenbank: OUI/GATT/Tracker/Company-ID-Erkennung, erweiterte Kategorien, Builder, REST-Lookups).
 
 ---
 

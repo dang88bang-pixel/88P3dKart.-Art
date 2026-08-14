@@ -123,6 +123,10 @@ Background Sync.
   **Stale-While-Revalidate** (CDN-Assets) · Versions-Caches + Cleanup ·
   WebSocket bleibt unberührt (SW fangen kein WS ab)
 - Registrierung in `index.html` (geprüft: nur bei `'serviceWorker' in navigator`)
+- Die **Gerätedatenbank-Endpunkte** (`/api/v1/devicedb/*`, docs/DEVICE_DATABASE.md)
+  fallen unter die Network-First-Regel: letzte Abfragen (Lookups, Suchen)
+  bleiben offline nutzbar — die Spec-Idee „Datenbank über Service Worker
+  offline" ist damit ohne fiktive CDN-URL umgesetzt (10.2/10.4-Korrektur).
 
 ### 3.4 Tests
 

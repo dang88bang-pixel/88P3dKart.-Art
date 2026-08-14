@@ -15,13 +15,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from config import CONFIG
 from database import LocalVectorStore
 from device_db import (
+    COMPANY_IDS,
     GATT_STANDARD_SERVICES,
     SEED_OUI,
     TRACKER_PROFILES,
     DeviceDatabase,
     OuiDatabase,
+    lookup_company,
     lookup_gatt_service,
     lookup_tracker,
+    normalize_company_id,
     normalize_mac,
     normalize_uuid16,
 )
@@ -104,6 +107,12 @@ def _load_device_db() -> tuple:
             DeviceDatabase.validate_list(records)
             db = DeviceDatabase(records)
             oui = OuiDatabase(payload.get("oui") or {})
+            # Gebaute Company-ID-Liste (Builder) über den kuratierten Seed legen
+            built_company_ids = payload.get("company_ids") or {}
+            for key, name in built_company_ids.items():
+                cid = normalize_company_id(str(key))
+                if cid is not None and name:
+                    COMPANY_IDS[cid] = str(name)
             return db, oui, db_path.name
         except Exception as exc:  # noqa: BLE001
             logger.warning("Geräte-DB fehlerhaft (%s) — Seed aktiv", exc)
@@ -651,15 +660,29 @@ async def network_traffic_simulate():
 
 @app.get("/api/v1/devicedb/status")
 async def devicedb_status():
-    """Datenbank-Status: Quelle (gebaut/Seed), Größen, Kategorien."""
+    """Datenbank-Status: Quelle (gebaut/Seed), Größen, Kategorien, Technologien."""
     return {
         "source": device_db_source,
         "records": len(device_db),
         "oui_entries": len(device_oui_db),
         "gatt_services": len(GATT_STANDARD_SERVICES),
         "tracker_profiles": len(TRACKER_PROFILES),
+        "company_ids": len(COMPANY_IDS),
         "categories": device_db.categories(),
+        "technologies": device_db.technologies(),
     }
+
+
+@app.get("/api/v1/devicedb/lookup/company/{company_id}")
+async def devicedb_lookup_company(company_id: str):
+    """Company-ID (0x…-Hex oder dezimal) → Bluetooth-SIG-Hersteller."""
+    cid = normalize_company_id(company_id)
+    if cid is None:
+        raise HTTPException(status_code=400, detail=f"Ungültige Company-ID: {company_id!r}")
+    name = lookup_company(cid)
+    if name is None:
+        raise HTTPException(status_code=404, detail=f"Unbekannte Company-ID: 0x{cid:04X}")
+    return {"company_id": f"0x{cid:04X}", "name": name}
 
 
 @app.get("/api/v1/devicedb/lookup/mac/{mac}")
@@ -698,11 +721,16 @@ async def devicedb_lookup_service(uuid: str):
 
 
 @app.get("/api/v1/devicedb/search")
-async def devicedb_search(q: str = "", category: str | None = None, limit: int = 50):
-    """Volltext-/Kategorie-Suche über die Gerätedatenbank."""
-    results = device_db.search(q, category)[: max(1, min(limit, 500))]
-    return {"query": q, "category": category, "count": len(results),
-            "results": [r.to_dict() for r in results]}
+async def devicedb_search(
+    q: str = "",
+    category: str | None = None,
+    technology: str | None = None,
+    limit: int = 50,
+):
+    """Volltext-/Kategorie-/Technologie-Suche über die Gerätedatenbank."""
+    results = device_db.search(q, category, technology)[: max(1, min(limit, 500))]
+    return {"query": q, "category": category, "technology": technology,
+            "count": len(results), "results": [r.to_dict() for r in results]}
 
 
 @app.get("/api/v1/devicedb/categories")

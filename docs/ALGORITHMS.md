@@ -348,3 +348,34 @@ vor dem Laden; JSON-Roundtrip.
 Frische (RTT ≤ 5 s, BLE ≤ 3 s, FP ≤ 10 s) → Mahalanobis-Gate
 `‖Δ‖ ≤ k√(σ_A²+σ_B²)` (k = 3) → invers-varianz-gewichteter Mittelwert →
 EKF-Messupdate `EkfFusion.updateAbsolutePosition(z, R = σ²)`.
+
+## 26. Erweiterte Gerätedatenbank-Kategorien (docs/DEVICE_DATABASE.md v1.1)
+
+**Company-ID-Normalisierung & -Lookup** (`normalize_company_id`/
+`lookup_company`): Eingaben `76`, `"76"`, `"0x004C"`, `"004c"` →
+`0x004C`; Regeln: `0x`-Präfix → Hex; nur Ziffern → dezimal; sonst
+Hex-Zeichen → Hex; ungültig → `null`/`None` (API: 400). Unbekannte IDs
+→ `None` (API: 404). Registry: 34 SIG-verifizierte Einträge — die
+v17-Korrekturen (Ericsson AB `0x0000`, Telemonitor `0x017A`,
+Xiaomi `0x038F`, HP `0x0065`; `0xFDAB/0xFDB0/0xFDB4/0xFDB5` existieren
+nicht) sind **Test-verankert** (Python + Kotlin identisch).
+
+**Technologie-Filter & Statistik:** `search(q, category, technology)`
+matcht die Technology-Liste case-insensitiv (ein Record kann mehrere
+Technologien tragen, z. B. `["Thread", "Matter", "Zigbee", "WiFi"]`);
+`technologies()` liefert die Verteilung über alle Records —
+Grundlage für die Filter-Dropdowns im Visualizer-Panel.
+
+**Frequenzband-Metadaten:** `frequency_bands` je Record (LoRaWAN
+`EU868`, wM-Bus `868 MHz`, ISM 433 `433,05–434,79 MHz`) — reine
+Metadaten zur Anzeige/Klassifikation, **keine** Erkennung über
+Sub-GHz (CT45P hat keine SDR-Frontends für 433/868 MHz; Radar-/
+LoRa-Hardware wäre Zusatzmodul, ⏳ Roadmap).
+
+**Builder-Import Company-IDs** (`parse_company_ids`): Nordic-
+`company_ids.json` (Liste `{code, name}`) → Dict mit
+Grenzwert-Prüfung `0 ≤ code ≤ 0xFFFF`; Build-Output als
+`"company_ids"` (Hex-Schlüssel, sortiert). TTN-LoRaWAN-YAML und
+CSA/Thread-Zertifizierungsdumps: bewusst ⏳ (kein JSON-Index bzw.
+kein maschinenlesbarer Export) — EU868-/Matter-Auswahl kuratiert im
+Seed.

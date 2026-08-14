@@ -36,7 +36,10 @@
 | **NetworkLive 1.0** | **Aktive Netzwerkvisualisierung** | Traffic-Simulator, zentrales Farb-Mapping, Aktivitäts-/Heatmap-Aggregation, REST/WS, Visualizer-Upgrade (docs/NETWORK_LIVEVIEW.md) | ✅ |
 | NetworkLive 1.1 | SNMP/NetFlow-Adapter + Zeitreihen | Adapter hinter /api/v1/network/traffic; Latenz-/Durchsatz-Diagramme | ⏳ |
 | **DeviceDB 1.0** | **Offline-Gerätedatenbank** | OUI/GATT/Tracker-Kern (Python + Kotlin), Konsolidierungs-Builder, REST-Lookups (docs/DEVICE_DATABASE.md) | ✅ |
-| DeviceDB 1.1 | Snapshot-Build + App-Integration | Builder-Lauf → data/device_db.json; Erkennung in DeviceRegistry/UI-Suche | ⏳ |
+| **DeviceDB 1.1** | **Erweiterte Kategorien (v17)** | SIG-Company-IDs (verifiziert, 34 im Seed), Thread/Matter, LoRaWAN EU868, Wireless M-Bus, ISM 433, Medizin-BLE; Technologie-Filter, Company-Lookup, Visualizer-Panel (docs/DEVICE_DATABASE.md v1.1) | ✅ |
+| DeviceDB 1.2 | Snapshot-Build | Builder-Lauf mit Netzwerkzugang → data/device_db.json (volle Company-IDs, Z2M, OUI) ins Repo/Asset | ⏳ |
+| DeviceDB 1.3 | TTN/CSA-Import | LoRaWAN-Device-Repository (YAML-Snapshot) + CSA/Thread-Zertifizierungs-Dump | ⏳ |
+| DeviceDB 1.4 | App-Integration | Erkennung in DeviceSourceMapper/DeviceRegistry, Room-Persistenz, UI-Suche (UI_UX_PLAN) | ⏳ |
 | Aura 0.2 | SDR-USB-Treiber | RTL-SDR-v5 via USB Host (libusb-Portierung), `IqSource`-Anbindung | ⏳ |
 | Aura 0.3 | VPN-Einbindung | `com.wireguard.android:tunnel` im Flavour `aura-vpn` (VpnService) | ⏳ |
 | Aura 0.4 | Maps 3D Preview | Google Maps 3D SDK (Experimental): extrudierte Heatmap, RTI-Voxel, „Röntgenblick"-Kamera | ⏳ |

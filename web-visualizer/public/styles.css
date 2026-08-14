@@ -66,3 +66,82 @@ body {
     border: 1px solid #88ff88;
     z-index: 10;
 }
+
+/* ─── Geräte-DB-Panel (docs/DEVICE_DATABASE.md) ─────────────────── */
+.panel {
+    position: absolute;
+    top: 150px;
+    left: 20px;
+    width: 340px;
+    max-height: 62vh;
+    background: rgba(8, 14, 24, 0.92);
+    border: 1px solid #2a4b7c;
+    border-radius: 10px;
+    color: #dde;
+    font-size: 12px;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.6);
+}
+.panel.hidden { display: none; }
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 10px;
+    font-weight: bold;
+    background: rgba(42, 75, 124, 0.5);
+    border-bottom: 1px solid #2a4b7c;
+}
+.panel-close {
+    background: none;
+    border: none;
+    color: #c86adf;
+    cursor: pointer;
+    font-size: 13px;
+}
+#devicedb-summary { padding: 6px 10px; color: #9fb; border-bottom: 1px solid #223; }
+.devicedb-row { display: flex; gap: 4px; padding: 6px 10px; }
+.devicedb-row input { flex: 1; min-width: 0; }
+.devicedb-row select { max-width: 130px; }
+.devicedb-row input, .devicedb-row select {
+    background: #101a28;
+    color: #dde;
+    border: 1px solid #2a4b7c;
+    border-radius: 6px;
+    padding: 5px 7px;
+    font-size: 12px;
+}
+.devicedb-row button {
+    background: #2a4b7c;
+    border: none;
+    color: white;
+    border-radius: 6px;
+    padding: 5px 9px;
+    cursor: pointer;
+}
+.devicedb-row button:hover { background: #3d6b9e; }
+#devicedb-company-result { padding: 0 10px 6px; min-height: 14px; }
+#devicedb-company-result.ok { color: #88ff88; }
+#devicedb-company-result.err { color: #ff8866; }
+#devicedb-results { overflow-y: auto; padding: 2px 10px 10px; }
+.db-item {
+    border-bottom: 1px solid #1c2636;
+    padding: 5px 2px;
+}
+.db-item .db-name { font-weight: bold; color: #fff; }
+.db-item .db-sub { color: #9ab; }
+.db-item .db-tags { margin-top: 3px; display: flex; flex-wrap: wrap; gap: 3px; }
+.db-tag {
+    background: #17233a;
+    color: #9fd;
+    border: 1px solid #2a4b7c;
+    border-radius: 8px;
+    padding: 1px 6px;
+    font-size: 10px;
+}
+.db-tag.warn { color: #fd8; border-color: #8b7a2a; }
+.db-tag.band { color: #a9c8ff; }
+#devicedb-results .db-empty { color: #778; padding: 8px 2px; }

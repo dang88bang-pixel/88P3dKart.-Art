@@ -10,7 +10,7 @@
 > abgeglichen. Folgende **fehlende Teile** wurden ergänzt (Schritt 7–9).
 >
 > **Update Aura/Triangulation/UI (14.08.2026):** Dokumenten-Audit — SoC-Angaben
-> auf Qualcomm QCM4290 korrigiert, Testzahlen aktualisiert (137 Python / 167 JVM),
+> auf Qualcomm QCM4290 korrigiert, Testzahlen aktualisiert (144 Python / 172 JVM),
 > neue Schritte 10–12 ergänzt.
 
 ---
@@ -292,3 +292,18 @@
 | 23.6 | Spec-Fehlerkatalog (Tile-UUIDs, Company-ID 0x0055, identische M365-Frames, UWB-Modell-Ungenauigkeiten, fiktive CDN-URL) | ✅ |
 | 23.7 | **Test**: Python 137/137 grün (15 neue); JVM gesamt 167 (10 neue) | ✅ |
 | 23.8 | Snapshot-Build mit Netzwerkzugang, App-/Room-Integration, Update-Mechanismus | ⏳ Roadmap |
+
+## 🗃️ Schritt 24 — Erweiterte Gerätedatenbank (Weitere Kategorien, docs/DEVICE_DATABASE.md v1.1)
+
+| # | Aufgabe | Status |
+|---|---------|--------|
+| 24.1 | Quellen-Verifikation: Nordic `company_ids.json` live (alle 18 Spec-IDs geprüft: Ericsson/Telemonitor/Xiaomi/HP/0xFDxx-Fehler); Thread 1.000+ (Nov 2025), Thread 1.4 (Sep 2024), Matter >1.000, TTN 1.104/149, IKEA-2025-Sensoren (5, nicht 7) | ✅ |
+| 24.2 | `device_db.py`: Company-ID-Registry (34 Einträge, inkl. Korrekturen), `normalize_company_id`/`lookup_company`, `frequency_bands` im Record, Technologie-Filter in `search()`, `technologies()`-Statistik | ✅ |
+| 24.3 | Seed +71 Records: Thread/Matter (Eve/Nanoleaf/Aqara/IKEA/Apple/Google/Amazon/Hue/Shelly/Tado/Tuya-Pendants), LoRaWAN EU868 (Dragino/RAK/Minew/Elsist/IMST/WILSEN/Netvox/MultiTech/M5Stack/ZENNER), wM-Bus (ZENNER/Elvaco/WEPTECH/Solvimus/Stackforce), ISM-433-Generikklassen (6), Medizin-BLE (7) | ✅ |
+| 24.4 | Builder: `company_ids.json`-Import (`parse_company_ids`, 0x0000–0xFFFF-Grenzprüfung); TTN-YAML + CSA/Thread-Dumps bewusst ⏳ Roadmap (YAML-Abhängigkeit/kein maschinenlesbarer Dump) | ✅ |
+| 24.5 | REST: `GET /api/v1/devicedb/lookup/company/{company_id}` (400/404), `technology`-Filter in `/search`, Status um Company-IDs/Technologien — OpenAPI 3.6.0, **29 Pfade** | ✅ |
+| 24.6 | Kotlin-Spiegelung (Company-IDs, `normalizeCompanyId`, Technologie-Filter, `frequencyBands`, Seed 71) | ✅ |
+| 24.7 | Web-Visualizer: REST-Proxy `/api/*` in `server.js` + Panel „🗃️ Geräte-DB" (Company-Lookup, Technologie-/Kategorie-Filter, Suche, unverifiziert-Badge) | ✅ |
+| 24.8 | Spec-Fehlerkatalog v17 (0xFDxx-Company-IDs, Ericsson/Telemonitor, „7 IKEA-Produkte", „300+ Matter", „1.099/146 TTN", „52 %"-Claim, „Thread 14") | ✅ |
+| 24.9 | **Test**: Python **144/144** grün (7 neue); JVM gesamt **172** (5 neue); `node --check` main.js/server.js/sw.js sauber; Live-Smoke Company-Lookup/Suche | ✅ |
+| 24.10 | Builder-Snapshot (volle Company-IDs + Z2M + OUI) mit Netzwerkzugang; TTN-YAML-Import; CSA/Thread-Dump; App-/Room-Integration | ⏳ Roadmap |

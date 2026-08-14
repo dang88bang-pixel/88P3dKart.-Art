@@ -298,10 +298,26 @@ paths:
           description: Keine Topologie geladen
   /api/v1/devicedb/status:
     get:
-      summary: Gerätedatenbank — Status (Quelle, Größen, Kategorien)
+      summary: Gerätedatenbank — Status (Quelle, Größen, Kategorien, Technologien)
       responses:
         '200':
           description: Datenbank-Status
+  /api/v1/devicedb/lookup/company/{company_id}:
+    get:
+      summary: Gerätedatenbank — Bluetooth-SIG-Company-ID → Hersteller
+      parameters:
+        - name: company_id
+          in: path
+          required: true
+          schema: { type: string }
+          description: Hex (0x004C) oder dezimal (76)
+      responses:
+        '200':
+          description: Company-ID + Herstellername
+        '400':
+          description: Ungültige Company-ID
+        '404':
+          description: Unbekannte Company-ID
   /api/v1/devicedb/lookup/mac/{mac}:
     get:
       summary: Gerätedatenbank — MAC → OUI-Hersteller + Geräte
@@ -328,7 +344,7 @@ paths:
           description: GATT-Service, Tracker-Profile, Geräte
   /api/v1/devicedb/search:
     get:
-      summary: Gerätedatenbank — Volltext-/Kategorie-Suche
+      summary: Gerätedatenbank — Volltext-/Kategorie-/Technologie-Suche
       parameters:
         - name: q
           in: query
@@ -336,6 +352,10 @@ paths:
         - name: category
           in: query
           schema: { type: string }
+        - name: technology
+          in: query
+          schema: { type: string }
+          description: Z. B. Thread, Matter, LoRaWAN, Wireless M-Bus, ISM 433 MHz
         - name: limit
           in: query
           schema: { type: integer, default: 50 }

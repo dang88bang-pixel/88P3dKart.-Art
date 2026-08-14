@@ -30,7 +30,7 @@ REST/WebSocket und MQTT kommunizieren.
 | | Edge-Agent / Web | Python (`device_registry.py`), Three.js-Layer | `/api/v1/devices*`, `devices_update`-Broadcast, 3D-Marker mit Kontextmenü |
 | **12. Aktive Netzwerkvisualisierung** | Edge-Agent | Python (`network_traffic.py`) | Traffic-Simulator, zentrales Farb-Mapping, Aktivitäts-/Heatmap-Aggregation, Live-Traffic-Broadcast |
 | | Android-App / Web | Kotlin (`network/NetworkTraffic.kt`), Three.js-Upgrade | Partikel ∝ Bandbreite, Aktivitätspuls, Latenz-Alarm, Heatmap-Säulen |
-| **13. Offline-Gerätedatenbank** | Edge-Agent | Python (`device_db.py`, `device_db_builder.py`) | OUI/GATT/Tracker-Erkennung, DeviceDatabase-Kern + Seed, Konsolidierungs-Builder, REST-Lookups |
+| **13. Offline-Gerätedatenbank** | Edge-Agent | Python (`device_db.py`, `device_db_builder.py`) | OUI/GATT/Tracker-Erkennung, SIG-Company-IDs, DeviceDatabase-Kern + Seed (Thread/Matter, LoRaWAN, wM-Bus, ISM 433, Medizin-BLE), Konsolidierungs-Builder (Z2M/Bluetooth-Numbers/MAC-Vendor), REST-Lookups |
 | | Android-App | Kotlin (`devicedb/DeviceDatabase.kt`) | Identische Semantik; Room-Persistenz als Roadmap |
 
 ---
