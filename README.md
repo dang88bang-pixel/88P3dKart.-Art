@@ -127,6 +127,16 @@ in der 3D-Ansicht (v14.1.0):
 - Visualizer: Partikelzahl/-geschwindigkeit/-farbe ∝ Bandbreite,
   Knoten-Aktivitätspuls, Latenz-Alarm, Heatmap-Säulen
 
+**Offline-Gerätedatenbank** (docs/DEVICE_DATABASE.md) — Erkennung von
+Drahtlosgeräten ohne Cloud (v16.0.0):
+- **OUI-Lookup** (MAC → Hersteller, 24/28/36-Bit), **GATT-Standard-
+  Services** (Bluetooth-SIG-verifiziert), **Tracker-Profile** (Apple/
+  Samsung/Tile/Google — mit korrigierter Tile-UUID-Zuordnung)
+- **DeviceDatabase-Kern** (Python + Kotlin identisch) mit kuratiertem
+  Seed + **Konsolidierungs-Builder** (Zigbee2MQTT, Bluetooth-Numbers-DB,
+  MAC-Vendor-DB → `data/device_db.json`)
+- REST `/api/v1/devicedb/*` (Status, MAC-/Service-Lookup, Suche)
+
 ---
 
 ## 📁 Monorepo-Struktur
@@ -199,10 +209,10 @@ curl -X POST http://localhost:8080/api/v1/triangulation/solve \
 ```bash
 cd edge-agent
 source .venv/bin/activate
-python -m pytest tests/ -v    # 122 Tests: EKF, ICP, UWB, Pipeline, RTI, Trilateration, Export, Topologie, Taktik, Ressourcenpolitik, Grundriss, Radar, Geräteinteraktion, LiveTraffic
+python -m pytest tests/ -v    # 137 Tests: EKF, ICP, UWB, Pipeline, RTI, Trilateration, Export, Topologie, Taktik, Ressourcenpolitik, Grundriss, Radar, Geräteinteraktion, LiveTraffic, Gerätedatenbank
 ```
 
-Kotlin: 157 JVM-Unit-Tests in `android-app/app/src/test/` (X25519 gegen
+Kotlin: 167 JVM-Unit-Tests in `android-app/app/src/test/` (X25519 gegen
 RFC-7748-Vektoren, IQ-Datagramm, FFT/Korrelation, RTI, Path-Loss,
 Fusions-Gate) — Ausführung in Android Studio/CI (`./gradlew test`).
 
@@ -233,7 +243,8 @@ Weitere Details: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md),
 [`docs/FLOORPLAN.md`](docs/FLOORPLAN.md) (Grundriss-Integration: verifizierte Quellen, Overpass/Nominatim/Photon-Adapter, 3D-Extrusion),
 [`docs/PERSON_DETECTION.md`](docs/PERSON_DETECTION.md) (Personen-/Gegenstandserkennung: Projekt-Verifikation, CA-CFAR/MTI/Doppler/Tracker),
 [`docs/DEVICE_INTERACTION.md`](docs/DEVICE_INTERACTION.md) (Geräteinteraktion: Registry, Action-Engine, Source-Mapper, 3D-Marker mit Kontextmenü),
-[`docs/NETWORK_LIVEVIEW.md`](docs/NETWORK_LIVEVIEW.md) (Aktive Netzwerkvisualisierung: Traffic-Simulator, Farb-Mapping, Heatmap, Live-Stream).
+[`docs/NETWORK_LIVEVIEW.md`](docs/NETWORK_LIVEVIEW.md) (Aktive Netzwerkvisualisierung: Traffic-Simulator, Farb-Mapping, Heatmap, Live-Stream),
+[`docs/DEVICE_DATABASE.md`](docs/DEVICE_DATABASE.md) (Offline-Gerätedatenbank: OUI/GATT/Tracker-Erkennung, Builder, REST-Lookups).
 
 ---
 

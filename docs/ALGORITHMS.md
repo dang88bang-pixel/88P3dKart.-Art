@@ -327,6 +327,23 @@ Heatmap-Säulen relativ zum Peak-Knoten.
 sättigend an die Auslastung gekoppelt (2 + 45·bw/(Basis·3) ms);
 Paketverlust = max(0, (Latenz−40)·0,02).
 
+## 25. Offline-Gerätedatenbank (docs/DEVICE_DATABASE.md)
+
+**UUID-/MAC-Normalisierung:** 16-Bit-UUIDs auf `0xXXXX` (128-Bit mit
+Bindestrichen großgeschrieben); MACs separarortolerant auf
+`AA:BB:CC:DD:EE:FF`.
+
+**OUI-Lookup:** Präfix-Matching über 24/28/36-Bit-Blöcke; längere
+Präfixe (MA-M/MA-S) gewinnen (Sortierung nach Länge, erstes Match).
+
+**Tracker-Erkennung:** Company-ID (Apple 0x004C, Samsung 0x0075,
+Google 0x00E0) **oder** Service-UUID-Match — Tile über die
+Bluetooth-SIG-UUIDs 0xFEEC/0xFEED (Korrektur: 0xFEAA = Eddystone).
+
+**Datenbank-Kern:** Upsert-Registry mit Suche nach MAC-Präfix,
+Service-UUID, Volltext/Kategorie; Duplikat-/Pflichtfeld-Validierung
+vor dem Laden; JSON-Roundtrip.
+
 **Fusion** (`EstimateGate.kt`, `TriangulationService.kt`):
 Frische (RTT ≤ 5 s, BLE ≤ 3 s, FP ≤ 10 s) → Mahalanobis-Gate
 `‖Δ‖ ≤ k√(σ_A²+σ_B²)` (k = 3) → invers-varianz-gewichteter Mittelwert →

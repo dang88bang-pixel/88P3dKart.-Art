@@ -14,6 +14,17 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from config import CONFIG
 from database import LocalVectorStore
+from device_db import (
+    GATT_STANDARD_SERVICES,
+    SEED_OUI,
+    TRACKER_PROFILES,
+    DeviceDatabase,
+    OuiDatabase,
+    lookup_gatt_service,
+    lookup_tracker,
+    normalize_mac,
+    normalize_uuid16,
+)
 from device_registry import Device, DeviceActionEngine, DeviceRegistry
 from ekf_fusion import AdaptiveEKF
 from export_formats import (
@@ -76,6 +87,30 @@ device_tracker = DeviceTracker()      # Live-Netzwerk: Change-/Anomalie-Erkennun
 device_registry = DeviceRegistry()    # Geräteinteraktion (docs/DEVICE_INTERACTION.md)
 device_action_engine = DeviceActionEngine(device_registry)
 traffic_simulator = NetworkTrafficSimulator(seed=42)  # LiveView-Demo (docs/NETWORK_LIVEVIEW.md)
+
+# Offline-Gerätedatenbank (docs/DEVICE_DATABASE.md): gebaute DB falls
+# vorhanden (data/device_db.json), sonst kuratierter Seed.
+def _load_device_db() -> tuple:
+    import pathlib
+
+    db_path = pathlib.Path(__file__).parent / "data" / "device_db.json"
+    if db_path.exists():
+        try:
+            payload = json.loads(db_path.read_text(encoding="utf-8"))
+            records = [
+                __import__("device_db", fromlist=["DeviceRecord"]).DeviceRecord.from_dict(r)
+                for r in payload.get("records", [])
+            ]
+            DeviceDatabase.validate_list(records)
+            db = DeviceDatabase(records)
+            oui = OuiDatabase(payload.get("oui") or {})
+            return db, oui, db_path.name
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Geräte-DB fehlerhaft (%s) — Seed aktiv", exc)
+    return DeviceDatabase.seed(), OuiDatabase(SEED_OUI), "seed"
+
+
+device_db, device_oui_db, device_db_source = _load_device_db()
 
 
 def _devices_payload() -> dict:
@@ -609,6 +644,71 @@ async def network_traffic_simulate():
     flows = traffic_simulator.simulate(edges)
     await manager.broadcast_json(_traffic_broadcast(flows))
     return {"status": "ok", "flow_count": len(flows)}
+
+
+# ─── Offline-Gerätedatenbank (docs/DEVICE_DATABASE.md) ───────────
+
+
+@app.get("/api/v1/devicedb/status")
+async def devicedb_status():
+    """Datenbank-Status: Quelle (gebaut/Seed), Größen, Kategorien."""
+    return {
+        "source": device_db_source,
+        "records": len(device_db),
+        "oui_entries": len(device_oui_db),
+        "gatt_services": len(GATT_STANDARD_SERVICES),
+        "tracker_profiles": len(TRACKER_PROFILES),
+        "categories": device_db.categories(),
+    }
+
+
+@app.get("/api/v1/devicedb/lookup/mac/{mac}")
+async def devicedb_lookup_mac(mac: str):
+    """MAC-Adresse → OUI-Hersteller + passende Geräte-Records."""
+    try:
+        normalized = normalize_mac(mac)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    vendor = device_oui_db.lookup(normalized)
+    records = [r.to_dict() for r in device_db.by_mac(normalized)]
+    return {"mac": normalized, "oui_vendor": vendor, "devices": records}
+
+
+@app.get("/api/v1/devicedb/lookup/service/{uuid}")
+async def devicedb_lookup_service(uuid: str):
+    """16-Bit-/128-Bit-UUID → GATT-Service, Tracker-Profile, Geräte."""
+    service = lookup_gatt_service(uuid)
+    trackers = [
+        {"id": t.id, "vendor": t.vendor, "verified": t.verified, "reset": t.reset_procedure}
+        for t in lookup_tracker(service_uuids=[uuid])
+    ]
+    devices = [r.to_dict() for r in device_db.by_service(uuid)]
+    return {
+        "uuid": normalize_uuid16(uuid),
+        "gatt_service": {
+            "name": service.name,
+            "characteristics": [
+                {"uuid": c.uuid, "name": c.name, "properties": c.properties}
+                for c in service.characteristics
+            ],
+        } if service else None,
+        "trackers": trackers,
+        "devices": devices,
+    }
+
+
+@app.get("/api/v1/devicedb/search")
+async def devicedb_search(q: str = "", category: str | None = None, limit: int = 50):
+    """Volltext-/Kategorie-Suche über die Gerätedatenbank."""
+    results = device_db.search(q, category)[: max(1, min(limit, 500))]
+    return {"query": q, "category": category, "count": len(results),
+            "results": [r.to_dict() for r in results]}
+
+
+@app.get("/api/v1/devicedb/categories")
+async def devicedb_categories():
+    """Kategorie-Statistik der Datenbank."""
+    return {"categories": device_db.categories()}
 
 
 # ─── WebSocket-Endpunkt ──────────────────────────────────────

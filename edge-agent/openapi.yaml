@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: 3dxAgent Edge-Agent API
-  version: 3.5.0
+  version: 3.6.0
   description: >
     REST-API des 3dxAgent Fusions-Kernels. Bietet EKF-Zustand, Historie,
     Szenarien-Konfiguration, ICP-Map-Merging, die v2.0-Datenpipeline, die
@@ -296,6 +296,58 @@ paths:
           description: Status + Flussanzahl (Broadcast network_traffic_update)
         '404':
           description: Keine Topologie geladen
+  /api/v1/devicedb/status:
+    get:
+      summary: Gerätedatenbank — Status (Quelle, Größen, Kategorien)
+      responses:
+        '200':
+          description: Datenbank-Status
+  /api/v1/devicedb/lookup/mac/{mac}:
+    get:
+      summary: Gerätedatenbank — MAC → OUI-Hersteller + Geräte
+      parameters:
+        - name: mac
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OUI-Hersteller + passende Records
+        '400':
+          description: Ungültige MAC-Adresse
+  /api/v1/devicedb/lookup/service/{uuid}:
+    get:
+      summary: Gerätedatenbank — Service-UUID → GATT/Tracker/Geräte
+      parameters:
+        - name: uuid
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: GATT-Service, Tracker-Profile, Geräte
+  /api/v1/devicedb/search:
+    get:
+      summary: Gerätedatenbank — Volltext-/Kategorie-Suche
+      parameters:
+        - name: q
+          in: query
+          schema: { type: string, default: '' }
+        - name: category
+          in: query
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50 }
+      responses:
+        '200':
+          description: Suchergebnisse
+  /api/v1/devicedb/categories:
+    get:
+      summary: Gerätedatenbank — Kategorie-Statistik
+      responses:
+        '200':
+          description: Kategorie-Zählungen
 components:
   schemas:
     EkfState:

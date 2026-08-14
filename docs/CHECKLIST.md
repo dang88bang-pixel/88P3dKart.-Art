@@ -10,7 +10,7 @@
 > abgeglichen. Folgende **fehlende Teile** wurden ergänzt (Schritt 7–9).
 >
 > **Update Aura/Triangulation/UI (14.08.2026):** Dokumenten-Audit — SoC-Angaben
-> auf Qualcomm QCM4290 korrigiert, Testzahlen aktualisiert (122 Python / 157 JVM),
+> auf Qualcomm QCM4290 korrigiert, Testzahlen aktualisiert (137 Python / 167 JVM),
 > neue Schritte 10–12 ergänzt.
 
 ---
@@ -39,7 +39,7 @@
 | 1.10 | `agent.py` | ✅ |
 | 1.11 | `requirements.txt`, `Dockerfile`, `openapi.yaml` | ✅ |
 | 1.12 | **Test**: `pip install` aller Abhängigkeiten | ✅ |
-| 1.13 | **Test**: Unit-Tests grün (122/122 — inkl. RTI, Trilateration, Export, Topologie, Taktik, Ressourcenpolitik, Grundriss, Radar, Geräteinteraktion, LiveTraffic) | ✅ |
+| 1.13 | **Test**: Unit-Tests grün (137/137 — inkl. RTI, Trilateration, Export, Topologie, Taktik, Ressourcenpolitik, Grundriss, Radar, Geräteinteraktion, LiveTraffic, Gerätedatenbank) | ✅ |
 | 1.14 | **Test**: Server + REST-Endpunkte (health, state, pipeline, merge, history, aura, triangulation) | ✅ |
 | 1.15 | **Test**: WebSocket Binär-/JSON-Stream + Telemetrie + Persistenz | ✅ |
 
@@ -279,3 +279,16 @@
 | 22.5 | Spec-Fehlerkatalog (NaN-Opacity via p.id, linewidth ohne Wirkung, inkonsistente Farben, fiktive WS-URL, fehlender Simulator) | ✅ |
 | 22.6 | **Test**: Python 122/122 grün (11 neue); JVM gesamt 157 (9 neue); OpenAPI 23 Pfade | ✅ |
 | 22.7 | SNMP/NetFlow-Adapter, Latenz-/Durchsatz-Diagramme, Android LiveView-Fragment | ⏳ Roadmap |
+
+## 📡 Schritt 23 — Offline-Gerätedatenbank (docs/DEVICE_DATABASE.md)
+
+| # | Aufgabe | Status |
+|---|---------|--------|
+| 23.1 | Quellen-Verifikation (Zigbee2MQTT 5.592/582 live; Tile-UUID-Korrektur 0xFEEC/0xFEED statt 0xFEAA/0xFED5; OUI/Bluetooth-Numbers-DB) | ✅ |
+| 23.2 | `edge-agent/device_db.py`: GATT-Services, Company-IDs, Tracker-Profile, OuiDatabase, DeviceDatabase + Seed | ✅ |
+| 23.3 | `edge-agent/device_db_builder.py`: Konsolidierung (Zigbee2MQTT/Bluetooth-Numbers/MAC-Vendor) → data/device_db.json | ✅ |
+| 23.4 | REST `/api/v1/devicedb/*` (Status, MAC-/Service-Lookup, Suche, Kategorien) — OpenAPI 3.6.0, 28 Pfade | ✅ |
+| 23.5 | Kotlin-Spiegelung `devicedb/DeviceDatabase.kt` (identische Semantik) | ✅ |
+| 23.6 | Spec-Fehlerkatalog (Tile-UUIDs, Company-ID 0x0055, identische M365-Frames, UWB-Modell-Ungenauigkeiten, fiktive CDN-URL) | ✅ |
+| 23.7 | **Test**: Python 137/137 grün (15 neue); JVM gesamt 167 (10 neue) | ✅ |
+| 23.8 | Snapshot-Build mit Netzwerkzugang, App-/Room-Integration, Update-Mechanismus | ⏳ Roadmap |

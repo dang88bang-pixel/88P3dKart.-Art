@@ -35,6 +35,8 @@
 | DeviceInteract 1.1 | MainActivity-Anbindung + UI | SourceMapper ← Scanner; Layer-Bottom-Sheet; Transport-Adapter (BLE-Kommandos) | ⏳ |
 | **NetworkLive 1.0** | **Aktive Netzwerkvisualisierung** | Traffic-Simulator, zentrales Farb-Mapping, Aktivitäts-/Heatmap-Aggregation, REST/WS, Visualizer-Upgrade (docs/NETWORK_LIVEVIEW.md) | ✅ |
 | NetworkLive 1.1 | SNMP/NetFlow-Adapter + Zeitreihen | Adapter hinter /api/v1/network/traffic; Latenz-/Durchsatz-Diagramme | ⏳ |
+| **DeviceDB 1.0** | **Offline-Gerätedatenbank** | OUI/GATT/Tracker-Kern (Python + Kotlin), Konsolidierungs-Builder, REST-Lookups (docs/DEVICE_DATABASE.md) | ✅ |
+| DeviceDB 1.1 | Snapshot-Build + App-Integration | Builder-Lauf → data/device_db.json; Erkennung in DeviceRegistry/UI-Suche | ⏳ |
 | Aura 0.2 | SDR-USB-Treiber | RTL-SDR-v5 via USB Host (libusb-Portierung), `IqSource`-Anbindung | ⏳ |
 | Aura 0.3 | VPN-Einbindung | `com.wireguard.android:tunnel` im Flavour `aura-vpn` (VpnService) | ⏳ |
 | Aura 0.4 | Maps 3D Preview | Google Maps 3D SDK (Experimental): extrudierte Heatmap, RTI-Voxel, „Röntgenblick"-Kamera | ⏳ |

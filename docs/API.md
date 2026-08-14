@@ -29,6 +29,11 @@ Die vollständige OpenAPI-3.0-Spezifikation liegt unter
 | GET/POST | `/api/v1/devices/layers` | Geräteinteraktion: Layer lesen / Sichtbarkeit setzen |
 | POST | `/api/v1/network/traffic` | Netzwerk-LiveView: Live-Traffic-Ingest (Flüsse → Broadcast) |
 | POST | `/api/v1/network/traffic/simulate` | Netzwerk-LiveView: Flusssimulation auf den Topologie-Kanten |
+| GET | `/api/v1/devicedb/status` | Gerätedatenbank: Status (Quelle, Größen, Kategorien) |
+| GET | `/api/v1/devicedb/lookup/mac/{mac}` | Gerätedatenbank: MAC → OUI-Hersteller + Geräte |
+| GET | `/api/v1/devicedb/lookup/service/{uuid}` | Gerätedatenbank: UUID → GATT/Tracker/Geräte |
+| GET | `/api/v1/devicedb/search` | Gerätedatenbank: Volltext-/Kategorie-Suche |
+| GET | `/api/v1/devicedb/categories` | Gerätedatenbank: Kategorie-Statistik |
 
 ### Beispiel: Zustand
 
