@@ -20,6 +20,8 @@ REST/WebSocket und MQTT kommunizieren.
 | **7. Network3D & Taktik** | Edge-Agent | Python (`network_topology.py`, `tactical.py`, `network_tracker.py`) | Topologie-Graph (Dijkstra), What-If-Failover, Time Machine, Szenario-Komposition, Map-Versionierung, Annotation-Templates |
 | | Android-App | Kotlin (`wireless/`, `tactical/`, `network/`) | Umgebungs-Adaption, Drift/Loop-Closure, Cluster-Merger, Szenario-Composer, Delta-Versionierung, Kompression, DeviceTracker |
 | | Web-Visualizer | Three.js-Layer | Topologie-Nodes/-Edges, Flow-Partikel, Spatial-Alert-Pulse |
+| **8. Ressourcenpolitik** | Android-App (`resource/`-Paket) | Kotlin, pure Policies | Adaptive Scan-Raten, Energieprofile, ROI-Scanning, adaptive Voxel-Fusion |
+| | Edge-Agent / Web | Python (`resource_optimizer.py`), FPS-PixelRatio | Referenz-Port, adaptives Rendering-Budget |
 
 ---
 

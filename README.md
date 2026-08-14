@@ -75,6 +75,17 @@ Wireless-Mesh-Rekonstruktion und taktisches Map-Management:
 - REST: `/api/v1/network/*` (Topologie, Simulate, History, Devices) +
   WS-Typen `network_topology`, `topology_simulation`, `annotation_update`
 
+**Ressourcenoptimierung** (docs/RESOURCE_OPT.md) — Politik-Kerne für den
+ressourcensparenden Gesamtbetrieb (v11.0.0):
+- **Adaptive Scan-Raten** — Bewegungszustand × Batterie × Temperatur →
+  Raten + Qualität + Einsparungsstatistik
+- **Energieprofile** — PERFORMANCE/BALANCED/POWER_SAVE/EMERGENCY-Automatik
+- **ROI-Scanning** — Prioritäts-/Distanzgewichtung relevanter Bereiche
+- **Adaptive Voxel-Fusion** — Ressourcen-abhängige Voxelgröße/LOD/Konfidenz,
+  altersgewichtete Verschmelzung, Grid-Key-Merge mit Obergrenze
+- **Adaptive Renderqualität** — FPS-basiertes PixelRatio-Management im
+  Web-Visualizer (0,75…2,0)
+
 ---
 
 ## 📁 Monorepo-Struktur
@@ -147,10 +158,10 @@ curl -X POST http://localhost:8080/api/v1/triangulation/solve \
 ```bash
 cd edge-agent
 source .venv/bin/activate
-python -m pytest tests/ -v    # 65 Tests: EKF, ICP, UWB, Pipeline, RTI, Trilateration, Export, Topologie, Taktik
+python -m pytest tests/ -v    # 76 Tests: EKF, ICP, UWB, Pipeline, RTI, Trilateration, Export, Topologie, Taktik, Ressourcenpolitik
 ```
 
-Kotlin: 104 JVM-Unit-Tests in `android-app/app/src/test/` (X25519 gegen
+Kotlin: 118 JVM-Unit-Tests in `android-app/app/src/test/` (X25519 gegen
 RFC-7748-Vektoren, IQ-Datagramm, FFT/Korrelation, RTI, Path-Loss,
 Fusions-Gate) — Ausführung in Android Studio/CI (`./gradlew test`).
 
@@ -176,7 +187,8 @@ Weitere Details: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md),
 [`docs/SERVICE_WORKER.md`](docs/SERVICE_WORKER.md) (Service-Worker-Bedarfsanalyse: WorkManager/Workbox-Architektur, Wartungsmodule, Offline-Shell),
 [`docs/NETWORK3D.md`](docs/NETWORK3D.md) (3D-Netzwerk-Topologie: What-If, Time Machine, Visualizer-Layer),
 [`docs/WIRELESS_MESH.md`](docs/WIRELESS_MESH.md) (Wireless-Mesh-Rekonstruktion: Umgebungs-Adaption, Drift, Loop-Closure),
-[`docs/TACTICAL.md`](docs/TACTICAL.md) (Taktisches Map-Management: Szenario-Komposition, Versionierung, Annotationen).
+[`docs/TACTICAL.md`](docs/TACTICAL.md) (Taktisches Map-Management: Szenario-Komposition, Versionierung, Annotationen),
+[`docs/RESOURCE_OPT.md`](docs/RESOURCE_OPT.md) (Ressourcensparende 3D-Kartierung: Scan-Politik, Energieprofile, ROI, Voxel-Fusion).
 
 ---
 

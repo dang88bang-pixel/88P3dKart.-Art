@@ -10,7 +10,7 @@
 > abgeglichen. Folgende **fehlende Teile** wurden ergänzt (Schritt 7–9).
 >
 > **Update Aura/Triangulation/UI (14.08.2026):** Dokumenten-Audit — SoC-Angaben
-> auf Qualcomm QCM4290 korrigiert, Testzahlen aktualisiert (65 Python / 104 JVM),
+> auf Qualcomm QCM4290 korrigiert, Testzahlen aktualisiert (76 Python / 118 JVM),
 > neue Schritte 10–12 ergänzt.
 
 ---
@@ -39,7 +39,7 @@
 | 1.10 | `agent.py` | ✅ |
 | 1.11 | `requirements.txt`, `Dockerfile`, `openapi.yaml` | ✅ |
 | 1.12 | **Test**: `pip install` aller Abhängigkeiten | ✅ |
-| 1.13 | **Test**: Unit-Tests grün (65/65 — inkl. RTI, Trilateration, Export, Topologie, Taktik) | ✅ |
+| 1.13 | **Test**: Unit-Tests grün (76/76 — inkl. RTI, Trilateration, Export, Topologie, Taktik, Ressourcenpolitik) | ✅ |
 | 1.14 | **Test**: Server + REST-Endpunkte (health, state, pipeline, merge, history, aura, triangulation) | ✅ |
 | 1.15 | **Test**: WebSocket Binär-/JSON-Stream + Telemetrie + Persistenz | ✅ |
 
@@ -218,3 +218,16 @@
 | 17.4 | WS-Typen `network_devices_update`/`annotation_update` (Live-Sync) | ✅ |
 | 17.5 | **Test**: Python 65/65 grün; JVM gesamt 104 | ✅ |
 | 17.6 | Room-Entities, Annotation-UI, LLM-Szenariogenerator, ATAK-Roundtrip | ⏳ Roadmap |
+
+## ⚡ Schritt 18 — Ressourcenoptimierung (docs/RESOURCE_OPT.md)
+
+| # | Aufgabe | Status |
+|---|---------|--------|
+| 18.1 | `resource/ResourcePolicies.kt` (Scan-Raten, Energieprofile, Einsparungsstatistik) | ✅ |
+| 18.2 | `resource/RoiWeightMap.kt` (Prioritäts-/Distanzgewichtung, Kapazität) | ✅ |
+| 18.3 | `resource/FusionPolicy.kt` (Adaption, LOD-Snap, altersgewichtete Verschmelzung, Grid-Merge) | ✅ |
+| 18.4 | Python-Port `resource_optimizer.py` + 11 Tests | ✅ |
+| 18.5 | Web-Visualizer: FPS-basiertes PixelRatio-Management (ersetzt wirkungslosen Spec-Block) | ✅ |
+| 18.6 | Spec-Fehlerkatalog (Triple/Quadruple, Node-API im Browser, Div-0, setAnimationLoop) | ✅ |
+| 18.7 | **Test**: Python 76/76 grün; JVM gesamt 118 | ✅ |
+| 18.8 | Scan-Raten-Anbindung in MainActivity, Feldmessung, progressives Mesh | ⏳ Roadmap |

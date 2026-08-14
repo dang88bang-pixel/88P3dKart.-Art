@@ -14,6 +14,34 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 document.body.appendChild(renderer.domElement);
 
+// ─── Adaptive Renderqualität (docs/RESOURCE_OPT.md §6) ─────────
+// FPS-basiertes PixelRatio-Management: bei < 24 FPS wird die Auflösung in
+// 0,25-Schritten gesenkt (min. 0,75), bei > 55 FPS wieder angehoben —
+// korrekte Umsetzung des v11-Renderbudgets (die Spec-Variante nutzte
+// doppeltes renderer.setAnimationLoop, was wirkungslos ist).
+const MAX_PIXEL_RATIO = Math.min(window.devicePixelRatio, 2);
+const MIN_PIXEL_RATIO = 0.75;
+let currentPixelRatio = MAX_PIXEL_RATIO;
+let fpsWindowStart = 0;
+let fpsFrameCount = 0;
+
+function adaptRenderQuality(timeMs) {
+    fpsFrameCount++;
+    if (timeMs - fpsWindowStart < 2000) return;
+    const fps = (fpsFrameCount * 1000) / (timeMs - fpsWindowStart);
+    if (fps < 24 && currentPixelRatio > MIN_PIXEL_RATIO) {
+        currentPixelRatio = Math.max(MIN_PIXEL_RATIO, currentPixelRatio - 0.25);
+        renderer.setPixelRatio(currentPixelRatio);
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    } else if (fps > 55 && currentPixelRatio < MAX_PIXEL_RATIO) {
+        currentPixelRatio = Math.min(MAX_PIXEL_RATIO, currentPixelRatio + 0.25);
+        renderer.setPixelRatio(currentPixelRatio);
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+    fpsWindowStart = timeMs;
+    fpsFrameCount = 0;
+}
+
 const labelRenderer = new CSS2DRenderer();
 labelRenderer.setSize(window.innerWidth, window.innerHeight);
 labelRenderer.domElement.style.position = 'absolute';
@@ -463,6 +491,7 @@ function animate(time) {
     animateAvatars(time);
     animateNetwork(time);
     updateLOD();
+    adaptRenderQuality(time);
     controls.update();
     renderer.render(scene, camera);
     labelRenderer.render(scene, camera);

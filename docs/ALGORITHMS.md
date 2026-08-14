@@ -247,6 +247,23 @@ Rekonstruktion über defensive Kopien.
 **Geräte-Tracker:** Change-Erkennung (added/removed, Signalsprung > 10 dBm)
 und Historien-Anomalien (Abweichung > 20 dBm vom 10er-Mittel).
 
+## 20. Ressourcenpolitik (docs/RESOURCE_OPT.md)
+
+**Adaptive Scan-Raten:** `rate = base(Bewegung) · f_akku · f_therm`,
+Bewegungsstufen 0,5/1,5/5,0 m/s, Akkustaffel 0,1…1,0, Temperaturstaffel
+0,3…1,0; Einsparung = 1 − rate/baseline (guard-gegen-0).
+
+**Energieprofile:** EMERGENCY (< 15 %) → POWER_SAVE (< 30 % oder
+CPU > 70 %/T > 40 °C) → PERFORMANCE (laden & CPU < 50 %) → BALANCED.
+
+**ROI-Gewichtung:** w = max(0,5; prio·(1 − d/r)) innerhalb des Radius,
+coerce 0,1…1,0; Kapazität Top-10 nach Priorität.
+
+**Adaptive Fusion:** Voxelgröße ×1/1,5/2 und LOD 0/1/2 nach
+CPU/RAM/Akku-Schwellen; LOD-Snap auf 2^lod-Raster; Verschmelzung
+`w_existing = conf·(0,5 + 0,5·e^(−Δt/60 s))`, `w_new = conf`; Grid-Key-Merge
+(21 Bit/Achse) mit 50k-Obergrenze.
+
 **Fusion** (`EstimateGate.kt`, `TriangulationService.kt`):
 Frische (RTT ≤ 5 s, BLE ≤ 3 s, FP ≤ 10 s) → Mahalanobis-Gate
 `‖Δ‖ ≤ k√(σ_A²+σ_B²)` (k = 3) → invers-varianz-gewichteter Mittelwert →
