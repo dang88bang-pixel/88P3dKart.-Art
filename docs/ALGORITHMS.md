@@ -278,6 +278,22 @@ Parser bildet geschlossene Ringe auf GeoJSON-Polygone ab (Relationen über
 (lon·cos(lat)·111 320, lat·110 540), Extrusion (Höhe = Etagen × 3,2 m),
 Kanten + Labels, Cap 300/40 (Ressourcenpolitik v11).
 
+## 22. Personen-/Gegenstandserkennung (docs/PERSON_DETECTION.md)
+
+**CA-CFAR:** Schwelle = α·Mittelwert der Trainingszellen,
+α = N·(PFA^(−1/N) − 1); lokale Maxima + Peak-Grouping im Guard-Fenster.
+
+**MTI:** Single Canceler y = x[n]−x[n−1], Double Canceler
+y = x[n]−2x[n−1]+x[n−2]; Bewegt-Energie-Verhältnis.
+
+**Doppler:** Δφ ∈ [−π, π], v = λ·Δφ/(4πT).
+
+**Multi-Target-Tracking:** NN-Assoziation mit Gating; CV-Kalman
+(4 Zustände [x, y, vx, vy], Positionsmessung) mit
+**Piecewise-White-Noise-Q** (Beschleunigungsmodell: Blöcke dt⁴/4, dt³/2,
+dt²) und **Zwei-Punkt-Initialisierung** (v aus den ersten beiden Messungen —
+eliminiert den Startup-Lag); Track-Bestätigung (3 Hits) + Coasting.
+
 **Fusion** (`EstimateGate.kt`, `TriangulationService.kt`):
 Frische (RTT ≤ 5 s, BLE ≤ 3 s, FP ≤ 10 s) → Mahalanobis-Gate
 `‖Δ‖ ≤ k√(σ_A²+σ_B²)` (k = 3) → invers-varianz-gewichteter Mittelwert →

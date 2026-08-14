@@ -10,7 +10,7 @@
 > abgeglichen. Folgende **fehlende Teile** wurden ergänzt (Schritt 7–9).
 >
 > **Update Aura/Triangulation/UI (14.08.2026):** Dokumenten-Audit — SoC-Angaben
-> auf Qualcomm QCM4290 korrigiert, Testzahlen aktualisiert (85 Python / 123 JVM),
+> auf Qualcomm QCM4290 korrigiert, Testzahlen aktualisiert (99 Python / 135 JVM),
 > neue Schritte 10–12 ergänzt.
 
 ---
@@ -39,7 +39,7 @@
 | 1.10 | `agent.py` | ✅ |
 | 1.11 | `requirements.txt`, `Dockerfile`, `openapi.yaml` | ✅ |
 | 1.12 | **Test**: `pip install` aller Abhängigkeiten | ✅ |
-| 1.13 | **Test**: Unit-Tests grün (85/85 — inkl. RTI, Trilateration, Export, Topologie, Taktik, Ressourcenpolitik, Grundriss) | ✅ |
+| 1.13 | **Test**: Unit-Tests grün (99/99 — inkl. RTI, Trilateration, Export, Topologie, Taktik, Ressourcenpolitik, Grundriss, Radarverarbeitung) | ✅ |
 | 1.14 | **Test**: Server + REST-Endpunkte (health, state, pipeline, merge, history, aura, triangulation) | ✅ |
 | 1.15 | **Test**: WebSocket Binär-/JSON-Stream + Telemetrie + Persistenz | ✅ |
 
@@ -243,3 +243,14 @@
 | 19.5 | Web-Visualizer: Grundriss-Layer (Extrusion, Etagenhöhen, Labels, Toggle) | ✅ |
 | 19.6 | **Test**: Python 85/85 grün; JVM gesamt 123; Live-Verifikationsprotokoll in der Doku | ✅ |
 | 19.7 | KartaView-Foto-Adapter, INSPIRE/WFS-Adapter, Nominatim-Cache, FloorPlanFragment-UI | ⏳ Roadmap |
+
+## 🧍 Schritt 20 — Personen-/Gegenstandserkennung (docs/PERSON_DETECTION.md)
+
+| # | Aufgabe | Status |
+|---|---------|--------|
+| 20.1 | Projekt-Verifikation (Vision Pulse ✅ tag-basiert, RadarHPE ⚠️ → mm-Pose/mmHPE, TI SDK ✅) | ✅ |
+| 20.2 | `radar/RadarProcessing.kt` + `edge-agent/radar_processing.py`: CA-CFAR, MTI, Doppler, Multi-Target-Tracker | ✅ |
+| 20.3 | Korrekturen aus der Testiteration: Coasting-Bug, Piecewise-White-Noise-Q, Zwei-Punkt-Initialisierung | ✅ |
+| 20.4 | Fusionsmatrix + Mapping der Recherche-Mechanismen auf bestehende Module | ✅ |
+| 20.5 | **Test**: Python 99/99 grün (14 neue); JVM gesamt 135 (12 neue) | ✅ |
+| 20.6 | SerialManager-Anbindung (Range-Profil → CFAR → Tracker), Pose-/Gang-Modelle, IR-UWB-Feldtest | ⏳ Roadmap |

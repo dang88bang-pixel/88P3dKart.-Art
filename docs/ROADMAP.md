@@ -29,6 +29,8 @@
 | Ressourcen 1.2 | Progressives Mesh | Grob→Fein-Hintergrundverfeinerung im Edge-Agent | ⏳ |
 | **Grundriss 1.0** | **Quellen-Adapter** | Nominatim/Photon/Overpass+Spiegel, Source-Katalog (verifiziert), REST/WS, Visualizer-Layer (docs/FLOORPLAN.md) | ✅ |
 | Grundriss 1.1 | KartaView-Foto-Adapter + INSPIRE/WFS | Fassaden-Texturen, Kommune-Geoportale (Berlin zuerst) | ⏳ |
+| **PersonDetect 1.0** | **Radar-Kernel** | CA-CFAR, MTI-Clutter-Entfernung, Doppler-Geschwindigkeit, Multi-Target-Tracker (CV-Kalman) — Kotlin + Python (docs/PERSON_DETECTION.md) | ✅ |
+| PersonDetect 1.1 | SerialManager-Anbindung + Pose-Modelle | mmWave-Targets → CFAR → Tracker; mm-Pose/mmHPE-Modell-Assets | ⏳ |
 | Aura 0.2 | SDR-USB-Treiber | RTL-SDR-v5 via USB Host (libusb-Portierung), `IqSource`-Anbindung | ⏳ |
 | Aura 0.3 | VPN-Einbindung | `com.wireguard.android:tunnel` im Flavour `aura-vpn` (VpnService) | ⏳ |
 | Aura 0.4 | Maps 3D Preview | Google Maps 3D SDK (Experimental): extrudierte Heatmap, RTI-Voxel, „Röntgenblick"-Kamera | ⏳ |

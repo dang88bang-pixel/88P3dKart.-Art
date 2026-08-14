@@ -24,6 +24,8 @@ REST/WebSocket und MQTT kommunizieren.
 | | Edge-Agent / Web | Python (`resource_optimizer.py`), FPS-PixelRatio | Referenz-Port, adaptives Rendering-Budget |
 | **9. Grundriss-Integration** | Edge-Agent | Python (`floorplan.py`) | Nominatim/Photon-Geocoding, Overpass-Gebäude (Spiegel-Fallback), GeoJSON, Source-Katalog |
 | | Android-App / Web | Kotlin (`floorplan/`), Three.js-Layer | Parser/Query-Builder, extrudierte Grundrisse mit Etagenhöhen |
+| **10. Personen-/Gegenstandserkennung** | Android-App (`radar/`-Paket) | Kotlin, pure Kernel | CA-CFAR, MTI, Doppler-Geschwindigkeit, Multi-Target-Tracker (CV-Kalman) |
+| | Edge-Agent | Python (`radar_processing.py`) | Identische Numerik (Referenz + Server-Auswertung) |
 
 ---
 
