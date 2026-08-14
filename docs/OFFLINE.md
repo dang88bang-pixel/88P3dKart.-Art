@@ -9,11 +9,19 @@ ohne externen Edge-Agent, MQTT-Broker oder Cloud.
 |------------|---------------|----------------|
 | UWB-FFT (Atemfrequenz) | `uwb_processor.py` | `offline/UwbDoppler.kt` (DFT) |
 | ICP-Map-Merging | `icp_merger.py` | `offline/ICPMerger.kt` (Kabsch + Jacobi-SVD) |
-| Trilateration | – | `offline/OpenHPSAdapter.kt` |
+| Trilateration | `trilateration.py` | `triangulation/TrilaterationEngine.kt` (LSQ + Levenberg-Marquardt) |
 | Madgwick-IMU | – | `offline/OpenHPSAdapter.kt#MadgwickFilter` |
 | WebSocket-Server | `agent.py` (FastAPI) | `offline/LocalWebSocketServer.kt` |
 | REST-Server | `agent.py` (FastAPI) | `offline/LocalApiServer.kt` |
 | MQTT-Bridge | `mqtt_bridge.py` | entfällt (BLE direkt) |
+| Aura RTI-Solver | `rti_solver.py` (Tikhonov/Backprojection) | `aura/RtiSolver.kt` (identisches Datenmodell) |
+| Aura Heatmap | `rti_solver.py#build_heatmap` | `aura/RfHeatmapBuilder.kt` |
+| Aura FFT/Korrelation | – | `aura/Fft.kt`, `aura/CrossCorrelator.kt` (offline, ohne Bibliotheken) |
+| Path-Loss-Kalibrierung | `trilateration.py` | `triangulation/PathLossModel.kt` |
+
+> Alle Aura- und Triangulations-Kernmodule sind **ohne Cloud-Anbindung**
+> lauffähig (reine Kotlin-/NumPy-Mathematik); nur die SDR-Quelle (USB-Host,
+> Status ⏳) und die Wi-Fi-RTT-API sind gerätegebunden.
 
 ## Smart Mesh Integrator (v3.1.0-Semantic)
 

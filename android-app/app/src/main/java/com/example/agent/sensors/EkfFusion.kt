@@ -48,6 +48,14 @@ class EkfFusion(private val dt: Float = 0.05f) {
     fun updateLidar(z: FloatArray) = updateGeneric(z, R_lidar)
     fun updateMmwave(z: FloatArray) = updateGeneric(z, R_mmwave)
 
+    /**
+     * Absoluter Positionsmesswert aus externer Quelle
+     * (Wi-Fi RTT / BLE-Triangulation, docs/TRIANGULATION.md §5.4).
+     * @param z [x, y, z]
+     * @param r Messrauschvarianz (m²) — z. B. accuracyM² der Schätzung
+     */
+    fun updateAbsolutePosition(z: FloatArray, r: Float) = updateGeneric(z, r)
+
     private fun updateGeneric(z: FloatArray, r: Float) {
         // H projiziert Position (3 Messwerte)
         val H = FloatArray(18)

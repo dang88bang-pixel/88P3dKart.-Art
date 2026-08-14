@@ -11,13 +11,43 @@
         <h1>🧭 3dxAgent Live</h1>
         <div id="status">🟡 Verbinde...</div>
         <div id="scenario-status">⏸️ Bereit</div>
+        <div id="aura-status">📡 RF-Feld: wartet auf Daten</div>
+        <div id="tri-status">📶 Triangulation: —</div>
+        <div id="net-status">🌐 Netzwerk: wartet auf Topologie</div>
+        <div id="floorplan-status">🌆 Grundriss: wartet auf Daten</div>
+        <div id="device-status">🛰️ Geräte: —</div>
     </div>
     <div class="badge">🔒 Lokal</div>
 
     <div id="controls">
         <button id="btn-evacuation">🚨 Evakuierung</button>
         <button id="btn-tactical">🎯 Taktik</button>
+        <button id="btn-aura">📡 RF-Feld</button>
+        <button id="btn-triangulation" class="active">📶 Triang.</button>
+        <button id="btn-network" class="active">🌐 Topologie</button>
+        <button id="btn-floorplan" class="active">🌆 Grundriss</button>
+        <button id="btn-devices" class="active">🛰️ Geräte</button>
+        <button id="btn-devicedb">🗃️ Geräte-DB</button>
         <button id="btn-stop" class="stop">⏹️ Stopp</button>
+    </div>
+
+    <div id="devicedb-panel" class="panel hidden">
+        <div class="panel-header">
+            🗃️ Offline-Gerätedatenbank
+            <button id="devicedb-close" class="panel-close" title="Schließen">✖</button>
+        </div>
+        <div id="devicedb-summary">Lädt…</div>
+        <div class="devicedb-row">
+            <input id="devicedb-company" placeholder="Company-ID (z. B. 0x004C)" spellcheck="false">
+            <button id="devicedb-company-btn">Hersteller?</button>
+        </div>
+        <div id="devicedb-company-result"></div>
+        <div class="devicedb-row">
+            <input id="devicedb-search" placeholder="Suche: Thread · Dragino · Hue · Oura …" spellcheck="false">
+            <select id="devicedb-tech" title="Technologie-Filter"></select>
+            <select id="devicedb-cat" title="Kategorie-Filter"></select>
+        </div>
+        <div id="devicedb-results"></div>
     </div>
 
     <script type="importmap">
@@ -29,5 +59,14 @@
         }
     </script>
     <script type="module" src="main.js"></script>
+    <script>
+        // Offline-App-Shell: Service Worker registrieren (docs/SERVICE_WORKER.md)
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js')
+                    .catch((err) => console.warn('Service-Worker-Registrierung:', err));
+            });
+        }
+    </script>
 </body>
 </html>

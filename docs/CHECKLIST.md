@@ -1,13 +1,17 @@
 # ✅ 3dxAgent — Step-by-Step Build & Verification Checklist
 
-**Version:** 2.0.0-DataPipeline · **Datum:** 13. August 2026
-**Repository:** `dang88bang-pixel/88P3dKart.-Art` · **Branch:** `arena/019ff93c-88p3dkart-art`
+**Version:** 2.0.0-DataPipeline + Aura 0.1 + Triangulation 1.0 · **Datum:** 14. August 2026
+**Repository:** `dang88bang-pixel/88P3dKart.-Art` · **Branch:** `arena/01a0018e-88p3dkart-art`
 
 **Legende:** ✅ = erledigt & verifiziert · 🧩 = geliefert (benötigt externe Hardware/SDK) ·
 ⚠️ = offen
 
 > **Update v4.4.0:** Die Dokumente `88p3Kart.txt` (Versionen 2.0 → 4.4.0) wurden
 > abgeglichen. Folgende **fehlende Teile** wurden ergänzt (Schritt 7–9).
+>
+> **Update Aura/Triangulation/UI (14.08.2026):** Dokumenten-Audit — SoC-Angaben
+> auf Qualcomm QCM4290 korrigiert, Testzahlen aktualisiert (144 Python / 172 JVM),
+> neue Schritte 10–12 ergänzt.
 
 ---
 
@@ -35,8 +39,8 @@
 | 1.10 | `agent.py` | ✅ |
 | 1.11 | `requirements.txt`, `Dockerfile`, `openapi.yaml` | ✅ |
 | 1.12 | **Test**: `pip install` aller Abhängigkeiten | ✅ |
-| 1.13 | **Test**: Unit-Tests grün (18/18) | ✅ |
-| 1.14 | **Test**: Server + REST-Endpunkte (health, state, pipeline, merge, history) | ✅ |
+| 1.13 | **Test**: Unit-Tests grün (137/137 — inkl. RTI, Trilateration, Export, Topologie, Taktik, Ressourcenpolitik, Grundriss, Radar, Geräteinteraktion, LiveTraffic, Gerätedatenbank) | ✅ |
+| 1.14 | **Test**: Server + REST-Endpunkte (health, state, pipeline, merge, history, aura, triangulation) | ✅ |
 | 1.15 | **Test**: WebSocket Binär-/JSON-Stream + Telemetrie + Persistenz | ✅ |
 
 ## 🌐 Schritt 2 — Web-Visualizer (Node/Three.js, lauffähig)
@@ -84,8 +88,8 @@
 | # | Aufgabe | Status |
 |---|---------|--------|
 | 6.1 | Alle Dateien committen | ✅ |
-| 6.2 | Push auf `arena/019ff93c-88p3dkart-art` | ✅ |
-| 6.3 | Pull Request öffnen | ✅ |
+| 6.2 | Push auf `arena/019ff93c-88p3dkart-art` (historisch; aktuelle Session: `arena/01a0018e-88p3dkart-art`) | ✅ |
+| 6.3 | Pull Request öffnen (aktuell: PR #4) | ✅ |
 
 ## 🧩 Schritt 7 — Offline-Paket (v3.x, neu ergänzt)
 
@@ -119,3 +123,187 @@
 | 9.3 | `proguard-rules.pro`, `gradle.properties`, `build.gradle.kts` (+Java-WebSocket) | ✅ |
 | 9.4 | `docs/ALGORITHMS.md`, `CLIENT_RULES.md`, `OFFLINE.md`, `UX.md` | ✅ |
 | 9.5 | **Build**: Android-App mit Android-SDK | 🧩 (nicht in Sandbox kompilierbar) |
+
+## 📡 Schritt 10 — Projekt Aura (SDR/RTI, docs/AURA.md)
+
+| # | Aufgabe | Status |
+|---|---------|--------|
+| 10.1 | `aura/IqDatagram.kt` (12-Byte-Header, MTU 1420, GapTracker) | ✅ |
+| 10.2 | `aura/IqTunnelReceiver.kt` (UDP, DROP_OLDEST) | ✅ |
+| 10.3 | `aura/WireGuardKeys.kt` (X25519, RFC-7748-Vektoren) + `WireGuardConfig.kt` | ✅ |
+| 10.4 | `aura/Fft.kt`, `CrossCorrelator.kt`, `ReferenceSignals.kt` | ✅ |
+| 10.5 | `aura/RtiSolver.kt` (Tikhonov/Backprojection, Peaks) + `edge-agent/rti_solver.py` | ✅ |
+| 10.6 | `aura/RfBandClassifier.kt`, `Gatekeeper.kt` | ✅ |
+| 10.7 | `aura/TagVelocityTracker.kt`, `GeoPoseMapper.kt`, `RfHeatmapBuilder.kt`, `AuraIntegrator.kt` | ✅ |
+| 10.8 | Integration: `LiveSensorPipeline`, `MainActivity`, `AgentWebSocketClient`, REST `/api/v1/aura/*` | ✅ |
+| 10.9 | Web-Visualizer: RF-Voxel-/Heatmap-Layer + `edge-agent/aura_demo.py` | ✅ |
+| 10.10 | **Test**: JVM-Unit-Tests Aura (36) + Python-Tests RTI (8) grün | ✅ |
+| 10.11 | WireGuard-Bibliothek (`com.wireguard.android:tunnel`), SDR-USB-Treiber, Maps-3D-Preview | ⏳ Roadmap |
+
+## 📶 Schritt 11 — Triangulation (Wi-Fi RTT / BLE, docs/TRIANGULATION.md)
+
+| # | Aufgabe | Status |
+|---|---------|--------|
+| 11.1 | `triangulation/TrilaterationEngine.kt` (LSQ + Levenberg-Marquardt) + `trilateration.py` | ✅ |
+| 11.2 | `triangulation/PathLossModel.kt` (Kalibrierung) + `RssiSmoother` | ✅ |
+| 11.3 | `triangulation/WifiRttTriangulator.kt` (802.11mc, Feature-Checks) | ✅ |
+| 11.4 | `triangulation/BleRadioBackend.kt` + `BleBeaconTriangulator.kt` | ✅ |
+| 11.5 | `triangulation/WifiRssiFingerprinter.kt` (k-NN) | ✅ |
+| 11.6 | `triangulation/TriangulationService.kt` (Fusion) + `PositionEstimate.kt`/`EstimateGate.kt` | ✅ |
+| 11.7 | EKF-Anbindung (`EkfFusion.updateAbsolutePosition`), Manifest, `MainActivity` | ✅ |
+| 11.8 | REST `/api/v1/triangulation/solve` + WS-Broadcast + Visualizer-Layer | ✅ |
+| 11.9 | **Test**: JVM-Unit-Tests (15) + Python-Tests (8) grün, End-to-End-Broadcast | ✅ |
+| 11.10 | Honeywell-SDK-Backend (2. BLE-Hardware), AoA/AoD, EZConfig/OEMConfig-Rollout | ⏳ Roadmap |
+
+## 🎛️ Schritt 12 — UI/UX-Detailplan (docs/UI_UX_PLAN.md)
+
+| # | Aufgabe | Status |
+|---|---------|--------|
+| 12.1 | Detailplan: 5 Tabs, Wireframes, HUD, Panels, 46 Aktionen, Kamera-Modi, Gesten, Datenbindung, Zustandsmaschine | ✅ |
+| 12.2 | Umsetzungsphasen 0–5 mit Datei-Mapping und Definition of Done | ✅ |
+| 12.3 | Umsetzung Phase 0 (Web) + Phase 1–5 (Android) | ⏳ Roadmap |
+
+## 🔬 Schritt 13 — Verbesserungen aus ähnlichen Projekten (docs/VERBESSERUNGEN.md)
+
+| # | Aufgabe | Status |
+|---|---------|--------|
+| 13.1 | Robuste Trilateration (Reject-and-Resolve, LTS-1) — Kotlin + Python | ✅ |
+| 13.2 | RSSI-Filter: Median + 1D-Kalman (`RssiFilter`-Interface), Python-Äquivalente | ✅ |
+| 13.3 | RTI-Glättungs-Regularisierung (Graph-Laplacian, matrixfrei) | ✅ |
+| 13.4 | Wi-Fi-RTT: 802.11mc-Responder-Bevorzugung (`is80211mcResponder`) | ✅ |
+| 13.5 | Machbarkeitsmatrix (LCI/LCR, TSVD, L-Curve, TV, Dead-Reckoning, Bermuda-Netz) | ✅ dokumentiert |
+| 13.6 | **Test**: Python 38/38 grün; JVM-Tests gespiegelt (56) | ✅ |
+| 13.7 | LCI/LCR-Auswertung, TSVD, Dead-Reckoning-Fusion | ⏳ Roadmap |
+
+## ⚙️ Schritt 14 — Service Worker Bedarf (docs/SERVICE_WORKER.md)
+
+| # | Aufgabe | Status |
+|---|---------|--------|
+| 14.1 | Machbarkeitsanalyse der v10.2.0-Spec (13 Worker, Fehlerkatalog, Mapping) | ✅ |
+| 14.2 | `maintenance/AdaptiveThresholdMonitor.kt` (richtungskorrekte Schwellwerte, Spikes, Trends, Lernmodus) | ✅ |
+| 14.3 | `maintenance/BatteryHealthTracker.kt` (Zyklusäquivalente, Alterung, Restlaufzeit) | ✅ |
+| 14.4 | `maintenance/ExportPipeline.kt` (JSON/GeoJSON/KML + Retention) + `edge-agent/export_formats.py` | ✅ |
+| 14.5 | REST `POST /api/v1/export` + OpenAPI 3.1.0 (10 Pfade) | ✅ |
+| 14.6 | Web-Visualizer `sw.js` (Workbox-Strategien, Offline-Shell) + Registrierung | ✅ |
+| 14.7 | **Test**: Python 44/44 grün; 20 neue JVM-Tests (77 gesamt) | ✅ |
+| 14.8 | WorkManager-Anbindung, Export-UI, PWA-Volloffline, OTA-MDM | ⏳ Roadmap |
+
+## 🌐 Schritt 15 — Network3D (docs/NETWORK3D.md)
+
+| # | Aufgabe | Status |
+|---|---------|--------|
+| 15.1 | `network_topology.py`: TopologyGraph (Dijkstra), What-If-Failover, Time Machine | ✅ |
+| 15.2 | REST `/api/v1/network/topology|simulate|history|devices` + WS `network_topology`/`topology_simulation` | ✅ |
+| 15.3 | Web-Visualizer: Topologie-Layer (Typ-/Statusfarben, Spline-Edges, Flow-Partikel, Spatial-Alert-Pulse) | ✅ |
+| 15.4 | **Test**: 8 Python-Tests (Rerouting, Unreachable, Kaskade, Replay) | ✅ |
+| 15.5 | SNMP/K8s/Prometheus-Adapter, Live-Force-Layout, LOD | ⏳ Roadmap |
+
+## 📶 Schritt 16 — Wireless Mesh (docs/WIRELESS_MESH.md)
+
+| # | Aufgabe | Status |
+|---|---------|--------|
+| 16.1 | `wireless/EnvironmentModels.kt` + AdaptiveEnvironmentSelector | ✅ |
+| 16.2 | `wireless/ReconstructionHelpers.kt` (DriftCorrector, LoopClosureDetector, PointClusterMerger) | ✅ |
+| 16.3 | Spec-Fehlerkatalog dokumentiert (Doppelgewichtung, Referenz-Doppeladdierung, negatives Konfidenz-Intervall, Drift-als-Steigung) | ✅ |
+| 16.4 | **Test**: 13 neue JVM-Tests | ✅ |
+| 16.5 | SmartMeshIntegrator-Anbindung, BLE-AoA, Feldkalibrierung | ⏳ Roadmap |
+
+## 🗺️ Schritt 17 — Taktik & Annotation (docs/TACTICAL.md)
+
+| # | Aufgabe | Status |
+|---|---------|--------|
+| 17.1 | `tactical/ScenarioComposer.kt`, `MapVersioning.kt`, `ScenarioCompressor.kt`, `AnnotationTemplates.kt` | ✅ |
+| 17.2 | `network/NetworkDeviceTracker.kt` (Change-/Anomalie-Erkennung) | ✅ |
+| 17.3 | Python-Ports `tactical.py`, `network_tracker.py` + 13 Tests | ✅ |
+| 17.4 | WS-Typen `network_devices_update`/`annotation_update` (Live-Sync) | ✅ |
+| 17.5 | **Test**: Python 65/65 grün; JVM gesamt 104 | ✅ |
+| 17.6 | Room-Entities, Annotation-UI, LLM-Szenariogenerator, ATAK-Roundtrip | ⏳ Roadmap |
+
+## ⚡ Schritt 18 — Ressourcenoptimierung (docs/RESOURCE_OPT.md)
+
+| # | Aufgabe | Status |
+|---|---------|--------|
+| 18.1 | `resource/ResourcePolicies.kt` (Scan-Raten, Energieprofile, Einsparungsstatistik) | ✅ |
+| 18.2 | `resource/RoiWeightMap.kt` (Prioritäts-/Distanzgewichtung, Kapazität) | ✅ |
+| 18.3 | `resource/FusionPolicy.kt` (Adaption, LOD-Snap, altersgewichtete Verschmelzung, Grid-Merge) | ✅ |
+| 18.4 | Python-Port `resource_optimizer.py` + 11 Tests | ✅ |
+| 18.5 | Web-Visualizer: FPS-basiertes PixelRatio-Management (ersetzt wirkungslosen Spec-Block) | ✅ |
+| 18.6 | Spec-Fehlerkatalog (Triple/Quadruple, Node-API im Browser, Div-0, setAnimationLoop) | ✅ |
+| 18.7 | **Test**: Python 76/76 grün; JVM gesamt 118 | ✅ |
+| 18.8 | Scan-Raten-Anbindung in MainActivity, Feldmessung, progressives Mesh | ⏳ Roadmap |
+
+## 🏛️ Schritt 19 — Grundriss-Integration (docs/FLOORPLAN.md)
+
+| # | Aufgabe | Status |
+|---|---------|--------|
+| 19.1 | Quellen-Verifikation (Nominatim ✅, Photon ✅, Overpass ✅ via Kumi-Spiegel, KartaView ⚠️ Coverage, hoowoge.de → HOWOGE ❌, BIM Deutschland ❌, Mapzen ❌ tot, Mapillary ❌) | ✅ |
+| 19.2 | `edge-agent/floorplan.py` (Geocoder, Overpass+Spiegel-Fallback, GeoJSON, KartaView-URL, Source-Katalog) | ✅ |
+| 19.3 | REST `/api/v1/floorplan/sources|geocode|buildings` + WS `floorplan_buildings` | ✅ |
+| 19.4 | Kotlin `floorplan/` (Source-Katalog, Overpass-Query, Parser) | ✅ |
+| 19.5 | Web-Visualizer: Grundriss-Layer (Extrusion, Etagenhöhen, Labels, Toggle) | ✅ |
+| 19.6 | **Test**: Python 85/85 grün; JVM gesamt 123; Live-Verifikationsprotokoll in der Doku | ✅ |
+| 19.7 | KartaView-Foto-Adapter, INSPIRE/WFS-Adapter, Nominatim-Cache, FloorPlanFragment-UI | ⏳ Roadmap |
+
+## 🧍 Schritt 20 — Personen-/Gegenstandserkennung (docs/PERSON_DETECTION.md)
+
+| # | Aufgabe | Status |
+|---|---------|--------|
+| 20.1 | Projekt-Verifikation (Vision Pulse ✅ tag-basiert, RadarHPE ⚠️ → mm-Pose/mmHPE, TI SDK ✅) | ✅ |
+| 20.2 | `radar/RadarProcessing.kt` + `edge-agent/radar_processing.py`: CA-CFAR, MTI, Doppler, Multi-Target-Tracker | ✅ |
+| 20.3 | Korrekturen aus der Testiteration: Coasting-Bug, Piecewise-White-Noise-Q, Zwei-Punkt-Initialisierung | ✅ |
+| 20.4 | Fusionsmatrix + Mapping der Recherche-Mechanismen auf bestehende Module | ✅ |
+| 20.5 | **Test**: Python 99/99 grün (14 neue); JVM gesamt 135 (12 neue) | ✅ |
+| 20.6 | SerialManager-Anbindung (Range-Profil → CFAR → Tracker), Pose-/Gang-Modelle, IR-UWB-Feldtest | ⏳ Roadmap |
+
+## 🛰️ Schritt 21 — Geräteinteraktion (docs/DEVICE_INTERACTION.md)
+
+| # | Aufgabe | Status |
+|---|---------|--------|
+| 21.1 | `device/DeviceModels.kt` + `DeviceRegistry.kt` (Merge-Upsert, Layer-Propagation, Staleness) | ✅ |
+| 21.2 | `device/DeviceActionEngine.kt` (Capability-Gating, Standard-Aktionen) + `DeviceSourceMapper.kt` | ✅ |
+| 21.3 | Python-Port `edge-agent/device_registry.py` + 12 Tests | ✅ |
+| 21.4 | REST `/api/v1/devices*` (4 Endpunkte) + WS `devices_update`/`device_action`/`device_action_result` | ✅ |
+| 21.5 | Web-Visualizer: Geräte-Layer (Raycast-Auswahl, Kontextmenü mit capability-gefilterten Aktionen, Kategorie-Sichtbarkeit) | ✅ |
+| 21.6 | Spec-Fehlerkatalog (JS-Tippfehler `capabilitie`, `type.name` im JSON, Map<String,Any>, Alpha-Farben, Engine-Duplikation) | ✅ |
+| 21.7 | **Test**: Python 111/111 grün; JVM gesamt 148; OpenAPI 21 Pfade | ✅ |
+| 21.8 | MainActivity-Anbindung, Layer-Bottom-Sheet, Transport-Adapter (BLE-Kommandos) | ⏳ Roadmap |
+
+## 🌐 Schritt 22 — Aktive Netzwerkvisualisierung (docs/NETWORK_LIVEVIEW.md)
+
+| # | Aufgabe | Status |
+|---|---------|--------|
+| 22.1 | `edge-agent/network_traffic.py` (Simulator, zentrales Farb-Mapping, Aggregation, Heatmap) | ✅ |
+| 22.2 | Kotlin-Spiegelung `network/NetworkTraffic.kt` (identische Numerik) | ✅ |
+| 22.3 | REST `/api/v1/network/traffic|simulate` + WS `network_traffic`/`network_traffic_update` | ✅ |
+| 22.4 | Web-Visualizer: Live-Traffic-Upgrade (Partikel ∝ Bandbreite, Aktivitätspuls, Latenz-Alarm, Heatmap-Säulen) | ✅ |
+| 22.5 | Spec-Fehlerkatalog (NaN-Opacity via p.id, linewidth ohne Wirkung, inkonsistente Farben, fiktive WS-URL, fehlender Simulator) | ✅ |
+| 22.6 | **Test**: Python 122/122 grün (11 neue); JVM gesamt 157 (9 neue); OpenAPI 23 Pfade | ✅ |
+| 22.7 | SNMP/NetFlow-Adapter, Latenz-/Durchsatz-Diagramme, Android LiveView-Fragment | ⏳ Roadmap |
+
+## 📡 Schritt 23 — Offline-Gerätedatenbank (docs/DEVICE_DATABASE.md)
+
+| # | Aufgabe | Status |
+|---|---------|--------|
+| 23.1 | Quellen-Verifikation (Zigbee2MQTT 5.592/582 live; Tile-UUID-Korrektur 0xFEEC/0xFEED statt 0xFEAA/0xFED5; OUI/Bluetooth-Numbers-DB) | ✅ |
+| 23.2 | `edge-agent/device_db.py`: GATT-Services, Company-IDs, Tracker-Profile, OuiDatabase, DeviceDatabase + Seed | ✅ |
+| 23.3 | `edge-agent/device_db_builder.py`: Konsolidierung (Zigbee2MQTT/Bluetooth-Numbers/MAC-Vendor) → data/device_db.json | ✅ |
+| 23.4 | REST `/api/v1/devicedb/*` (Status, MAC-/Service-Lookup, Suche, Kategorien) — OpenAPI 3.6.0, 28 Pfade | ✅ |
+| 23.5 | Kotlin-Spiegelung `devicedb/DeviceDatabase.kt` (identische Semantik) | ✅ |
+| 23.6 | Spec-Fehlerkatalog (Tile-UUIDs, Company-ID 0x0055, identische M365-Frames, UWB-Modell-Ungenauigkeiten, fiktive CDN-URL) | ✅ |
+| 23.7 | **Test**: Python 137/137 grün (15 neue); JVM gesamt 167 (10 neue) | ✅ |
+| 23.8 | Snapshot-Build mit Netzwerkzugang, App-/Room-Integration, Update-Mechanismus | ⏳ Roadmap |
+
+## 🗃️ Schritt 24 — Erweiterte Gerätedatenbank (Weitere Kategorien, docs/DEVICE_DATABASE.md v1.1)
+
+| # | Aufgabe | Status |
+|---|---------|--------|
+| 24.1 | Quellen-Verifikation: Nordic `company_ids.json` live (alle 18 Spec-IDs geprüft: Ericsson/Telemonitor/Xiaomi/HP/0xFDxx-Fehler); Thread 1.000+ (Nov 2025), Thread 1.4 (Sep 2024), Matter >1.000, TTN 1.104/149, IKEA-2025-Sensoren (5, nicht 7) | ✅ |
+| 24.2 | `device_db.py`: Company-ID-Registry (34 Einträge, inkl. Korrekturen), `normalize_company_id`/`lookup_company`, `frequency_bands` im Record, Technologie-Filter in `search()`, `technologies()`-Statistik | ✅ |
+| 24.3 | Seed +71 Records: Thread/Matter (Eve/Nanoleaf/Aqara/IKEA/Apple/Google/Amazon/Hue/Shelly/Tado/Tuya-Pendants), LoRaWAN EU868 (Dragino/RAK/Minew/Elsist/IMST/WILSEN/Netvox/MultiTech/M5Stack/ZENNER), wM-Bus (ZENNER/Elvaco/WEPTECH/Solvimus/Stackforce), ISM-433-Generikklassen (6), Medizin-BLE (7) | ✅ |
+| 24.4 | Builder: `company_ids.json`-Import (`parse_company_ids`, 0x0000–0xFFFF-Grenzprüfung); TTN-YAML + CSA/Thread-Dumps bewusst ⏳ Roadmap (YAML-Abhängigkeit/kein maschinenlesbarer Dump) | ✅ |
+| 24.5 | REST: `GET /api/v1/devicedb/lookup/company/{company_id}` (400/404), `technology`-Filter in `/search`, Status um Company-IDs/Technologien — OpenAPI 3.6.0, **29 Pfade** | ✅ |
+| 24.6 | Kotlin-Spiegelung (Company-IDs, `normalizeCompanyId`, Technologie-Filter, `frequencyBands`, Seed 71) | ✅ |
+| 24.7 | Web-Visualizer: REST-Proxy `/api/*` in `server.js` + Panel „🗃️ Geräte-DB" (Company-Lookup, Technologie-/Kategorie-Filter, Suche, unverifiziert-Badge) | ✅ |
+| 24.8 | Spec-Fehlerkatalog v17 (0xFDxx-Company-IDs, Ericsson/Telemonitor, „7 IKEA-Produkte", „300+ Matter", „1.099/146 TTN", „52 %"-Claim, „Thread 14") | ✅ |
+| 24.9 | **Test**: Python **144/144** grün (7 neue); JVM gesamt **172** (5 neue); `node --check` main.js/server.js/sw.js sauber; Live-Smoke Company-Lookup/Suche | ✅ |
+| 24.10 | Builder-Snapshot (volle Company-IDs + Z2M + OUI) mit Netzwerkzugang; TTN-YAML-Import; CSA/Thread-Dump; App-/Room-Integration | ⏳ Roadmap |

@@ -20,6 +20,13 @@
     <!-- Netzwerk -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Wi-Fi RTT & RSSI-Scans (Triangulation, docs/TRIANGULATION.md) -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <uses-permission
+        android:name="android.permission.NEARBY_WIFI_DEVICES"
+        android:usesPermissionFlags="neverForLocation" />
+
     <application
         android:allowBackup="true"
         android:label="3dxAgent"

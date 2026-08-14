@@ -170,6 +170,84 @@ class AgentWebSocketClient(
         )
     }
 
+    /** Triangulation: fusionierte Positionsschätzung (Wi-Fi RTT / BLE). */
+    fun sendPositionEstimate(deviceId: String, estimate: com.example.agent.triangulation.PositionEstimate) {
+        sendPayload(
+            "position_update",
+            mapOf(
+                "device_id" to deviceId,
+                "timestamp" to System.currentTimeMillis() / 1000.0,
+                "source" to estimate.source.name,
+                "x" to estimate.x,
+                "y" to estimate.y,
+                "z" to estimate.z,
+                "accuracy_m" to estimate.accuracyM,
+                "confidence" to estimate.confidence,
+            )
+        )
+    }
+
+    /** Triangulation: Anker-Konfiguration für Karte/Visualizer. */
+    fun sendTriangulationAnchors(
+        deviceId: String,
+        wifi: List<com.example.agent.triangulation.WifiRttTriangulator.RttAnchor>,
+        ble: List<com.example.agent.triangulation.BleBeaconTriangulator.BeaconAnchor>,
+    ) {
+        val anchors: List<Map<String, Any?>> = wifi.map {
+            mapOf("id" to it.id, "type" to "wifi", "x" to it.x, "y" to it.y, "z" to it.z)
+        } + ble.map {
+            mapOf("id" to it.id, "type" to "ble", "x" to it.x, "y" to it.y, "z" to it.z)
+        }
+        if (anchors.isEmpty()) return
+        sendPayload(
+            "triangulation_anchors",
+            mapOf("device_id" to deviceId, "anchors" to anchors)
+        )
+    }
+
+    /** Aura: rekonstruierte RTI-Voxel an den Edge-Agent (→ Web-Visualizer). */
+    fun sendAuraVoxels(deviceId: String, voxels: List<com.example.agent.aura.RtiSolver.Voxel>) {
+        if (voxels.isEmpty()) return
+        sendPayload(
+            "aura_voxels",
+            mapOf(
+                "device_id" to deviceId,
+                "timestamp" to System.currentTimeMillis() / 1000.0,
+                "voxels" to voxels.map {
+                    mapOf(
+                        "x" to it.x,
+                        "y" to it.y,
+                        "z" to it.z,
+                        "attenuation" to it.attenuation,
+                        "weight" to it.weight,
+                    )
+                },
+            )
+        )
+    }
+
+    /** Aura: extrudierte RF-Heatmap-Zellen an den Edge-Agent (→ Web-Visualizer). */
+    fun sendAuraHeatmap(deviceId: String, cells: List<com.example.agent.aura.RfHeatmapBuilder.ExtrudedCell>) {
+        if (cells.isEmpty()) return
+        sendPayload(
+            "aura_heatmap",
+            mapOf(
+                "device_id" to deviceId,
+                "timestamp" to System.currentTimeMillis() / 1000.0,
+                "cells" to cells.map {
+                    mapOf(
+                        "x" to it.centerX,
+                        "y" to it.centerY,
+                        "z" to it.baseZ,
+                        "height" to it.heightM,
+                        "dbm" to it.dbm,
+                        "size" to it.cellSizeM,
+                    )
+                },
+            )
+        )
+    }
+
     fun disconnect() {
         reconnectJob?.cancel()
         webSocket?.close(1000, "App beendet")

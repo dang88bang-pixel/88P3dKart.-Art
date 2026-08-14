@@ -9,7 +9,10 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.example.agent.network.AgentWebSocketClient
+import com.example.agent.aura.AuraIntegrator
+import com.example.agent.pipeline.LiveSensorPipeline
 import com.example.agent.pipeline.PipelineOrchestrator
+import com.example.agent.triangulation.TriangulationService
 import com.example.agent.sensors.BleTokenManager
 import com.example.agent.sensors.EkfFusion
 import com.example.agent.sensors.ImuManager
@@ -32,6 +35,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var ekf: EkfFusion
     private lateinit var db: AppDatabase
     private lateinit var pipeline: PipelineOrchestrator
+    private lateinit var livePipeline: LiveSensorPipeline
+    private lateinit var auraIntegrator: AuraIntegrator
+    private lateinit var triangulation: TriangulationService
     lateinit var webSocketClient: AgentWebSocketClient
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
@@ -59,9 +65,55 @@ class MainActivity : AppCompatActivity() {
         ekf = EkfFusion(dt = 0.05f)
         db = AppDatabase.getInstance(this)
         pipeline = PipelineOrchestrator()
+        livePipeline = LiveSensorPipeline()
 
         // Netzwerk
         webSocketClient = AgentWebSocketClient().also { it.connect() }
+
+        // Aura (SDR/RTI) — docs/AURA.md §8.1
+        auraIntegrator = AuraIntegrator().also {
+            it.setPoseProvider { ekf.getState() }
+        }
+        scope.launch {
+            auraIntegrator.rtiVoxels.collect { voxels ->
+                livePipeline.onRtiVoxels(voxels)
+                webSocketClient.sendAuraVoxels("CT45P-01", voxels)
+            }
+        }
+        scope.launch {
+            auraIntegrator.heatmapCells.collect { cells ->
+                webSocketClient.sendAuraHeatmap("CT45P-01", cells)
+            }
+        }
+        scope.launch {
+            auraIntegrator.alerts.collect { alert ->
+                Log.w("Aura", "[${alert.severity}] ${alert.message}")
+            }
+        }
+        // Tunnel-Empfänger defensiv starten (Port belegt → nur Log, keine Crashs)
+        try {
+            auraIntegrator.start()
+        } catch (e: Exception) {
+            Log.w("Aura", "Tunnel-Start übersprungen: ${e.message}")
+        }
+
+        // Triangulation (Wi-Fi RTT / BLE / Fingerprinting) — docs/TRIANGULATION.md
+        triangulation = TriangulationService(this, ekf)
+        scope.launch {
+            triangulation.fused.collect { estimate ->
+                webSocketClient.sendPositionEstimate("CT45P-01", estimate)
+            }
+        }
+        scope.launch {
+            triangulation.mode.collect { mode ->
+                Log.d("Triangulation", "Modus: $mode (RTT verfügbar: ${triangulation.wifiRttSupported})")
+            }
+        }
+        try {
+            triangulation.start(wifiRttEnabled = true, bleEnabled = true)
+        } catch (e: Exception) {
+            Log.w("Triangulation", "Start übersprungen: ${e.message}")
+        }
 
         // LiDAR → EKF + Pipeline + WebSocket
         scope.launch {
@@ -85,7 +137,10 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // BLE-Token → WebSocket
+        // BLE-Token → WebSocket (+ Tag-Geschwindigkeit über Aura, sobald eine
+        // Positionsquelle — UWB-Ranging oder RSSI-Triangulation — verfügbar ist:
+        //   auraIntegrator.onTagPosition(token.mac, x, y, z)
+        // siehe docs/AURA.md §6)
         scope.launch {
             bleManager.tokenUpdates.collect { token ->
                 Log.d("BLE", "Token ${token.mac} RSSI=${token.rssi}")
@@ -146,6 +201,8 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         webSocketClient.disconnect()
+        auraIntegrator.stop()
+        triangulation.stop()
         serialManager.close()
         bleManager.stopScan()
         imuManager.stop()

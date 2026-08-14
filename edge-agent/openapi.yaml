@@ -1,10 +1,13 @@
 openapi: 3.0.3
 info:
   title: 3dxAgent Edge-Agent API
-  version: 2.0.0
+  version: 3.6.0
   description: >
     REST-API des 3dxAgent Fusions-Kernels. Bietet EKF-Zustand, Historie,
-    Szenarien-Konfiguration, ICP-Map-Merging sowie die v2.0-Datenpipeline.
+    Szenarien-Konfiguration, ICP-Map-Merging, die v2.0-Datenpipeline, die
+    Aura-Endpunkte (RTI/Heatmap), die CT45P-Triangulation sowie den
+    Datenexport (GeoJSON/KML/JSON)
+    (docs/AURA.md, docs/TRIANGULATION.md, docs/SERVICE_WORKER.md).
 servers:
   - url: http://localhost:8080
 paths:
@@ -82,6 +85,289 @@ paths:
       responses:
         '200':
           description: Pipeline-Ergebnis
+  /api/v1/aura/rti:
+    post:
+      summary: Aura RTI-Rekonstruktion (Messlinien → Voxel-Dämpfungsfeld)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuraRtiRequest'
+      responses:
+        '200':
+          description: Voxel-Feld, Peaks, Rekonstruktions-Metadaten
+        '400':
+          description: Weniger als 2 Messlinien
+  /api/v1/aura/heatmap:
+    post:
+      summary: Aura RF-Samples → extrudierte Heatmap-Zellen
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuraHeatmapRequest'
+      responses:
+        '200':
+          description: Extrudierte Zellen (Höhe ∝ Signalstärke)
+        '400':
+          description: Keine Samples übergeben
+  /api/v1/triangulation/solve:
+    post:
+      summary: Trilateration — Anker + Distanzen → Position
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TriangulationRequest'
+      responses:
+        '200':
+          description: Positionsschätzung (inkl. Residuum, Sigma, Konfidenz)
+        '400':
+          description: 'Weniger als 3 gültige Anker (3D: 4)'
+  /api/v1/export:
+    post:
+      summary: Datenexport — Annotationen/Punkte → GeoJSON/KML/JSON
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExportRequest'
+      responses:
+        '200':
+          description: Konvertierter Export-Inhalt
+        '400':
+          description: Unbekanntes Format oder keine Daten
+  /api/v1/network/topology:
+    post:
+      summary: Network3D — Topologie-Ingest (Upsert) + Broadcast
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TopologyRequest'
+      responses:
+        '200':
+          description: Node-/Edge-Zähler + Snapshot-Index
+    get:
+      summary: Aktuelle Topologie
+      responses:
+        '200':
+          description: Nodes + Edges der Live-Topologie
+  /api/v1/network/simulate:
+    post:
+      summary: Network3D — What-If-Failover-Simulation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SimulationRequest'
+      responses:
+        '200':
+          description: Betroffene/reroutete/unerreichbare Flows
+        '404':
+          description: Node nicht in der Topologie
+  /api/v1/network/history:
+    get:
+      summary: Network3D — Time-Machine-Snapshot-Replay
+      parameters:
+        - name: index
+          in: query
+          schema: { type: integer }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 100 }
+      responses:
+        '200':
+          description: Snapshots (oder ein einzelner Snapshot bei index)
+  /api/v1/network/devices:
+    get:
+      summary: Live-Netzwerk — Geräte des Trackers
+      responses:
+        '200':
+          description: Bekannte Geräte (Change-/Anomalie-Erkennung)
+  /api/v1/floorplan/sources:
+    get:
+      summary: Grundriss — verifizierter Quellen-Katalog
+      responses:
+        '200':
+          description: Quellen mit Verfügbarkeit/Auth/Priorität
+  /api/v1/floorplan/geocode:
+    post:
+      summary: Grundriss — Adresssuche (Nominatim primär, Photon-Fallback)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FloorPlanGeocodeRequest'
+      responses:
+        '200':
+          description: Geocoding-Ergebnisse
+        '502':
+          description: Geocoding-Dienste nicht erreichbar
+  /api/v1/floorplan/buildings:
+    post:
+      summary: Grundriss — Gebäudeumrisse via Overpass (GeoJSON + Broadcast)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FloorPlanBuildingsRequest'
+      responses:
+        '200':
+          description: GeoJSON FeatureCollection
+        '502':
+          description: Overpass nicht erreichbar
+  /api/v1/devices:
+    get:
+      summary: Geräteinteraktion — alle Geräte + Layer-Konfiguration
+      responses:
+        '200':
+          description: Geräteliste + Layer
+  /api/v1/devices/upsert:
+    post:
+      summary: Geräteinteraktion — Gerät upserten (Merge) + Broadcast
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceUpsertRequest'
+      responses:
+        '200':
+          description: Status + Geräteanzahl
+  /api/v1/devices/action:
+    post:
+      summary: Geräteinteraktion — Capability-geprüfte Aktion ausführen
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceActionRequest'
+      responses:
+        '200':
+          description: ActionResult (Erfolg/Meldung/Daten)
+  /api/v1/devices/layers:
+    get:
+      summary: Geräteinteraktion — Layer-Konfiguration
+      responses:
+        '200':
+          description: Layer-Map
+    post:
+      summary: Geräteinteraktion — Layer-Sichtbarkeit setzen (Kategorie-Propagation)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceLayerRequest'
+      responses:
+        '200':
+          description: Status
+        '404':
+          description: Layer nicht gefunden
+  /api/v1/network/traffic:
+    post:
+      summary: Netzwerk-LiveView — Live-Traffic-Ingest (Flüsse → Broadcast)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NetworkTrafficRequest'
+      responses:
+        '200':
+          description: Status + Flussanzahl
+        '400':
+          description: Keine Flüsse übergeben
+  /api/v1/network/traffic/simulate:
+    post:
+      summary: Netzwerk-LiveView — deterministische Flusssimulation auf den Topologie-Kanten
+      responses:
+        '200':
+          description: Status + Flussanzahl (Broadcast network_traffic_update)
+        '404':
+          description: Keine Topologie geladen
+  /api/v1/devicedb/status:
+    get:
+      summary: Gerätedatenbank — Status (Quelle, Größen, Kategorien, Technologien)
+      responses:
+        '200':
+          description: Datenbank-Status
+  /api/v1/devicedb/lookup/company/{company_id}:
+    get:
+      summary: Gerätedatenbank — Bluetooth-SIG-Company-ID → Hersteller
+      parameters:
+        - name: company_id
+          in: path
+          required: true
+          schema: { type: string }
+          description: Hex (0x004C) oder dezimal (76)
+      responses:
+        '200':
+          description: Company-ID + Herstellername
+        '400':
+          description: Ungültige Company-ID
+        '404':
+          description: Unbekannte Company-ID
+  /api/v1/devicedb/lookup/mac/{mac}:
+    get:
+      summary: Gerätedatenbank — MAC → OUI-Hersteller + Geräte
+      parameters:
+        - name: mac
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OUI-Hersteller + passende Records
+        '400':
+          description: Ungültige MAC-Adresse
+  /api/v1/devicedb/lookup/service/{uuid}:
+    get:
+      summary: Gerätedatenbank — Service-UUID → GATT/Tracker/Geräte
+      parameters:
+        - name: uuid
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: GATT-Service, Tracker-Profile, Geräte
+  /api/v1/devicedb/search:
+    get:
+      summary: Gerätedatenbank — Volltext-/Kategorie-/Technologie-Suche
+      parameters:
+        - name: q
+          in: query
+          schema: { type: string, default: '' }
+        - name: category
+          in: query
+          schema: { type: string }
+        - name: technology
+          in: query
+          schema: { type: string }
+          description: Z. B. Thread, Matter, LoRaWAN, Wireless M-Bus, ISM 433 MHz
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50 }
+      responses:
+        '200':
+          description: Suchergebnisse
+  /api/v1/devicedb/categories:
+    get:
+      summary: Gerätedatenbank — Kategorie-Statistik
+      responses:
+        '200':
+          description: Kategorie-Zählungen
 components:
   schemas:
     EkfState:
@@ -125,3 +411,192 @@ components:
         metadata:
           type: object
           additionalProperties: true
+    AuraRtiRequest:
+      type: object
+      properties:
+        device_id: { type: string, default: CT45P-01 }
+        bounds_min:
+          type: array
+          items: { type: number }
+        bounds_max:
+          type: array
+          items: { type: number }
+        voxel_size: { type: number, default: 0.5 }
+        ellipse_width: { type: number, default: 0.05 }
+        regularization: { type: number, default: 0.1 }
+        method: { type: string, enum: [tikhonov, backprojection], default: tikhonov }
+        links:
+          type: array
+          items:
+            type: object
+            required: [tx, rx, attenuation_db]
+            properties:
+              tx:
+                type: array
+                items: { type: number }
+              rx:
+                type: array
+                items: { type: number }
+              attenuation_db: { type: number }
+    AuraHeatmapRequest:
+      type: object
+      properties:
+        device_id: { type: string, default: CT45P-01 }
+        samples:
+          type: array
+          items:
+            type: object
+            properties:
+              x: { type: number }
+              y: { type: number }
+              z: { type: number }
+              dbm: { type: number }
+              frequency_hz: { type: number }
+        cell_size_m: { type: number, default: 1.0 }
+    TriangulationRequest:
+      type: object
+      properties:
+        anchors:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              x: { type: number }
+              y: { type: number }
+              z: { type: number }
+        distances:
+          type: object
+          additionalProperties: { type: number }
+        uncertainties:
+          type: object
+          additionalProperties: { type: number }
+        use_z: { type: boolean, default: false }
+    ExportRequest:
+      type: object
+      properties:
+        format: { type: string, enum: [geojson, kml, json], default: geojson }
+        annotations:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              title: { type: string }
+              description: { type: string }
+              lon: { type: number }
+              lat: { type: number }
+              z: { type: number }
+        points:
+          type: array
+          items:
+            type: array
+            items: { type: number }
+        device_id: { type: string, default: CT45P-01 }
+    TopologyRequest:
+      type: object
+      properties:
+        nodes:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              type: { type: string, default: host }
+              name: { type: string }
+              status: { type: string, default: ok }
+              x: { type: number }
+              y: { type: number }
+              z: { type: number }
+        edges:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              source: { type: string }
+              target: { type: string }
+              bandwidth_mbps: { type: number }
+              latency_ms: { type: number }
+              utilization: { type: number }
+    SimulationRequest:
+      type: object
+      required: [node_id]
+      properties:
+        node_id: { type: string }
+        flows:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              source: { type: string }
+              target: { type: string }
+    FloorPlanGeocodeRequest:
+      type: object
+      required: [query]
+      properties:
+        query: { type: string }
+    FloorPlanBuildingsRequest:
+      type: object
+      required: [lat, lon]
+      properties:
+        lat: { type: number }
+        lon: { type: number }
+        radius: { type: number, default: 100.0 }
+    DeviceUpsertRequest:
+      type: object
+      required: [device]
+      properties:
+        device:
+          type: object
+          required: [id, name, type, position, status]
+          properties:
+            id: { type: string }
+            name: { type: string }
+            type: { type: string }
+            category: { type: string }
+            position:
+              type: array
+              items: { type: number }
+            status: { type: string }
+            capabilities:
+              type: array
+              items:
+                type: object
+                properties:
+                  type: { type: string }
+                  description: { type: string }
+            battery_level: { type: number }
+            signal_strength: { type: number }
+            connection_type: { type: string }
+    DeviceActionRequest:
+      type: object
+      required: [device_id, action]
+      properties:
+        device_id: { type: string }
+        action: { type: string }
+        params:
+          type: object
+          additionalProperties: true
+    DeviceLayerRequest:
+      type: object
+      required: [layer_id, visible]
+      properties:
+        layer_id: { type: string }
+        visible: { type: boolean }
+    NetworkTrafficRequest:
+      type: object
+      properties:
+        flows:
+          type: array
+          items:
+            type: object
+            required: [source, target]
+            properties:
+              source: { type: string }
+              target: { type: string }
+              bandwidth_mbps: { type: number }
+              latency_ms: { type: number }
+              packet_loss_pct: { type: number }
+              timestamp: { type: integer }

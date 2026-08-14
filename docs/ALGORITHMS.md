@@ -1,7 +1,7 @@
-# 🧠 Algorithmen & Implementierungstiefe (v4.1/4.3)
+# 🧠 Algorithmen & Implementierungstiefe (v4.1/4.3 + Aura/Triangulation)
 
 Vollständige mathematische Grundlagen der Kernalgorithmen. Alle sind **offline-fähig**
-und **ressourcenschonend** in Kotlin implementiert (CT45P, Snapdragon 662).
+und **ressourcenschonend** in Kotlin implementiert (CT45P, Qualcomm QCM4290).
 
 ## 1. Adaptiver 6-DOF EKF
 
@@ -92,5 +92,290 @@ Implementierung: `offline/MotionDetector.kt`.
 - Gebündelte Integration (100 ms Debounce)
 - LOD im Renderer
 
-Richtwerte (CT45P, Snapdragon 662): EKF < 5 ms, Octree-Suche < 1 ms,
+Richtwerte (CT45P, Qualcomm QCM4290): EKF < 5 ms, Octree-Suche < 1 ms,
 Punktwolke ~28 fps, Akku ~4 h Dauer-Scan.
+
+## 11. Aura — IQ-Datagramm & Paketverlust-Erkennung
+
+Header 12 Byte Big-Endian: Sequenznummer (UInt32) + Zeitstempel (UInt64 µs).
+MTU 1420 − Header = **1408 Byte Payload = 704 IQ-Paare** (8-Bit I/Q).
+Durchsatz: 2,4 MS/s × 8 Bit × 2 = 38,4 Mbit/s.
+
+Lückenstatistik über UInt32-Differenzen (`(seq − last).toUInt()`, mod 2³² —
+wickelt Sequenznummer-Überläufe korrekt ab), Reordering-Erkennung bei
+Differenz > 2³¹. Implementierung: `aura/IqDatagram.kt`.
+
+## 12. Aura — WireGuard/X25519 (RFC 7748)
+
+Curve25519-Skalarmultiplikation über die Montgomery-Leiter
+(`x₂/z₂`-Projektion, 255 Iterationen, konstante Laufzeit):
+
+```
+x1 = u; x2,z2 = 1,0; x3,z3 = u,1; swap = 0
+für t = 254 … 0:
+    k_t = Bit t des (geclampten) Skalars; swap ^= k_t; cswap(x2,x3); cswap(z2,z3)
+    A = x2+z2; AA = A²; B = x2−z2; BB = B²; E = AA−BB
+    C = x3+z3; D = x3−z3; DA = D·A; CB = C·B
+    x3 = (DA+CB)²; z3 = x1·(DA−CB)²; x2 = AA·BB; z2 = E·(AA+A24·E)
+Ergebnis: x2·z2⁻¹ mod (2²⁵⁵−19)
+```
+
+Clamping: `k[0] &= 248, k[31] &= 127, k[31] |= 64`. **Verifiziert gegen die
+offiziellen RFC-7748-Testvektoren (§5.2, §6.1).**
+Implementierung: `aura/WireGuardKeys.kt` (BigInteger, JVM-testbar) +
+Konfigurations-Blueprint `aura/WireGuardConfig.kt`.
+
+## 13. Aura — FFT & Cross-Korrelation
+
+Radix-2-FFT (Cooley-Tukey, iterativ, Bit-Reversal) — `aura/Fft.kt`.
+
+Kreuzkorrelation im Frequenzbereich (lineare Korrelation über Zero-Padding
+auf N ≥ len(rx)+len(ref)−1):
+
+```
+R(τ) = F⁻¹{ F{S_rx} · F{S_ref}* }
+```
+
+- Laufzeit des direkten Pfads = Peak-Lage: `τ = (idx − (len(ref)−1)) / fs`
+- Multipath: lokale Maxima mit Prominenz ≥ 12 dB, Mindestabstand 8 Samples
+- Distanz: `d = τ · c`
+
+Implementierung: `aura/CrossCorrelator.kt`, Referenzsignale (Chirp, 15-Bit-
+LFSR-PN) in `aura/ReferenceSignals.kt`.
+
+## 14. Aura — Radio-Tomographie (RTI)
+
+Dämpfung je Link: `y_i = ∫ φ(x,y,z) ds + n`. Diskretisierung über Voxelgitter
++ **normalisiertes Ellipsen-Gewichtungsmodell**:
+
+```
+w_i(v) = 1/√(d_tx(v) + d_rx(v))   falls d_tx + d_rx < d_link + λ_w, sonst 0
+(zeilennormiert: Σ_v w_i(v) = 1)
+```
+
+Lösung des linearen Systems `y = A·φ`:
+
+- **Tikhonov:** `min ‖Aφ − y‖² + λ‖φ‖² + γ·φᵀLφ` über matrixfreies
+  Conjugate-Gradient (AᵀA-Anwendung ohne explizite Matrix) —
+  `aura/RtiSolver.kt` (Kotlin) und `edge-agent/rti_solver.py` (scipy.sparse).
+- **Glättungs-Regularisierung γ:** diskreter Graph-Laplacian L über die
+  6-Nachbarschaft des Voxelgitters (Differenzoperator-Ansatz nach
+  SPIE 8753) — reduziert Rausch-Artefakte in dünn abgedeckten Voxeln,
+  O(6n) matrixfrei.
+- **Backprojection** (Echtzeit-Vorschau): `φ_v = Σ_i w_i,v·y_i / Σ_i w_i,v`.
+- **Peak-Lokalisierung:** Schwellwert 30 % des Maximums + Chebyshev-
+  Mindestabstand (Objekt-/Personenkandidaten).
+
+Verifiziert mit synthetischem Szenario (12 Links, Ellipse 0,5 m): Tikhonov
+lokalisiert den Dämpfungs-Blob auf ≤ 1 Voxel genau; γ = 2 senkt die
+Feld-Variation, ohne die Lokalisierung zu verschieben.
+
+## 15. CT45P-Triangulation (docs/TRIANGULATION.md)
+
+**Trilateration** (`triangulation/TrilaterationEngine.kt`, `trilateration.py`):
+lineare Startlösung (Referenz-Anker-Subtraktion) + **Levenberg-Marquardt**
+mit analytischer Jacobi-Matrix und Gewichtung `w_i = 1/σ_i²`; Qualität über
+Residuum-RMS und Positions-Sigma `√tr((JᵀWJ)⁻¹)`. **Robustheit:**
+Reject-and-Resolve (LTS-1) — Leave-one-out-Lösungen werden über die
+Trimmed-Kosten (m−1 kleinste quadratische Residuen) bewertet; Anker, deren
+Entfernung die Kosten ≥ 40 % senkt, gelten als Ausreißer (robust gegen
+Masking bei kleinen Ankerzahlen).
+
+**Path-Loss:** `d = 10^((RSSI₀ − RSSI)/(10n))`; Kalibrierung per linearer
+Regression über `x = 10·log10(d)` (Steigung = −n, Achsenabschnitt = RSSI₀)
++ R²; RSSI-Vorglättung über wählbare Filter je MAC (`RssiFilter`:
+EMA `RssiSmoother`, Median `RssiMedianFilter`, 1D-Kalman
+`RssiKalmanFilter`; vgl. docs/VERBESSERUNGEN.md).
+
+**Fingerprinting:** gewichtetes k-NN (k = 3) mit Gauß-Kern über die
+gemeinsamen BSSIDs (`WifiRssiFingerprinter.kt`).
+
+## 16. Betrieb & Wartung (docs/SERVICE_WORKER.md)
+
+**Adaptive Schwellwerte** (`maintenance/AdaptiveThresholdMonitor.kt`):
+richtungskorrekte Schwellwertprüfung (HIGHER/LOWER_IS_WORSE), Spike-
+Erkennung über z-Score (|z| > 3σ, ≥ 20 Samples), Trendanalyse über
+lineare Regression (Steigung pro Sample, richtungskorrekter Alarm),
+Kontextregeln (CPU+Temp, Latenz+Paketverlust), Lernmodus:
+Warning = mean ± 1,5σ, Critical = mean ± 3σ, begrenzt adaptierend
+(±10 % je Schritt, nie über die statischen Grenzen).
+
+**Batterie-Health** (`maintenance/BatteryHealthTracker.kt`):
+Zyklusäquivalente aus kumulierter Entladung (Σ Δlevel/100),
+Health = 100 − Zyklen·0,01 − Jahre·0,5, Restlaufzeit aus der
+Entladerate der letzten Samples (Fallback 12,5 %/h ≈ 8 h Laufzeit).
+
+**Export** (`maintenance/ExportPipeline.kt`, `edge-agent/export_formats.py`):
+GeoJSON (RFC 7946), KML (OGC 2.2, XML-Escaping), JSON; Retention
+(Altersschwelle).
+
+## 17. Network3D — Topologie, What-If, Time Machine (docs/NETWORK3D.md)
+
+**Kürzeste Pfade:** Dijkstra (heapq/ArrayDeque-frei, Latenz als Kantengewicht).
+
+**Failover-Simulation** (`simulate_failover`): für jeden Flow wird der
+Originalpfad bestimmt; liegt der ausgefallene Node darauf, wird der Graph
+temporär degradiert (Node + inzidente Kanten, exakte Restauration), der
+Pfad neu berechnet und der Flow als `rerouted`/`unreachable` klassifiziert.
+
+**Time Machine:** Snapshot-Fenster (deque, Capacity) mit `replay(index)`.
+
+## 18. Wireless Mesh (docs/WIRELESS_MESH.md)
+
+**Umgebungs-Adaption:** Preset-Auswahl über mittleren relativen Fehler
+(Predicted vs. Ist-Distanz), Konfidenz begrenzt auf 0,3…1,0.
+
+**Drift-Korrektur:** Offset-EWMA `d = (1−α)d + α·(mess − ref)`, begrenzt —
+(im Gegensatz zur v8-Spec, die fälschlich die Steigung als Drift nahm).
+
+**Loop-Closure:** Distanzschwelle zu besuchten Positionen → gewichteter
+Korrektur-Offset (0,1 × Versatz).
+
+**Cluster-Merger:** Greedy-Zuordnung im Merge-Radius, konfidenz-gewichteter
+Schwerpunkt, dominante Quelle als Semantik-Proxy.
+
+## 19. Taktik & Annotation (docs/TACTICAL.md)
+
+**Szenario-Komposition:** DFS über Modulabhängigkeiten mit Zyklus-Erkennung,
+topologische Ordnung, Konfig-Merge je Modultyp.
+
+**Map-Versionierung:** Basis-Snapshot + Delta-Kette (Upsert/Remove);
+Rekonstruktion über defensive Kopien.
+
+**Kompression:** zlib (Deflater/Inflater, Python-zlib-kompatibel).
+
+**Geräte-Tracker:** Change-Erkennung (added/removed, Signalsprung > 10 dBm)
+und Historien-Anomalien (Abweichung > 20 dBm vom 10er-Mittel).
+
+## 20. Ressourcenpolitik (docs/RESOURCE_OPT.md)
+
+**Adaptive Scan-Raten:** `rate = base(Bewegung) · f_akku · f_therm`,
+Bewegungsstufen 0,5/1,5/5,0 m/s, Akkustaffel 0,1…1,0, Temperaturstaffel
+0,3…1,0; Einsparung = 1 − rate/baseline (guard-gegen-0).
+
+**Energieprofile:** EMERGENCY (< 15 %) → POWER_SAVE (< 30 % oder
+CPU > 70 %/T > 40 °C) → PERFORMANCE (laden & CPU < 50 %) → BALANCED.
+
+**ROI-Gewichtung:** w = max(0,5; prio·(1 − d/r)) innerhalb des Radius,
+coerce 0,1…1,0; Kapazität Top-10 nach Priorität.
+
+**Adaptive Fusion:** Voxelgröße ×1/1,5/2 und LOD 0/1/2 nach
+CPU/RAM/Akku-Schwellen; LOD-Snap auf 2^lod-Raster; Verschmelzung
+`w_existing = conf·(0,5 + 0,5·e^(−Δt/60 s))`, `w_new = conf`; Grid-Key-Merge
+(21 Bit/Achse) mit 50k-Obergrenze.
+
+## 21. Grundriss-Integration (docs/FLOORPLAN.md)
+
+**Geocoding:** Nominatim (usage-policy-konform) primär, Photon-Fallback.
+
+**Overpass:** QL `way/relation["building"]` mit `around: Radius, lat, lon`;
+Parser bildet geschlossene Ringe auf GeoJSON-Polygone ab (Relationen über
+äußere Member), Etagen aus `building:levels`/`levels`, Höhen-Fallback
+3,2 m/Etage; **Spiegel-Fallback** Hauptserver → overpass.kumi.systems
+(„server too busy" ist ein Last-, kein Query-Fehler).
+
+**Visualisierung:** lokale Meter-Konvertierung um den Zentroid
+(lon·cos(lat)·111 320, lat·110 540), Extrusion (Höhe = Etagen × 3,2 m),
+Kanten + Labels, Cap 300/40 (Ressourcenpolitik v11).
+
+## 22. Personen-/Gegenstandserkennung (docs/PERSON_DETECTION.md)
+
+**CA-CFAR:** Schwelle = α·Mittelwert der Trainingszellen,
+α = N·(PFA^(−1/N) − 1); lokale Maxima + Peak-Grouping im Guard-Fenster.
+
+**MTI:** Single Canceler y = x[n]−x[n−1], Double Canceler
+y = x[n]−2x[n−1]+x[n−2]; Bewegt-Energie-Verhältnis.
+
+**Doppler:** Δφ ∈ [−π, π], v = λ·Δφ/(4πT).
+
+**Multi-Target-Tracking:** NN-Assoziation mit Gating; CV-Kalman
+(4 Zustände [x, y, vx, vy], Positionsmessung) mit
+**Piecewise-White-Noise-Q** (Beschleunigungsmodell: Blöcke dt⁴/4, dt³/2,
+dt²) und **Zwei-Punkt-Initialisierung** (v aus den ersten beiden Messungen —
+eliminiert den Startup-Lag); Track-Bestätigung (3 Hits) + Coasting.
+
+## 23. Geräteinteraktion (docs/DEVICE_INTERACTION.md)
+
+**Registry:** Upsert mit Merge-Semantik (fehlende Capabilities bleiben
+erhalten, sonst ersetzen; connectionType wird übernommen);
+Layer-Sichtbarkeit propagiert auf die Gerätekategorie;
+Staleness: ONLINE → OFFLINE nach 120 s ohne Lebenszeichen.
+
+**Action-Engine:** Capability-Gating (Aktion nur bei passendem
+`CapabilityType` des Geräts); Standard-Aktionen sind deterministische
+Registry-/Status-Operationen (read_status, locate, set_visibility,
+toggle_led).
+
+**Source-Mapper:** BLE-Token → SENSOR (READ/STREAM, BLE), Netzwerkgerät →
+NETWORK (Typ-Normalisierung über Kind-String), mmWave-Target → SENSOR
+(Tracking); Staleness-Status aus lastSeen.
+
+## 24. Aktive Netzwerkvisualisierung (docs/NETWORK_LIVEVIEW.md)
+
+**Zentrales Farb-Mapping** (Kotlin/Python/JS identisch): Latenz > 100 ms
+**oder** Bandbreite > 100 Mbit/s → Rot/critical; > 50 Mbit/s oder
+> 40 ms → Orange/warning; > 20 Mbit/s → Gelb; > 10 Mbit/s → Grün;
+sonst Blau/idle. Latenz dominiert (Link trägt dann nachweislich Verkehr).
+
+**Partikel:** Anzahl = min(5, max(1, bw/10)), Geschwindigkeit = 0,2 + bw/1000,
+Größe = 0,03 + bw/5000.
+
+**Aggregation:** je Knoten Gesamtdurchsatz Σ bw, Flusszahl, max. Latenz;
+Heatmap-Säulen relativ zum Peak-Knoten.
+
+**Simulator:** seeded; Bursts ×3 mit Wahrscheinlichkeit 0,15; Latenz
+sättigend an die Auslastung gekoppelt (2 + 45·bw/(Basis·3) ms);
+Paketverlust = max(0, (Latenz−40)·0,02).
+
+## 25. Offline-Gerätedatenbank (docs/DEVICE_DATABASE.md)
+
+**UUID-/MAC-Normalisierung:** 16-Bit-UUIDs auf `0xXXXX` (128-Bit mit
+Bindestrichen großgeschrieben); MACs separarortolerant auf
+`AA:BB:CC:DD:EE:FF`.
+
+**OUI-Lookup:** Präfix-Matching über 24/28/36-Bit-Blöcke; längere
+Präfixe (MA-M/MA-S) gewinnen (Sortierung nach Länge, erstes Match).
+
+**Tracker-Erkennung:** Company-ID (Apple 0x004C, Samsung 0x0075,
+Google 0x00E0) **oder** Service-UUID-Match — Tile über die
+Bluetooth-SIG-UUIDs 0xFEEC/0xFEED (Korrektur: 0xFEAA = Eddystone).
+
+**Datenbank-Kern:** Upsert-Registry mit Suche nach MAC-Präfix,
+Service-UUID, Volltext/Kategorie; Duplikat-/Pflichtfeld-Validierung
+vor dem Laden; JSON-Roundtrip.
+
+**Fusion** (`EstimateGate.kt`, `TriangulationService.kt`):
+Frische (RTT ≤ 5 s, BLE ≤ 3 s, FP ≤ 10 s) → Mahalanobis-Gate
+`‖Δ‖ ≤ k√(σ_A²+σ_B²)` (k = 3) → invers-varianz-gewichteter Mittelwert →
+EKF-Messupdate `EkfFusion.updateAbsolutePosition(z, R = σ²)`.
+
+## 26. Erweiterte Gerätedatenbank-Kategorien (docs/DEVICE_DATABASE.md v1.1)
+
+**Company-ID-Normalisierung & -Lookup** (`normalize_company_id`/
+`lookup_company`): Eingaben `76`, `"76"`, `"0x004C"`, `"004c"` →
+`0x004C`; Regeln: `0x`-Präfix → Hex; nur Ziffern → dezimal; sonst
+Hex-Zeichen → Hex; ungültig → `null`/`None` (API: 400). Unbekannte IDs
+→ `None` (API: 404). Registry: 34 SIG-verifizierte Einträge — die
+v17-Korrekturen (Ericsson AB `0x0000`, Telemonitor `0x017A`,
+Xiaomi `0x038F`, HP `0x0065`; `0xFDAB/0xFDB0/0xFDB4/0xFDB5` existieren
+nicht) sind **Test-verankert** (Python + Kotlin identisch).
+
+**Technologie-Filter & Statistik:** `search(q, category, technology)`
+matcht die Technology-Liste case-insensitiv (ein Record kann mehrere
+Technologien tragen, z. B. `["Thread", "Matter", "Zigbee", "WiFi"]`);
+`technologies()` liefert die Verteilung über alle Records —
+Grundlage für die Filter-Dropdowns im Visualizer-Panel.
+
+**Frequenzband-Metadaten:** `frequency_bands` je Record (LoRaWAN
+`EU868`, wM-Bus `868 MHz`, ISM 433 `433,05–434,79 MHz`) — reine
+Metadaten zur Anzeige/Klassifikation, **keine** Erkennung über
+Sub-GHz (CT45P hat keine SDR-Frontends für 433/868 MHz; Radar-/
+LoRa-Hardware wäre Zusatzmodul, ⏳ Roadmap).
+
+**Builder-Import Company-IDs** (`parse_company_ids`): Nordic-
+`company_ids.json` (Liste `{code, name}`) → Dict mit
+Grenzwert-Prüfung `0 ≤ code ≤ 0xFFFF`; Build-Output als
+`"company_ids"` (Hex-Schlüssel, sortiert). TTN-LoRaWAN-YAML und
+CSA/Thread-Zertifizierungsdumps: bewusst ⏳ (kein JSON-Index bzw.
+kein maschinenlesbarer Export) — EU868-/Matter-Auswahl kuratiert im
+Seed.

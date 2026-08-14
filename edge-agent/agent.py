@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import time
+from typing import List
 
 import numpy as np
 import uvicorn
@@ -13,20 +14,63 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from config import CONFIG
 from database import LocalVectorStore
+from device_db import (
+    COMPANY_IDS,
+    GATT_STANDARD_SERVICES,
+    SEED_OUI,
+    TRACKER_PROFILES,
+    DeviceDatabase,
+    OuiDatabase,
+    lookup_company,
+    lookup_gatt_service,
+    lookup_tracker,
+    normalize_company_id,
+    normalize_mac,
+    normalize_uuid16,
+)
+from device_registry import Device, DeviceActionEngine, DeviceRegistry
 from ekf_fusion import AdaptiveEKF
+from export_formats import (
+    annotations_to_geojson,
+    annotations_to_json,
+    annotations_to_kml,
+    points_to_geojson,
+)
+from floorplan import (
+    SOURCES,
+    fetch_osm_buildings,
+    geocode as floorplan_geocode,
+)
 from icp_merger import ICPMerger
 from models import (
+    AuraHeatmapRequest,
+    AuraRtiRequest,
     BleTokenUpdate,
+    DeviceActionRequest,
+    DeviceLayerRequest,
+    DeviceUpsertRequest,
     EkfState,
+    ExportRequest,
+    FloorPlanBuildingsRequest,
+    FloorPlanGeocodeRequest,
     LidarFrame,
     MergeRequest,
     MmwaveTarget,
+    NetworkTrafficRequest,
     PipelineRequest,
     ScenarioConfig,
+    SimulationRequest,
+    TopologyRequest,
+    TriangulationRequest,
     UwbPhaseData,
 )
+from network_tracker import DeviceTracker
+from network_topology import TopologyGraph, TopologyHistory
+from network_traffic import NetworkTrafficSimulator, TrafficFlow, aggregate_activity, heatmap_columns
 from pipeline import DataPipeline
 from pointcloud_compressor import PointCloudCompressor
+from rti_solver import Link, RfSample, RtiSolver, build_heatmap
+from trilateration import solve_trilateration
 from uwb_processor import UwbDopplerProcessor
 
 logging.basicConfig(
@@ -40,6 +84,53 @@ db = LocalVectorStore()
 ekf = AdaptiveEKF(dt=1.0 / CONFIG.LOOP_HZ)
 uwb_processor = UwbDopplerProcessor(fs=CONFIG.UWB_FS, buffer_secs=CONFIG.UWB_BUFFER_SECS)
 pipeline = DataPipeline()
+topology_graph = TopologyGraph()      # Network3D: Live-Topologie (docs/NETWORK3D.md)
+topology_history = TopologyHistory()  # Time Machine: Snapshot-Replay
+device_tracker = DeviceTracker()      # Live-Netzwerk: Change-/Anomalie-Erkennung
+device_registry = DeviceRegistry()    # Geräteinteraktion (docs/DEVICE_INTERACTION.md)
+device_action_engine = DeviceActionEngine(device_registry)
+traffic_simulator = NetworkTrafficSimulator(seed=42)  # LiveView-Demo (docs/NETWORK_LIVEVIEW.md)
+
+# Offline-Gerätedatenbank (docs/DEVICE_DATABASE.md): gebaute DB falls
+# vorhanden (data/device_db.json), sonst kuratierter Seed.
+def _load_device_db() -> tuple:
+    import pathlib
+
+    db_path = pathlib.Path(__file__).parent / "data" / "device_db.json"
+    if db_path.exists():
+        try:
+            payload = json.loads(db_path.read_text(encoding="utf-8"))
+            records = [
+                __import__("device_db", fromlist=["DeviceRecord"]).DeviceRecord.from_dict(r)
+                for r in payload.get("records", [])
+            ]
+            DeviceDatabase.validate_list(records)
+            db = DeviceDatabase(records)
+            oui = OuiDatabase(payload.get("oui") or {})
+            # Gebaute Company-ID-Liste (Builder) über den kuratierten Seed legen
+            built_company_ids = payload.get("company_ids") or {}
+            for key, name in built_company_ids.items():
+                cid = normalize_company_id(str(key))
+                if cid is not None and name:
+                    COMPANY_IDS[cid] = str(name)
+            return db, oui, db_path.name
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Geräte-DB fehlerhaft (%s) — Seed aktiv", exc)
+    return DeviceDatabase.seed(), OuiDatabase(SEED_OUI), "seed"
+
+
+device_db, device_oui_db, device_db_source = _load_device_db()
+
+
+def _devices_payload() -> dict:
+    """Broadcast-Payload: Geräte + Layer für alle Visualizer."""
+    return {
+        "type": "devices_update",
+        "payload": {
+            "devices": [d.to_dict() for d in device_registry.devices],
+            "layers": {k: v.to_dict() for k, v in device_registry.layers.items()},
+        },
+    }
 
 current_mode = "FULL"
 scattering_detected = False
@@ -188,9 +279,464 @@ async def run_pipeline(request: PipelineRequest):
     return result
 
 
+# ─── Aura (SDR/RTI) — docs/AURA.md §8 ─────────────────────────
+
+
+@app.post("/api/v1/aura/rti")
+async def aura_rti(request: AuraRtiRequest):
+    """RTI-Rekonstruktion: Messlinien → Voxel-Dämpfungsfeld (Tikhonov/Backprojection)."""
+    if len(request.links) < 2:
+        raise HTTPException(status_code=400, detail="Mindestens 2 Messlinien benötigt")
+
+    solver = RtiSolver(
+        bounds_min=tuple(request.bounds_min),
+        bounds_max=tuple(request.bounds_max),
+        voxel_size=request.voxel_size,
+        ellipse_width=request.ellipse_width,
+        regularization=request.regularization,
+    )
+    for link in request.links:
+        solver.add_link(Link(tx=tuple(link.tx), rx=tuple(link.rx), attenuation_db=link.attenuation_db))
+
+    if request.method == "backprojection":
+        field = solver.solve_backprojection()
+    else:
+        field = solver.solve()
+
+    # Nur signifikante Voxel übertragen (Reduktion der WebSocket-Last)
+    threshold = max((v.attenuation for v in field), default=0.0) * 0.1
+    voxels = [
+        {
+            "x": v.x,
+            "y": v.y,
+            "z": v.z,
+            "attenuation": v.attenuation,
+            "weight": v.weight,
+        }
+        for v in field
+        if v.attenuation >= threshold
+    ]
+    peaks = solver.locate_peaks(field, top_k=8)
+
+    response = {
+        "type": "aura_voxels",
+        "payload": {
+            "device_id": request.device_id,
+            "voxel_count": solver.voxel_count,
+            "link_count": solver.link_count,
+            "voxels": voxels,
+        },
+    }
+    await manager.broadcast_json(response)
+
+    return {
+        "device_id": request.device_id,
+        "method": request.method,
+        "voxel_count": solver.voxel_count,
+        "link_count": solver.link_count,
+        "voxels": voxels[:5000],
+        "peaks": [{"x": p.x, "y": p.y, "z": p.z, "attenuation": p.attenuation} for p in peaks],
+    }
+
+
+@app.post("/api/v1/aura/heatmap")
+async def aura_heatmap(request: AuraHeatmapRequest):
+    """RF-Samples → extrudierte Heatmap-Zellen (Höhe ∝ Signalstärke)."""
+    if not request.samples:
+        raise HTTPException(status_code=400, detail="Keine Samples übergeben")
+
+    samples = [
+        RfSample(
+            timestamp_ms=int(s.get("timestamp_ms", 0)),
+            x=float(s["x"]),
+            y=float(s["y"]),
+            z=float(s.get("z", 0.0)),
+            dbm=float(s["dbm"]),
+            frequency_hz=float(s.get("frequency_hz", 433.92e6)),
+        )
+        for s in request.samples
+    ]
+    cells = build_heatmap(samples, cell_size_m=request.cell_size_m)
+    cells_payload = [
+        {
+            "x": c.center_x,
+            "y": c.center_y,
+            "z": c.base_z,
+            "height": c.height_m,
+            "dbm": c.dbm,
+            "size": c.cell_size_m,
+        }
+        for c in cells
+    ]
+
+    await manager.broadcast_json(
+        {
+            "type": "aura_heatmap",
+            "payload": {"device_id": request.device_id, "cells": cells_payload},
+        }
+    )
+    return {"device_id": request.device_id, "cells": cells_payload}
+
+
 @app.get("/api/v1/health")
 async def health():
     return {"status": "ok", "mode": current_mode, "mqtt": getattr(app.state, "mqtt_bridge", None).available if hasattr(app.state, "mqtt_bridge") else False}
+
+
+# ─── Triangulation (CT45P) — docs/TRIANGULATION.md §8 ────────────
+
+
+@app.post("/api/v1/triangulation/solve")
+async def triangulation_solve(request: TriangulationRequest):
+    """Trilateration: Anker + Distanzen → Position (REST-Fallback zur App)."""
+    result = solve_trilateration(
+        request.anchors,
+        request.distances,
+        request.uncertainties,
+        use_z=request.use_z,
+    )
+    if result is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Mindestens 3 Anker mit gültigen Distanzen benötigt (3D: 4)",
+        )
+    return {"position": result, "anchor_count": result["anchor_count"]}
+
+
+# ─── Export (docs/SERVICE_WORKER.md §Export Worker) ───────────────
+
+
+@app.post("/api/v1/export")
+async def export_data(request: ExportRequest):
+    """Datenexport: Annotationen/Punkte → GeoJSON/KML/JSON (Retention in der App)."""
+    if request.format not in ("geojson", "kml", "json"):
+        raise HTTPException(status_code=400, detail="Unbekanntes Format (geojson|kml|json)")
+
+    if request.annotations:
+        if request.format == "geojson":
+            content = annotations_to_geojson(request.annotations)
+        elif request.format == "kml":
+            content = annotations_to_kml(request.annotations)
+        else:
+            content = annotations_to_json(request.annotations)
+    elif request.points:
+        if request.format == "geojson":
+            content = points_to_geojson(request.points, device_id=request.device_id)
+        elif request.format == "kml":
+            # Punkte als Pseudo-Annotationen für KML abbilden
+            anns = [
+                {
+                    "id": f"p{i}",
+                    "title": f"Punkt {i}",
+                    "description": "",
+                    "lon": p[0],
+                    "lat": p[1],
+                    "z": p[2] if len(p) > 2 else 0.0,
+                }
+                for i, p in enumerate(request.points)
+            ]
+            content = annotations_to_kml(anns)
+        else:
+            content = annotations_to_json(
+                [
+                    {
+                        "id": f"p{i}",
+                        "title": f"Punkt {i}",
+                        "description": "",
+                        "lon": p[0],
+                        "lat": p[1],
+                        "z": p[2] if len(p) > 2 else 0.0,
+                    }
+                    for i, p in enumerate(request.points)
+                ]
+            )
+    else:
+        raise HTTPException(status_code=400, detail="Keine annotations/points übergeben")
+
+    return {"format": request.format, "content": content}
+
+
+# ─── Network3D: Topologie, What-If, Time Machine (docs/NETWORK3D.md) ─
+
+
+@app.post("/api/v1/network/topology")
+async def network_topology_ingest(request: TopologyRequest):
+    """Ingestiert/aktualisiert die Live-Topologie (Upsert) und broadcastet sie."""
+    from network_topology import TopologyEdge, TopologyNode
+
+    for node in request.nodes:
+        topology_graph.upsert_node(TopologyNode.from_dict(node))
+    for edge in request.edges:
+        edge_obj = TopologyEdge.from_dict(edge)
+        if edge_obj.source in topology_graph.nodes and edge_obj.target in topology_graph.nodes:
+            topology_graph.edges[edge_obj.id] = edge_obj
+
+    payload = {
+        "type": "network_topology",
+        "payload": topology_graph.to_dict(),
+    }
+    await manager.broadcast_json(payload)
+    snapshot_index = topology_history.snapshot(topology_graph)
+    return {
+        "status": "ok",
+        "node_count": len(topology_graph.nodes),
+        "edge_count": len(topology_graph.edges),
+        "snapshot_index": snapshot_index,
+    }
+
+
+@app.get("/api/v1/network/topology")
+async def network_topology_get():
+    """Aktuelle Topologie (für Initial-Load und LOD-Refresh)."""
+    return topology_graph.to_dict()
+
+
+@app.post("/api/v1/network/simulate")
+async def network_simulate(request: SimulationRequest):
+    """What-If: Failover-Simulation (Node-Ausfall → Betroffenheit → Rerouting)."""
+    if request.node_id not in topology_graph.nodes:
+        raise HTTPException(status_code=404, detail=f"Node {request.node_id} nicht in der Topologie")
+    result = topology_graph.simulate_failover(request.node_id, request.flows)
+    await manager.broadcast_json({"type": "topology_simulation", "payload": result})
+    return result
+
+
+@app.get("/api/v1/network/history")
+async def network_history(index: int | None = None, limit: int = 100):
+    """Time Machine: Snapshot-Replay der Topologie-Historie."""
+    if index is not None:
+        snapshot = topology_history.replay(index)
+        if snapshot is None:
+            raise HTTPException(status_code=404, detail=f"Snapshot {index} nicht im Fenster")
+        return snapshot
+    low, high = topology_history.range()
+    if low is None:
+        return {"snapshots": []}
+    snapshots = [topology_history.replay(i) for i in range(low, high + 1)]
+    return {"snapshots": snapshots[-limit:]}
+
+
+@app.get("/api/v1/network/devices")
+async def network_devices():
+    """Live-Netzwerk: Geräte des Trackers (Change-/Anomalie-Erkennung)."""
+    return {
+        "devices": list(device_tracker.known_devices().values()),
+        "count": len(device_tracker.known_devices()),
+    }
+
+
+# ─── Grundriss-Integration (docs/FLOORPLAN.md) ───────────────────
+
+
+@app.get("/api/v1/floorplan/sources")
+async def floorplan_sources():
+    """Verifizierter Quellen-Katalog (Verfügbarkeit, Auth, Priorität)."""
+    return {
+        "sources": [
+            {
+                "name": s.name,
+                "kind": s.kind,
+                "endpoint": s.endpoint,
+                "available": s.available,
+                "requires_auth": s.requires_auth,
+                "priority": s.priority,
+                "notes": s.notes,
+            }
+            for s in SOURCES
+        ]
+    }
+
+
+@app.post("/api/v1/floorplan/geocode")
+async def floorplan_geocode_endpoint(request: FloorPlanGeocodeRequest):
+    """Adresssuche: Nominatim (primär) mit Photon-Fallback — serverseitig,
+    damit die Nominatim-Usage-Policy zentral eingehalten wird (User-Agent,
+    Caching, ≤ 1 req/s)."""
+    if not request.query.strip():
+        raise HTTPException(status_code=400, detail="query darf nicht leer sein")
+    try:
+        results = floorplan_geocode(request.query)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"Geocoding fehlgeschlagen: {exc}")
+    return {"query": request.query, "results": [r.to_dict() for r in results]}
+
+
+@app.post("/api/v1/floorplan/buildings")
+async def floorplan_buildings(request: FloorPlanBuildingsRequest):
+    """Gebäudeumrisse via Overpass (mit Kumi-Spiegel-Fallback) → GeoJSON
+    + Broadcast an alle Visualizer (Typ `floorplan_buildings`)."""
+    try:
+        result = fetch_osm_buildings(request.lat, request.lon, request.radius)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"Overpass-Abruf fehlgeschlagen: {exc}")
+    await manager.broadcast_json({"type": "floorplan_buildings", "payload": result})
+    return result
+
+
+# ─── Geräteinteraktion (docs/DEVICE_INTERACTION.md) ──────────────
+
+
+@app.get("/api/v1/devices")
+async def devices_get():
+    """Alle Geräte + Layer-Konfiguration des Registers."""
+    return {
+        "devices": [d.to_dict() for d in device_registry.devices],
+        "layers": {k: v.to_dict() for k, v in device_registry.layers.items()},
+    }
+
+
+@app.post("/api/v1/devices/upsert")
+async def devices_upsert(request: DeviceUpsertRequest):
+    """Gerät upserten (Merge-Semantik) + Broadcast an alle Visualizer."""
+    device = Device.from_dict(request.device)
+    device_registry.upsert(device)
+    device_registry.mark_stale()
+    await manager.broadcast_json(_devices_payload())
+    return {"status": "ok", "device_count": len(device_registry.devices)}
+
+
+@app.post("/api/v1/devices/action")
+async def devices_action(request: DeviceActionRequest):
+    """Capability-geprüfte Geräteaktion ausführen + Ergebnis broadcasten."""
+    result = device_action_engine.execute(request.device_id, request.action, request.params)
+    await manager.broadcast_json({"type": "device_action_result", "payload": result.to_dict()})
+    return result.to_dict()
+
+
+@app.get("/api/v1/devices/layers")
+async def devices_layers_get():
+    return {"layers": {k: v.to_dict() for k, v in device_registry.layers.items()}}
+
+
+@app.post("/api/v1/devices/layers")
+async def devices_layers_set(request: DeviceLayerRequest):
+    """Layer-Sichtbarkeit setzen (propagiert auf die Kategorie)."""
+    ok = device_registry.set_layer_visibility(request.layer_id, request.visible)
+    if not ok:
+        raise HTTPException(status_code=404, detail=f"Layer {request.layer_id} nicht gefunden")
+    await manager.broadcast_json(_devices_payload())
+    return {"status": "ok", "layer_id": request.layer_id, "visible": request.visible}
+
+
+# ─── Aktive Netzwerkvisualisierung (docs/NETWORK_LIVEVIEW.md) ─────
+
+
+def _traffic_broadcast(flows: List[TrafficFlow]) -> dict:
+    """Broadcast-Payload: Flüsse + Aktivitäts-Aggregation + Heatmap-Säulen."""
+    activity = aggregate_activity(flows)
+    return {
+        "type": "network_traffic_update",
+        "payload": {
+            "flows": [f.to_dict() for f in flows],
+            "activity": {k: v.to_dict() for k, v in activity.items()},
+            "heatmap": heatmap_columns(activity, max_height=1.0),
+        },
+    }
+
+
+@app.post("/api/v1/network/traffic")
+async def network_traffic_ingest(request: NetworkTrafficRequest):
+    """Live-Traffic-Ingest (SNMP/NetFlow-Adapter oder App) → Broadcast."""
+    flows = [TrafficFlow.from_dict(f) for f in request.flows]
+    if not flows:
+        raise HTTPException(status_code=400, detail="Keine Flüsse übergeben")
+    await manager.broadcast_json(_traffic_broadcast(flows))
+    return {"status": "ok", "flow_count": len(flows)}
+
+
+@app.post("/api/v1/network/traffic/simulate")
+async def network_traffic_simulate():
+    """Deterministische Flusssimulation auf den Topologie-Kanten (Demo)."""
+    edges = [(e.source, e.target) for e in topology_graph.edges.values()]
+    if not edges:
+        raise HTTPException(status_code=404, detail="Keine Topologie geladen")
+    flows = traffic_simulator.simulate(edges)
+    await manager.broadcast_json(_traffic_broadcast(flows))
+    return {"status": "ok", "flow_count": len(flows)}
+
+
+# ─── Offline-Gerätedatenbank (docs/DEVICE_DATABASE.md) ───────────
+
+
+@app.get("/api/v1/devicedb/status")
+async def devicedb_status():
+    """Datenbank-Status: Quelle (gebaut/Seed), Größen, Kategorien, Technologien."""
+    return {
+        "source": device_db_source,
+        "records": len(device_db),
+        "oui_entries": len(device_oui_db),
+        "gatt_services": len(GATT_STANDARD_SERVICES),
+        "tracker_profiles": len(TRACKER_PROFILES),
+        "company_ids": len(COMPANY_IDS),
+        "categories": device_db.categories(),
+        "technologies": device_db.technologies(),
+    }
+
+
+@app.get("/api/v1/devicedb/lookup/company/{company_id}")
+async def devicedb_lookup_company(company_id: str):
+    """Company-ID (0x…-Hex oder dezimal) → Bluetooth-SIG-Hersteller."""
+    cid = normalize_company_id(company_id)
+    if cid is None:
+        raise HTTPException(status_code=400, detail=f"Ungültige Company-ID: {company_id!r}")
+    name = lookup_company(cid)
+    if name is None:
+        raise HTTPException(status_code=404, detail=f"Unbekannte Company-ID: 0x{cid:04X}")
+    return {"company_id": f"0x{cid:04X}", "name": name}
+
+
+@app.get("/api/v1/devicedb/lookup/mac/{mac}")
+async def devicedb_lookup_mac(mac: str):
+    """MAC-Adresse → OUI-Hersteller + passende Geräte-Records."""
+    try:
+        normalized = normalize_mac(mac)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    vendor = device_oui_db.lookup(normalized)
+    records = [r.to_dict() for r in device_db.by_mac(normalized)]
+    return {"mac": normalized, "oui_vendor": vendor, "devices": records}
+
+
+@app.get("/api/v1/devicedb/lookup/service/{uuid}")
+async def devicedb_lookup_service(uuid: str):
+    """16-Bit-/128-Bit-UUID → GATT-Service, Tracker-Profile, Geräte."""
+    service = lookup_gatt_service(uuid)
+    trackers = [
+        {"id": t.id, "vendor": t.vendor, "verified": t.verified, "reset": t.reset_procedure}
+        for t in lookup_tracker(service_uuids=[uuid])
+    ]
+    devices = [r.to_dict() for r in device_db.by_service(uuid)]
+    return {
+        "uuid": normalize_uuid16(uuid),
+        "gatt_service": {
+            "name": service.name,
+            "characteristics": [
+                {"uuid": c.uuid, "name": c.name, "properties": c.properties}
+                for c in service.characteristics
+            ],
+        } if service else None,
+        "trackers": trackers,
+        "devices": devices,
+    }
+
+
+@app.get("/api/v1/devicedb/search")
+async def devicedb_search(
+    q: str = "",
+    category: str | None = None,
+    technology: str | None = None,
+    limit: int = 50,
+):
+    """Volltext-/Kategorie-/Technologie-Suche über die Gerätedatenbank."""
+    results = device_db.search(q, category, technology)[: max(1, min(limit, 500))]
+    return {"query": q, "category": category, "technology": technology,
+            "count": len(results), "results": [r.to_dict() for r in results]}
+
+
+@app.get("/api/v1/devicedb/categories")
+async def devicedb_categories():
+    """Kategorie-Statistik der Datenbank."""
+    return {"categories": device_db.categories()}
 
 
 # ─── WebSocket-Endpunkt ──────────────────────────────────────
@@ -247,6 +793,69 @@ async def websocket_endpoint(websocket: WebSocket):
                     current_mode = "DEGRADED"
                 else:
                     current_mode = "FULL"
+
+            elif msg_type == "aura_voxels":
+                # RTI-Voxel der CT45P-App → an alle Visualizer-Clients weiterreichen
+                await manager.broadcast_json(data)
+
+            elif msg_type == "aura_heatmap":
+                await manager.broadcast_json(data)
+
+            elif msg_type == "position_update":
+                # Fusionierte Triangulations-Position → Visualizer + Persistenz
+                await manager.broadcast_json(data)
+                x = float(payload.get("x", 0.0))
+                y = float(payload.get("y", 0.0))
+                z = float(payload.get("z", 0.0))
+                accuracy = float(payload.get("accuracy_m", 1.0))
+                db.save_transform(
+                    device_id,
+                    (x, y, z),
+                    (accuracy, accuracy),
+                    {
+                        "kind": "triangulation",
+                        "source": payload.get("source", "unknown"),
+                        "confidence": payload.get("confidence", 0.0),
+                    },
+                )
+
+            elif msg_type == "triangulation_anchors":
+                await manager.broadcast_json(data)
+
+            elif msg_type == "network_devices_update":
+                # Scan-Zyklus der App → Change-/Anomalie-Erkennung + Broadcast
+                changes = device_tracker.update(payload.get("devices", []))
+                await manager.broadcast_json(
+                    {"type": "network_devices", "payload": changes}
+                )
+
+            elif msg_type == "annotation_update":
+                # Kollaborative Annotation (Live-Sync) → alle Teilnehmer
+                await manager.broadcast_json(data)
+
+            elif msg_type == "devices_update":
+                # Geräte-Ingest der App (DeviceSync) → Registry → Broadcast
+                for dev_data in payload.get("devices", []):
+                    device_registry.upsert(Device.from_dict(dev_data))
+                device_registry.mark_stale()
+                await manager.broadcast_json(_devices_payload())
+
+            elif msg_type == "device_action":
+                # Client → Agent: Geräteaktion ausführen + Ergebnis broadcasten
+                result = device_action_engine.execute(
+                    payload.get("device_id"),
+                    payload.get("action"),
+                    payload.get("params") or {},
+                )
+                await manager.broadcast_json(
+                    {"type": "device_action_result", "payload": result.to_dict()}
+                )
+
+            elif msg_type == "network_traffic":
+                # Live-Traffic-Ingest (DeviceSync/Adapter) → Broadcast
+                flows = [TrafficFlow.from_dict(f) for f in payload.get("flows", [])]
+                if flows:
+                    await manager.broadcast_json(_traffic_broadcast(flows))
 
             # Persistenz nach Positions-Updates
             if msg_type in ("lidar", "mmwave"):
