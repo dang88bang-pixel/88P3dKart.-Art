@@ -22,6 +22,8 @@ REST/WebSocket und MQTT kommunizieren.
 | | Web-Visualizer | Three.js-Layer | Topologie-Nodes/-Edges, Flow-Partikel, Spatial-Alert-Pulse |
 | **8. Ressourcenpolitik** | Android-App (`resource/`-Paket) | Kotlin, pure Policies | Adaptive Scan-Raten, Energieprofile, ROI-Scanning, adaptive Voxel-Fusion |
 | | Edge-Agent / Web | Python (`resource_optimizer.py`), FPS-PixelRatio | Referenz-Port, adaptives Rendering-Budget |
+| **9. Grundriss-Integration** | Edge-Agent | Python (`floorplan.py`) | Nominatim/Photon-Geocoding, Overpass-Gebäude (Spiegel-Fallback), GeoJSON, Source-Katalog |
+| | Android-App / Web | Kotlin (`floorplan/`), Three.js-Layer | Parser/Query-Builder, extrudierte Grundrisse mit Etagenhöhen |
 
 ---
 

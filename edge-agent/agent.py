@@ -20,6 +20,11 @@ from export_formats import (
     annotations_to_kml,
     points_to_geojson,
 )
+from floorplan import (
+    SOURCES,
+    fetch_osm_buildings,
+    geocode as floorplan_geocode,
+)
 from icp_merger import ICPMerger
 from models import (
     AuraHeatmapRequest,
@@ -27,6 +32,8 @@ from models import (
     BleTokenUpdate,
     EkfState,
     ExportRequest,
+    FloorPlanBuildingsRequest,
+    FloorPlanGeocodeRequest,
     LidarFrame,
     MergeRequest,
     MmwaveTarget,
@@ -451,6 +458,54 @@ async def network_devices():
         "devices": list(device_tracker.known_devices().values()),
         "count": len(device_tracker.known_devices()),
     }
+
+
+# ─── Grundriss-Integration (docs/FLOORPLAN.md) ───────────────────
+
+
+@app.get("/api/v1/floorplan/sources")
+async def floorplan_sources():
+    """Verifizierter Quellen-Katalog (Verfügbarkeit, Auth, Priorität)."""
+    return {
+        "sources": [
+            {
+                "name": s.name,
+                "kind": s.kind,
+                "endpoint": s.endpoint,
+                "available": s.available,
+                "requires_auth": s.requires_auth,
+                "priority": s.priority,
+                "notes": s.notes,
+            }
+            for s in SOURCES
+        ]
+    }
+
+
+@app.post("/api/v1/floorplan/geocode")
+async def floorplan_geocode_endpoint(request: FloorPlanGeocodeRequest):
+    """Adresssuche: Nominatim (primär) mit Photon-Fallback — serverseitig,
+    damit die Nominatim-Usage-Policy zentral eingehalten wird (User-Agent,
+    Caching, ≤ 1 req/s)."""
+    if not request.query.strip():
+        raise HTTPException(status_code=400, detail="query darf nicht leer sein")
+    try:
+        results = floorplan_geocode(request.query)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"Geocoding fehlgeschlagen: {exc}")
+    return {"query": request.query, "results": [r.to_dict() for r in results]}
+
+
+@app.post("/api/v1/floorplan/buildings")
+async def floorplan_buildings(request: FloorPlanBuildingsRequest):
+    """Gebäudeumrisse via Overpass (mit Kumi-Spiegel-Fallback) → GeoJSON
+    + Broadcast an alle Visualizer (Typ `floorplan_buildings`)."""
+    try:
+        result = fetch_osm_buildings(request.lat, request.lon, request.radius)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"Overpass-Abruf fehlgeschlagen: {exc}")
+    await manager.broadcast_json({"type": "floorplan_buildings", "payload": result})
+    return result
 
 
 # ─── WebSocket-Endpunkt ──────────────────────────────────────

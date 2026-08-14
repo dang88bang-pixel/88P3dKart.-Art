@@ -127,8 +127,8 @@ bleiben als Fallback im Pool, da manche Geräte das Bit unzuverlässig setzen).
 
 ## 4. Verifikation
 
-- **Python: 76/76 Tests grün** (u. a. Ausreißer-Szenario, Median/Kalman-Filter, RTI-Glättung).
-- **Kotlin: 118 JVM-Unit-Tests** (gespiegelte Szenarien, Ausführung in Android Studio/CI).
+- **Python: 85/85 Tests grün** (u. a. Ausreißer-Szenario, Median/Kalman-Filter, RTI-Glättung).
+- **Kotlin: 123 JVM-Unit-Tests** (gespiegelte Szenarien, Ausführung in Android Studio/CI).
 - Kein Verhaltensbruch: alle Neuerungen sind über Default-Parameter ausgeschaltet
   bzw. konservativ vorbesetzt (EMA-Standard, `robustIterations` ohne
   Ausreißer = identisches Ergebnis wie zuvor).

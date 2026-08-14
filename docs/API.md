@@ -20,6 +20,9 @@ Die vollständige OpenAPI-3.0-Spezifikation liegt unter
 | POST | `/api/v1/network/simulate` | Network3D: What-If-Failover-Simulation |
 | GET | `/api/v1/network/history` | Network3D: Time-Machine-Snapshot-Replay |
 | GET | `/api/v1/network/devices` | Live-Netzwerk: Geräte des Trackers |
+| GET | `/api/v1/floorplan/sources` | Grundriss: verifizierter Quellen-Katalog |
+| POST | `/api/v1/floorplan/geocode` | Grundriss: Adresssuche (Nominatim→Photon) |
+| POST | `/api/v1/floorplan/buildings` | Grundriss: Gebäudeumrisse via Overpass (GeoJSON + Broadcast) |
 
 ### Beispiel: Zustand
 
@@ -144,6 +147,7 @@ Nachrichtentypen (JSON `{type, payload}`):
 | `topology_simulation` | ← | What-If-Failover-Ergebnis |
 | `network_devices_update` | → | Scan-Zyklus → Tracker → Broadcast `network_devices` |
 | `annotation_update` | → / ← | Kollaborative Annotation (Live-Sync) |
+| `floorplan_buildings` | ← | Gebäude-GeoJSON (→ Grundriss-Layer im Visualizer) |
 
 Binary-Ausgabe: Punktwolke `[N (uint32 LE), N*3 float32]`.
 

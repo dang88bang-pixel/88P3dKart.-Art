@@ -27,6 +27,8 @@
 | **Ressourcen 1.0** | **Scan-/Fusions-Politiken** | Adaptive Scan-Raten, Energieprofile, ROI-Scanning, adaptive Voxel-Fusion, FPS-PixelRatio (docs/RESOURCE_OPT.md) | ✅ |
 | Ressourcen 1.1 | Anbindung + Feldmessung | Scan-Raten-Flow in MainActivity, Einsparungsziele mit Batterystats validieren | ⏳ |
 | Ressourcen 1.2 | Progressives Mesh | Grob→Fein-Hintergrundverfeinerung im Edge-Agent | ⏳ |
+| **Grundriss 1.0** | **Quellen-Adapter** | Nominatim/Photon/Overpass+Spiegel, Source-Katalog (verifiziert), REST/WS, Visualizer-Layer (docs/FLOORPLAN.md) | ✅ |
+| Grundriss 1.1 | KartaView-Foto-Adapter + INSPIRE/WFS | Fassaden-Texturen, Kommune-Geoportale (Berlin zuerst) | ⏳ |
 | Aura 0.2 | SDR-USB-Treiber | RTL-SDR-v5 via USB Host (libusb-Portierung), `IqSource`-Anbindung | ⏳ |
 | Aura 0.3 | VPN-Einbindung | `com.wireguard.android:tunnel` im Flavour `aura-vpn` (VpnService) | ⏳ |
 | Aura 0.4 | Maps 3D Preview | Google Maps 3D SDK (Experimental): extrudierte Heatmap, RTI-Voxel, „Röntgenblick"-Kamera | ⏳ |

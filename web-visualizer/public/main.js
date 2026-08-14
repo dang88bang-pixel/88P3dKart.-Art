@@ -387,6 +387,101 @@ if (btnNet) {
     });
 }
 
+// ─── Grundriss-Integration (docs/FLOORPLAN.md) ─────────────────
+// Gebäudeumrisse (GeoJSON vom Edge-Agent/Overpass) werden lokal
+// (Zentroid der ersten Feature) zentriert, zu Metern konvertiert und
+// mit Etagenhöhe extrudiert; Kanten + Namens-Labels ergänzen das Modell.
+const floorGroup = new THREE.Group();
+scene.add(floorGroup);
+const MAX_FLOOR_FEATURES = 300;
+const MAX_FLOOR_LABELS = 40;
+
+const METERS_PER_DEG_LAT = 110_540.0;
+
+function applyFloorPlanBuildings(fc) {
+    while (floorGroup.children.length) {
+        const child = floorGroup.children.pop();
+        floorGroup.remove(child);
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) child.material.dispose();
+    }
+    const features = (fc.features || []).slice(0, MAX_FLOOR_FEATURES);
+    if (features.length === 0) {
+        updateFloorStatus('🌆 Grundriss: keine Gebäude gefunden');
+        return;
+    }
+
+    // Ursprung: Zentroid des ersten Gebäuderinges
+    const firstRing = features[0]?.geometry?.coordinates?.[0];
+    let cLon = 0, cLat = 0;
+    if (firstRing) {
+        for (const [lon, lat] of firstRing) { cLon += lon; cLat += lat; }
+        cLon /= firstRing.length; cLat /= firstRing.length;
+    }
+    const lonScale = METERS_PER_DEG_LAT * Math.cos((cLat * Math.PI) / 180);
+    let labelCount = 0;
+    let maxLevels = 0;
+
+    for (const feature of features) {
+        const ring = feature.geometry?.coordinates?.[0];
+        if (!ring || ring.length < 4) continue;
+        const shape = new THREE.Shape();
+        ring.forEach(([lon, lat], i) => {
+            const x = (lon - cLon) * lonScale;
+            const z = -(lat - cLat) * METERS_PER_DEG_LAT;
+            if (i === 0) shape.moveTo(x, z); else shape.lineTo(x, z);
+        });
+        shape.closePath();
+        const props = feature.properties || {};
+        const height = Math.max(1, props.height || (props.levels || 1) * 3.2);
+        maxLevels = Math.max(maxLevels, props.levels || 1);
+
+        const geometry = new THREE.ExtrudeGeometry(shape, {
+            steps: 1, depth: height, bevelEnabled: false,
+        });
+        const mesh = new THREE.Mesh(
+            geometry,
+            new THREE.MeshBasicMaterial({
+                color: 0x4488ff, transparent: true, opacity: 0.35, side: THREE.DoubleSide,
+            })
+        );
+        floorGroup.add(mesh);
+
+        const edges = new THREE.LineSegments(
+            new THREE.EdgesGeometry(geometry),
+            new THREE.LineBasicMaterial({ color: 0x00ffcc, transparent: true, opacity: 0.6 })
+        );
+        floorGroup.add(edges);
+
+        if (props.name && labelCount < MAX_FLOOR_LABELS) {
+            const div = document.createElement('div');
+            div.textContent = props.name;
+            div.style.cssText = 'color:white;font-size:11px;text-shadow:1px 1px 2px black;background:rgba(0,0,0,0.55);padding:1px 6px;border-radius:3px;';
+            const label = new CSS2DObject(div);
+            label.position.set(0, height + 1, 0);
+            mesh.add(label);
+            labelCount++;
+        }
+    }
+    updateFloorStatus(`🌆 Grundriss: ${features.length} Gebäude (max. ${maxLevels} Etagen)`);
+    floorGroup.visible = floorVisible;
+}
+
+function updateFloorStatus(text) {
+    const el = document.getElementById('floorplan-status');
+    if (el) el.textContent = text;
+}
+
+let floorVisible = true;
+const btnFloor = document.getElementById('btn-floorplan');
+if (btnFloor) {
+    btnFloor.addEventListener('click', () => {
+        floorVisible = !floorVisible;
+        floorGroup.visible = floorVisible;
+        btnFloor.classList.toggle('active', floorVisible);
+    });
+}
+
 // ─── WebSocket ──────────────────────────────────────────────────
 const WS_PROTO = window.location.protocol === 'https:' ? 'wss' : 'ws';
 const WS_URL = `${WS_PROTO}://${window.location.host}/ws`;
@@ -434,6 +529,8 @@ function connect() {
                         `${msg.payload.rerouted_flows} reroutet, ` +
                         `${msg.payload.unreachable_flows} unerreichbar`
                     );
+                } else if (msg.type === 'floorplan_buildings' && msg.payload) {
+                    applyFloorPlanBuildings(msg.payload);
                 }
             } catch (_) { /* ignore */ }
         }

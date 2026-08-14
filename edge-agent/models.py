@@ -161,3 +161,17 @@ class SimulationRequest(BaseModel):
 
     node_id: str
     flows: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class FloorPlanGeocodeRequest(BaseModel):
+    """Grundriss: Adresssuche (Nominatim/Photon)."""
+
+    query: str
+
+
+class FloorPlanBuildingsRequest(BaseModel):
+    """Grundriss: Gebäudeabruf via Overpass (Radius in Metern)."""
+
+    lat: float
+    lon: float
+    radius: float = 100.0

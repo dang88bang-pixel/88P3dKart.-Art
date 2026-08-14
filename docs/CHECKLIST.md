@@ -10,7 +10,7 @@
 > abgeglichen. Folgende **fehlende Teile** wurden ergänzt (Schritt 7–9).
 >
 > **Update Aura/Triangulation/UI (14.08.2026):** Dokumenten-Audit — SoC-Angaben
-> auf Qualcomm QCM4290 korrigiert, Testzahlen aktualisiert (76 Python / 118 JVM),
+> auf Qualcomm QCM4290 korrigiert, Testzahlen aktualisiert (85 Python / 123 JVM),
 > neue Schritte 10–12 ergänzt.
 
 ---
@@ -39,7 +39,7 @@
 | 1.10 | `agent.py` | ✅ |
 | 1.11 | `requirements.txt`, `Dockerfile`, `openapi.yaml` | ✅ |
 | 1.12 | **Test**: `pip install` aller Abhängigkeiten | ✅ |
-| 1.13 | **Test**: Unit-Tests grün (76/76 — inkl. RTI, Trilateration, Export, Topologie, Taktik, Ressourcenpolitik) | ✅ |
+| 1.13 | **Test**: Unit-Tests grün (85/85 — inkl. RTI, Trilateration, Export, Topologie, Taktik, Ressourcenpolitik, Grundriss) | ✅ |
 | 1.14 | **Test**: Server + REST-Endpunkte (health, state, pipeline, merge, history, aura, triangulation) | ✅ |
 | 1.15 | **Test**: WebSocket Binär-/JSON-Stream + Telemetrie + Persistenz | ✅ |
 
@@ -231,3 +231,15 @@
 | 18.6 | Spec-Fehlerkatalog (Triple/Quadruple, Node-API im Browser, Div-0, setAnimationLoop) | ✅ |
 | 18.7 | **Test**: Python 76/76 grün; JVM gesamt 118 | ✅ |
 | 18.8 | Scan-Raten-Anbindung in MainActivity, Feldmessung, progressives Mesh | ⏳ Roadmap |
+
+## 🏛️ Schritt 19 — Grundriss-Integration (docs/FLOORPLAN.md)
+
+| # | Aufgabe | Status |
+|---|---------|--------|
+| 19.1 | Quellen-Verifikation (Nominatim ✅, Photon ✅, Overpass ✅ via Kumi-Spiegel, KartaView ⚠️ Coverage, hoowoge.de → HOWOGE ❌, BIM Deutschland ❌, Mapzen ❌ tot, Mapillary ❌) | ✅ |
+| 19.2 | `edge-agent/floorplan.py` (Geocoder, Overpass+Spiegel-Fallback, GeoJSON, KartaView-URL, Source-Katalog) | ✅ |
+| 19.3 | REST `/api/v1/floorplan/sources|geocode|buildings` + WS `floorplan_buildings` | ✅ |
+| 19.4 | Kotlin `floorplan/` (Source-Katalog, Overpass-Query, Parser) | ✅ |
+| 19.5 | Web-Visualizer: Grundriss-Layer (Extrusion, Etagenhöhen, Labels, Toggle) | ✅ |
+| 19.6 | **Test**: Python 85/85 grün; JVM gesamt 123; Live-Verifikationsprotokoll in der Doku | ✅ |
+| 19.7 | KartaView-Foto-Adapter, INSPIRE/WFS-Adapter, Nominatim-Cache, FloorPlanFragment-UI | ⏳ Roadmap |

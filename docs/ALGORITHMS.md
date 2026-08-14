@@ -264,6 +264,20 @@ CPU/RAM/Akku-Schwellen; LOD-Snap auf 2^lod-Raster; Verschmelzung
 `w_existing = conf·(0,5 + 0,5·e^(−Δt/60 s))`, `w_new = conf`; Grid-Key-Merge
 (21 Bit/Achse) mit 50k-Obergrenze.
 
+## 21. Grundriss-Integration (docs/FLOORPLAN.md)
+
+**Geocoding:** Nominatim (usage-policy-konform) primär, Photon-Fallback.
+
+**Overpass:** QL `way/relation["building"]` mit `around: Radius, lat, lon`;
+Parser bildet geschlossene Ringe auf GeoJSON-Polygone ab (Relationen über
+äußere Member), Etagen aus `building:levels`/`levels`, Höhen-Fallback
+3,2 m/Etage; **Spiegel-Fallback** Hauptserver → overpass.kumi.systems
+(„server too busy" ist ein Last-, kein Query-Fehler).
+
+**Visualisierung:** lokale Meter-Konvertierung um den Zentroid
+(lon·cos(lat)·111 320, lat·110 540), Extrusion (Höhe = Etagen × 3,2 m),
+Kanten + Labels, Cap 300/40 (Ressourcenpolitik v11).
+
 **Fusion** (`EstimateGate.kt`, `TriangulationService.kt`):
 Frische (RTT ≤ 5 s, BLE ≤ 3 s, FP ≤ 10 s) → Mahalanobis-Gate
 `‖Δ‖ ≤ k√(σ_A²+σ_B²)` (k = 3) → invers-varianz-gewichteter Mittelwert →

@@ -86,6 +86,17 @@ ressourcensparenden Gesamtbetrieb (v11.0.0):
 - **Adaptive Renderqualität** — FPS-basiertes PixelRatio-Management im
   Web-Visualizer (0,75…2,0)
 
+**Grundriss-Integration** (docs/FLOORPLAN.md) — optionale Funktion mit
+**verifizierten Datenquellen** (Live-Tests am 14.08.2026):
+- **Geocoding:** Nominatim (Policy-konform) + Photon-Fallback
+- **Gebäude:** Overpass-API mit automatischem Kumi-Spiegel-Fallback →
+  GeoJSON (Etagen, Höhen, Adressen)
+- **Quellen-Katalog** mit echtem Verfügbarkeitsstatus (hoowoge.de→HOWOGE
+  ohne API, Mapzen tot, BIM Deutschland Info-Portal, KartaView für
+  Street-Level-Bilder)
+- REST `/api/v1/floorplan/*` + WS `floorplan_buildings` +
+  3D-Extrusions-Layer im Web-Visualizer
+
 ---
 
 ## 📁 Monorepo-Struktur
@@ -158,10 +169,10 @@ curl -X POST http://localhost:8080/api/v1/triangulation/solve \
 ```bash
 cd edge-agent
 source .venv/bin/activate
-python -m pytest tests/ -v    # 76 Tests: EKF, ICP, UWB, Pipeline, RTI, Trilateration, Export, Topologie, Taktik, Ressourcenpolitik
+python -m pytest tests/ -v    # 85 Tests: EKF, ICP, UWB, Pipeline, RTI, Trilateration, Export, Topologie, Taktik, Ressourcenpolitik, Grundriss
 ```
 
-Kotlin: 118 JVM-Unit-Tests in `android-app/app/src/test/` (X25519 gegen
+Kotlin: 123 JVM-Unit-Tests in `android-app/app/src/test/` (X25519 gegen
 RFC-7748-Vektoren, IQ-Datagramm, FFT/Korrelation, RTI, Path-Loss,
 Fusions-Gate) — Ausführung in Android Studio/CI (`./gradlew test`).
 
@@ -188,7 +199,8 @@ Weitere Details: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md),
 [`docs/NETWORK3D.md`](docs/NETWORK3D.md) (3D-Netzwerk-Topologie: What-If, Time Machine, Visualizer-Layer),
 [`docs/WIRELESS_MESH.md`](docs/WIRELESS_MESH.md) (Wireless-Mesh-Rekonstruktion: Umgebungs-Adaption, Drift, Loop-Closure),
 [`docs/TACTICAL.md`](docs/TACTICAL.md) (Taktisches Map-Management: Szenario-Komposition, Versionierung, Annotationen),
-[`docs/RESOURCE_OPT.md`](docs/RESOURCE_OPT.md) (Ressourcensparende 3D-Kartierung: Scan-Politik, Energieprofile, ROI, Voxel-Fusion).
+[`docs/RESOURCE_OPT.md`](docs/RESOURCE_OPT.md) (Ressourcensparende 3D-Kartierung: Scan-Politik, Energieprofile, ROI, Voxel-Fusion),
+[`docs/FLOORPLAN.md`](docs/FLOORPLAN.md) (Grundriss-Integration: verifizierte Quellen, Overpass/Nominatim/Photon-Adapter, 3D-Extrusion).
 
 ---
 

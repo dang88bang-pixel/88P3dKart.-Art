@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: 3dxAgent Edge-Agent API
-  version: 3.2.0
+  version: 3.3.0
   description: >
     REST-API des 3dxAgent Fusions-Kernels. Bietet EKF-Zustand, Historie,
     Szenarien-Konfiguration, ICP-Map-Merging, die v2.0-Datenpipeline, die
@@ -191,6 +191,40 @@ paths:
       responses:
         '200':
           description: Bekannte Geräte (Change-/Anomalie-Erkennung)
+  /api/v1/floorplan/sources:
+    get:
+      summary: Grundriss — verifizierter Quellen-Katalog
+      responses:
+        '200':
+          description: Quellen mit Verfügbarkeit/Auth/Priorität
+  /api/v1/floorplan/geocode:
+    post:
+      summary: Grundriss — Adresssuche (Nominatim primär, Photon-Fallback)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FloorPlanGeocodeRequest'
+      responses:
+        '200':
+          description: Geocoding-Ergebnisse
+        '502':
+          description: Geocoding-Dienste nicht erreichbar
+  /api/v1/floorplan/buildings:
+    post:
+      summary: Grundriss — Gebäudeumrisse via Overpass (GeoJSON + Broadcast)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FloorPlanBuildingsRequest'
+      responses:
+        '200':
+          description: GeoJSON FeatureCollection
+        '502':
+          description: Overpass nicht erreichbar
 components:
   schemas:
     EkfState:
@@ -355,3 +389,15 @@ components:
               id: { type: string }
               source: { type: string }
               target: { type: string }
+    FloorPlanGeocodeRequest:
+      type: object
+      required: [query]
+      properties:
+        query: { type: string }
+    FloorPlanBuildingsRequest:
+      type: object
+      required: [lat, lon]
+      properties:
+        lat: { type: number }
+        lon: { type: number }
+        radius: { type: number, default: 100.0 }

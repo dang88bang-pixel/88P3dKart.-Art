@@ -620,7 +620,7 @@ Vertikaler Verlauf + Min/Max-Beschriftung + interaktive Handles (A-21). Zusätzl
 5. **Alert-Kette:** CRITICAL-Alert → Banner + Vibration in < 1 s; Quittierung reduziert Badge; Whitelist unterdrückt Folge-Alerts (Unit-Test in `GatekeeperTest` vorhanden).
 6. **Export:** glTF < 5 MB mit Draco (AURA.md §2), IFC/JSON valide (Schema-Check).
 7. **Barrierefreiheit:** Kontrast-Audit bestanden, TalkBack-Fokus-Reihenfolge logisch, Farbenblind-Modus aktivierbar.
-8. **Kein Regression:** bestehende 76 Edge-Agent-Tests + 118 JVM-Tests grün, `node --check` sauber, kein UI-Code im Render-Thread.
+8. **Kein Regression:** bestehende 85 Edge-Agent-Tests + 123 JVM-Tests grün, `node --check` sauber, kein UI-Code im Render-Thread.
 9. **Offline:** Web-Visualizer lädt und interagiert ohne Agent (Layer-Manager, Kamera, Messen), Android-App voll funktional im Offline-Modus (`offline/`-Paket).
 10. **Doku:** dieses Dokument ist bei Abweichungen aktualisiert; UX.md verlinkt auf die neuen Tabs.
 
