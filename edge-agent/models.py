@@ -147,3 +147,17 @@ class ExportRequest(BaseModel):
     annotations: List[Dict[str, Any]] = Field(default_factory=list)
     points: List[List[float]] = Field(default_factory=list)
     device_id: str = "CT45P-01"
+
+
+class TopologyRequest(BaseModel):
+    """Network3D: Topologie-Ingest (Upsert von Nodes/Edges)."""
+
+    nodes: List[Dict[str, Any]] = Field(default_factory=list)
+    edges: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class SimulationRequest(BaseModel):
+    """Network3D: What-If-Failover-Simulation."""
+
+    node_id: str
+    flows: List[Dict[str, Any]] = Field(default_factory=list)

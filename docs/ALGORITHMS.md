@@ -209,6 +209,44 @@ Entladerate der letzten Samples (Fallback 12,5 %/h ≈ 8 h Laufzeit).
 GeoJSON (RFC 7946), KML (OGC 2.2, XML-Escaping), JSON; Retention
 (Altersschwelle).
 
+## 17. Network3D — Topologie, What-If, Time Machine (docs/NETWORK3D.md)
+
+**Kürzeste Pfade:** Dijkstra (heapq/ArrayDeque-frei, Latenz als Kantengewicht).
+
+**Failover-Simulation** (`simulate_failover`): für jeden Flow wird der
+Originalpfad bestimmt; liegt der ausgefallene Node darauf, wird der Graph
+temporär degradiert (Node + inzidente Kanten, exakte Restauration), der
+Pfad neu berechnet und der Flow als `rerouted`/`unreachable` klassifiziert.
+
+**Time Machine:** Snapshot-Fenster (deque, Capacity) mit `replay(index)`.
+
+## 18. Wireless Mesh (docs/WIRELESS_MESH.md)
+
+**Umgebungs-Adaption:** Preset-Auswahl über mittleren relativen Fehler
+(Predicted vs. Ist-Distanz), Konfidenz begrenzt auf 0,3…1,0.
+
+**Drift-Korrektur:** Offset-EWMA `d = (1−α)d + α·(mess − ref)`, begrenzt —
+(im Gegensatz zur v8-Spec, die fälschlich die Steigung als Drift nahm).
+
+**Loop-Closure:** Distanzschwelle zu besuchten Positionen → gewichteter
+Korrektur-Offset (0,1 × Versatz).
+
+**Cluster-Merger:** Greedy-Zuordnung im Merge-Radius, konfidenz-gewichteter
+Schwerpunkt, dominante Quelle als Semantik-Proxy.
+
+## 19. Taktik & Annotation (docs/TACTICAL.md)
+
+**Szenario-Komposition:** DFS über Modulabhängigkeiten mit Zyklus-Erkennung,
+topologische Ordnung, Konfig-Merge je Modultyp.
+
+**Map-Versionierung:** Basis-Snapshot + Delta-Kette (Upsert/Remove);
+Rekonstruktion über defensive Kopien.
+
+**Kompression:** zlib (Deflater/Inflater, Python-zlib-kompatibel).
+
+**Geräte-Tracker:** Change-Erkennung (added/removed, Signalsprung > 10 dBm)
+und Historien-Anomalien (Abweichung > 20 dBm vom 10er-Mittel).
+
 **Fusion** (`EstimateGate.kt`, `TriangulationService.kt`):
 Frische (RTT ≤ 5 s, BLE ≤ 3 s, FP ≤ 10 s) → Mahalanobis-Gate
 `‖Δ‖ ≤ k√(σ_A²+σ_B²)` (k = 3) → invers-varianz-gewichteter Mittelwert →

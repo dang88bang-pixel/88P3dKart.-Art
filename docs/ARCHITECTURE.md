@@ -17,6 +17,9 @@ REST/WebSocket und MQTT kommunizieren.
 | | Edge-Agent | Python (`trilateration.py`) | REST-Solver `/api/v1/triangulation/solve`, Positions-Broadcast |
 | **6. Betrieb & Wartung** | Android-App (`maintenance/`-Paket) | Kotlin (Coroutines, WorkManager Roadmap) | Adaptive Schwellwerte, Batterie-Health, Export-Formate |
 | | Edge-Agent / Web | Python (`export_formats.py`), `sw.js` | `/api/v1/export`, Offline-App-Shell (Workbox-Strategien) |
+| **7. Network3D & Taktik** | Edge-Agent | Python (`network_topology.py`, `tactical.py`, `network_tracker.py`) | Topologie-Graph (Dijkstra), What-If-Failover, Time Machine, Szenario-Komposition, Map-Versionierung, Annotation-Templates |
+| | Android-App | Kotlin (`wireless/`, `tactical/`, `network/`) | Umgebungs-Adaption, Drift/Loop-Closure, Cluster-Merger, Szenario-Composer, Delta-Versionierung, Kompression, DeviceTracker |
+| | Web-Visualizer | Three.js-Layer | Topologie-Nodes/-Edges, Flow-Partikel, Spatial-Alert-Pulse |
 
 ---
 
@@ -61,6 +64,10 @@ Sensor-/Netzwerkdaten → Analyse → Mesh → 3D-Umgebung → Exakte Abbildung 
   3σ-Spikes, Trends, Lernmodus), Batterie-Health (Zyklusäquivalente,
   Alterungsmodell, Restlaufzeit), Export (GeoJSON/KML/Retention); Hintergrund-
   ausführung nach WorkManager-/Workbox-Standard (docs/SERVICE_WORKER.md).
+- **Network3D & Taktik** — Topologie-Graph mit Dijkstra, What-If-Failover-
+  Simulation und Time-Machine-Replay; modulare Szenario-Komposition,
+  Delta-Versionierung, Annotation-Templates, Geräte-Change-Tracking
+  (docs/NETWORK3D.md, docs/WIRELESS_MESH.md, docs/TACTICAL.md).
 
 Weitere Details in [`docs/EXECUTIVE_SUMMARY.md`](EXECUTIVE_SUMMARY.md),
 [`docs/AURA.md`](AURA.md), [`docs/TRIANGULATION.md`](TRIANGULATION.md) und

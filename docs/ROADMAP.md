@@ -19,6 +19,11 @@
 | Service Worker 1.2 | Export-UI + Cloud | Analyse-Tab-Anbindung, S3/R2-Upload | ⏳ |
 | Service Worker 1.3 | PWA offline | three.js vendoren, IndexedDB-Queue + Background Sync | ⏳ |
 | Service Worker 1.4 | OTA via MDM | Honeywell Mobility Edge (OEMConfig/SOTI) | ⏳ |
+| **Network3D 1.0** | **Topologie-Engine** | Graph-Kern (Dijkstra), What-If-Failover, Time Machine, Visualizer-Layer mit Flow-Partikeln (docs/NETWORK3D.md) | ✅ |
+| Network3D 1.1 | Ingest-Adapter | SNMP/K8s/Prometheus hinter der ingest-Schnittstelle | ⏳ |
+| **WirelessMesh 1.0** | **Rekonstruktions-Bausteine** | Umgebungs-Selector, DriftCorrector, LoopClosure, Cluster-Merger (docs/WIRELESS_MESH.md) | ✅ |
+| **Taktik 1.0** | **Map-/Szenario-Kern** | ScenarioComposer, MapVersioning, Kompression, Annotation-Templates, DeviceTracker, WS-Sync (docs/TACTICAL.md) | ✅ |
+| Taktik 1.1 | Room-Entities + UI | TacticalMap/MapAnnotation-Persistenz, Annotation-UI, 2D-Overlay (Heatmap/Clustering) | ⏳ |
 | Aura 0.2 | SDR-USB-Treiber | RTL-SDR-v5 via USB Host (libusb-Portierung), `IqSource`-Anbindung | ⏳ |
 | Aura 0.3 | VPN-Einbindung | `com.wireguard.android:tunnel` im Flavour `aura-vpn` (VpnService) | ⏳ |
 | Aura 0.4 | Maps 3D Preview | Google Maps 3D SDK (Experimental): extrudierte Heatmap, RTI-Voxel, „Röntgenblick"-Kamera | ⏳ |

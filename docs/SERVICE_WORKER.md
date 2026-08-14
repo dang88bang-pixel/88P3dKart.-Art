@@ -1,5 +1,12 @@
 # ⚙️ Service Worker Bedarf — Machbarkeitsanalyse & Integration
 
+> **Abdeckung der Eingabe-Versionen:** Dieses Dokument deckt die
+> Spezifikations-Versionen **10.0.0, 10.1.0 und 10.2.0** ab — die
+> Worker-Listen aus 10.1.0 (Sensor Preprocessor, Network Monitor, Offline
+> Sync, Anomaly Detector, Render Optimizer, Tactical AI, Battery Health,
+> Data Export, OTA, Orchestrator) sind vollständig in der Mapping-Tabelle
+> (§2) und der Machbarkeitsmatrix abgebildet.
+
 > **Version:** v1.0 · **Datum:** 14. August 2026 ·
 > **Eingabe:** „3dxAgent – Gesamter Service Worker Bedarf" (v10.2.0-ServiceWorkerComplete)
 >

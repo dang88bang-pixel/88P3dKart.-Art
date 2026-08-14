@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: 3dxAgent Edge-Agent API
-  version: 3.1.0
+  version: 3.2.0
   description: >
     REST-API des 3dxAgent Fusions-Kernels. Bietet EKF-Zustand, Historie,
     Szenarien-Konfiguration, ICP-Map-Merging, die v2.0-Datenpipeline, die
@@ -141,6 +141,56 @@ paths:
           description: Konvertierter Export-Inhalt
         '400':
           description: Unbekanntes Format oder keine Daten
+  /api/v1/network/topology:
+    post:
+      summary: Network3D — Topologie-Ingest (Upsert) + Broadcast
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TopologyRequest'
+      responses:
+        '200':
+          description: Node-/Edge-Zähler + Snapshot-Index
+    get:
+      summary: Aktuelle Topologie
+      responses:
+        '200':
+          description: Nodes + Edges der Live-Topologie
+  /api/v1/network/simulate:
+    post:
+      summary: Network3D — What-If-Failover-Simulation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SimulationRequest'
+      responses:
+        '200':
+          description: Betroffene/reroutete/unerreichbare Flows
+        '404':
+          description: Node nicht in der Topologie
+  /api/v1/network/history:
+    get:
+      summary: Network3D — Time-Machine-Snapshot-Replay
+      parameters:
+        - name: index
+          in: query
+          schema: { type: integer }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 100 }
+      responses:
+        '200':
+          description: Snapshots (oder ein einzelner Snapshot bei index)
+  /api/v1/network/devices:
+    get:
+      summary: Live-Netzwerk — Geräte des Trackers
+      responses:
+        '200':
+          description: Bekannte Geräte (Change-/Anomalie-Erkennung)
 components:
   schemas:
     EkfState:
@@ -266,3 +316,42 @@ components:
             type: array
             items: { type: number }
         device_id: { type: string, default: CT45P-01 }
+    TopologyRequest:
+      type: object
+      properties:
+        nodes:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              type: { type: string, default: host }
+              name: { type: string }
+              status: { type: string, default: ok }
+              x: { type: number }
+              y: { type: number }
+              z: { type: number }
+        edges:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              source: { type: string }
+              target: { type: string }
+              bandwidth_mbps: { type: number }
+              latency_ms: { type: number }
+              utilization: { type: number }
+    SimulationRequest:
+      type: object
+      required: [node_id]
+      properties:
+        node_id: { type: string }
+        flows:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              source: { type: string }
+              target: { type: string }

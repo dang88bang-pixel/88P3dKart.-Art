@@ -61,6 +61,20 @@ Hintergrundverarbeitung nach WorkManager-/Workbox-Standards:
 - **Web-Visualizer `sw.js`** — Offline-App-Shell (Cache-First /
   Network-First / Stale-While-Revalidate)
 
+**Network3D & Taktik** (docs/NETWORK3D.md, docs/WIRELESS_MESH.md,
+docs/TACTICAL.md) erweitern die Plattform um Topologie-Visualisierung,
+Wireless-Mesh-Rekonstruktion und taktisches Map-Management:
+- **Topologie-Graph** — Nodes/Edges, Dijkstra, **What-If-Failover-Simulation**,
+  **Time Machine** (Snapshot-Replay); Visualizer-Layer mit Flow-Partikeln
+  und pulsierenden Spatial Alerts (3d-force-graph-Muster, nativ Three.js)
+- **Wireless Mesh** — Umgebungs-Preset-Auswahl, Drift-Korrektur (Offset-EWMA),
+  Loop-Closure, konfidenzgewichteter Punkt-Cluster-Merger
+- **Taktik** — modulare Szenario-Komposition (Abhängigkeitsauflösung),
+  Map-Versionierung (Delta-Kette), zlib-Szenario-Kompression,
+  22 Annotation-Templates, Geräte-Change-/Anomalie-Tracker
+- REST: `/api/v1/network/*` (Topologie, Simulate, History, Devices) +
+  WS-Typen `network_topology`, `topology_simulation`, `annotation_update`
+
 ---
 
 ## 📁 Monorepo-Struktur
@@ -133,10 +147,10 @@ curl -X POST http://localhost:8080/api/v1/triangulation/solve \
 ```bash
 cd edge-agent
 source .venv/bin/activate
-python -m pytest tests/ -v    # 44 Tests: EKF, ICP, UWB, Pipeline, RTI, Trilateration, Export
+python -m pytest tests/ -v    # 65 Tests: EKF, ICP, UWB, Pipeline, RTI, Trilateration, Export, Topologie, Taktik
 ```
 
-Kotlin: 77 JVM-Unit-Tests in `android-app/app/src/test/` (X25519 gegen
+Kotlin: 104 JVM-Unit-Tests in `android-app/app/src/test/` (X25519 gegen
 RFC-7748-Vektoren, IQ-Datagramm, FFT/Korrelation, RTI, Path-Loss,
 Fusions-Gate) — Ausführung in Android Studio/CI (`./gradlew test`).
 
@@ -159,7 +173,10 @@ Weitere Details: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md),
 [`docs/TRIANGULATION.md`](docs/TRIANGULATION.md) (WiFi-/BLE-Triangulation auf dem CT45P),
 [`docs/UI_UX_PLAN.md`](docs/UI_UX_PLAN.md) (UI/UX-Detailplan: Aktionen & Interaktionen der 3D-Oberfläche),
 [`docs/VERBESSERUNGEN.md`](docs/VERBESSERUNGEN.md) (Machbarkeitsanalyse & übernommene Optimierungen aus Open-Source-Projekten),
-[`docs/SERVICE_WORKER.md`](docs/SERVICE_WORKER.md) (Service-Worker-Bedarfsanalyse: WorkManager/Workbox-Architektur, Wartungsmodule, Offline-Shell).
+[`docs/SERVICE_WORKER.md`](docs/SERVICE_WORKER.md) (Service-Worker-Bedarfsanalyse: WorkManager/Workbox-Architektur, Wartungsmodule, Offline-Shell),
+[`docs/NETWORK3D.md`](docs/NETWORK3D.md) (3D-Netzwerk-Topologie: What-If, Time Machine, Visualizer-Layer),
+[`docs/WIRELESS_MESH.md`](docs/WIRELESS_MESH.md) (Wireless-Mesh-Rekonstruktion: Umgebungs-Adaption, Drift, Loop-Closure),
+[`docs/TACTICAL.md`](docs/TACTICAL.md) (Taktisches Map-Management: Szenario-Komposition, Versionierung, Annotationen).
 
 ---
 

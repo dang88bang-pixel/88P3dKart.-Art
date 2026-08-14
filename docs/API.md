@@ -16,6 +16,10 @@ Die vollständige OpenAPI-3.0-Spezifikation liegt unter
 | POST | `/api/v1/aura/rti` | Aura: RTI-Rekonstruktion (Messlinien → Voxel-Feld) |
 | POST | `/api/v1/aura/heatmap` | Aura: RF-Samples → extrudierte Heatmap-Zellen |
 | POST | `/api/v1/triangulation/solve` | Triangulation: Anker + Distanzen → Position (docs/TRIANGULATION.md) |
+| POST/GET | `/api/v1/network/topology` | Network3D: Topologie-Ingest (Upsert) / aktuelle Topologie |
+| POST | `/api/v1/network/simulate` | Network3D: What-If-Failover-Simulation |
+| GET | `/api/v1/network/history` | Network3D: Time-Machine-Snapshot-Replay |
+| GET | `/api/v1/network/devices` | Live-Netzwerk: Geräte des Trackers |
 
 ### Beispiel: Zustand
 
@@ -93,6 +97,33 @@ curl -X POST http://localhost:8080/api/v1/triangulation/solve \
 
 → Position (5, 5): Schnittpunkt der vier Distanzkreise um die Anker.
 
+### Beispiel: Network3D (Topologie + What-If)
+
+```bash
+# Topologie ingestieren (Upsert) — broadcastet an alle Visualizer
+curl -X POST http://localhost:8080/api/v1/network/topology \
+  -H "Content-Type: application/json" \
+  -d '{
+    "nodes": [
+      {"id":"A","type":"router","x":0,"y":0},
+      {"id":"B","type":"router","x":1,"y":0},
+      {"id":"C","type":"router","x":1,"y":0},
+      {"id":"D","type":"server","x":2,"y":0}
+    ],
+    "edges": [
+      {"id":"AB","source":"A","target":"B","latency_ms":1},
+      {"id":"AC","source":"A","target":"C","latency_ms":1},
+      {"id":"BD","source":"B","target":"D","latency_ms":1},
+      {"id":"CD","source":"C","target":"D","latency_ms":1}
+    ]
+  }'
+
+# What-If: Node B fällt aus → Flow A→D wird über C reroutet
+curl -X POST http://localhost:8080/api/v1/network/simulate \
+  -H "Content-Type: application/json" \
+  -d '{"node_id":"B","flows":[{"id":"f1","source":"A","target":"D"}]}'
+```
+
 ## WebSocket (`/ws/agent/events`)
 
 Nachrichtentypen (JSON `{type, payload}`):
@@ -109,6 +140,10 @@ Nachrichtentypen (JSON `{type, payload}`):
 | `aura_heatmap` | → / ← | Extrudierte RF-Heatmap-Zellen |
 | `position_update` | → / ← | Fusionierte Triangulations-Position (RTT/BLE) |
 | `triangulation_anchors` | → / ← | Anker-Konfiguration für Karte/Visualizer |
+| `network_topology` | ← | Live-Topologie-Broadcast (→ Visualizer) |
+| `topology_simulation` | ← | What-If-Failover-Ergebnis |
+| `network_devices_update` | → | Scan-Zyklus → Tracker → Broadcast `network_devices` |
+| `annotation_update` | → / ← | Kollaborative Annotation (Live-Sync) |
 
 Binary-Ausgabe: Punktwolke `[N (uint32 LE), N*3 float32]`.
 

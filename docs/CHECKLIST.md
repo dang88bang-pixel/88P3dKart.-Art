@@ -10,7 +10,7 @@
 > abgeglichen. Folgende **fehlende Teile** wurden ergänzt (Schritt 7–9).
 >
 > **Update Aura/Triangulation/UI (14.08.2026):** Dokumenten-Audit — SoC-Angaben
-> auf Qualcomm QCM4290 korrigiert, Testzahlen aktualisiert (44 Python / 77 JVM),
+> auf Qualcomm QCM4290 korrigiert, Testzahlen aktualisiert (65 Python / 104 JVM),
 > neue Schritte 10–12 ergänzt.
 
 ---
@@ -39,7 +39,7 @@
 | 1.10 | `agent.py` | ✅ |
 | 1.11 | `requirements.txt`, `Dockerfile`, `openapi.yaml` | ✅ |
 | 1.12 | **Test**: `pip install` aller Abhängigkeiten | ✅ |
-| 1.13 | **Test**: Unit-Tests grün (44/44 — inkl. RTI, Trilateration, Export) | ✅ |
+| 1.13 | **Test**: Unit-Tests grün (65/65 — inkl. RTI, Trilateration, Export, Topologie, Taktik) | ✅ |
 | 1.14 | **Test**: Server + REST-Endpunkte (health, state, pipeline, merge, history, aura, triangulation) | ✅ |
 | 1.15 | **Test**: WebSocket Binär-/JSON-Stream + Telemetrie + Persistenz | ✅ |
 
@@ -159,7 +159,7 @@
 
 | # | Aufgabe | Status |
 |---|---------|--------|
-| 12.1 | Detailplan: 5 Tabs, Wireframes, HUD, Panels, 41 Aktionen, Kamera-Modi, Gesten, Datenbindung, Zustandsmaschine | ✅ |
+| 12.1 | Detailplan: 5 Tabs, Wireframes, HUD, Panels, 46 Aktionen, Kamera-Modi, Gesten, Datenbindung, Zustandsmaschine | ✅ |
 | 12.2 | Umsetzungsphasen 0–5 mit Datei-Mapping und Definition of Done | ✅ |
 | 12.3 | Umsetzung Phase 0 (Web) + Phase 1–5 (Android) | ⏳ Roadmap |
 
@@ -187,3 +187,34 @@
 | 14.6 | Web-Visualizer `sw.js` (Workbox-Strategien, Offline-Shell) + Registrierung | ✅ |
 | 14.7 | **Test**: Python 44/44 grün; 20 neue JVM-Tests (77 gesamt) | ✅ |
 | 14.8 | WorkManager-Anbindung, Export-UI, PWA-Volloffline, OTA-MDM | ⏳ Roadmap |
+
+## 🌐 Schritt 15 — Network3D (docs/NETWORK3D.md)
+
+| # | Aufgabe | Status |
+|---|---------|--------|
+| 15.1 | `network_topology.py`: TopologyGraph (Dijkstra), What-If-Failover, Time Machine | ✅ |
+| 15.2 | REST `/api/v1/network/topology|simulate|history|devices` + WS `network_topology`/`topology_simulation` | ✅ |
+| 15.3 | Web-Visualizer: Topologie-Layer (Typ-/Statusfarben, Spline-Edges, Flow-Partikel, Spatial-Alert-Pulse) | ✅ |
+| 15.4 | **Test**: 8 Python-Tests (Rerouting, Unreachable, Kaskade, Replay) | ✅ |
+| 15.5 | SNMP/K8s/Prometheus-Adapter, Live-Force-Layout, LOD | ⏳ Roadmap |
+
+## 📶 Schritt 16 — Wireless Mesh (docs/WIRELESS_MESH.md)
+
+| # | Aufgabe | Status |
+|---|---------|--------|
+| 16.1 | `wireless/EnvironmentModels.kt` + AdaptiveEnvironmentSelector | ✅ |
+| 16.2 | `wireless/ReconstructionHelpers.kt` (DriftCorrector, LoopClosureDetector, PointClusterMerger) | ✅ |
+| 16.3 | Spec-Fehlerkatalog dokumentiert (Doppelgewichtung, Referenz-Doppeladdierung, negatives Konfidenz-Intervall, Drift-als-Steigung) | ✅ |
+| 16.4 | **Test**: 13 neue JVM-Tests | ✅ |
+| 16.5 | SmartMeshIntegrator-Anbindung, BLE-AoA, Feldkalibrierung | ⏳ Roadmap |
+
+## 🗺️ Schritt 17 — Taktik & Annotation (docs/TACTICAL.md)
+
+| # | Aufgabe | Status |
+|---|---------|--------|
+| 17.1 | `tactical/ScenarioComposer.kt`, `MapVersioning.kt`, `ScenarioCompressor.kt`, `AnnotationTemplates.kt` | ✅ |
+| 17.2 | `network/NetworkDeviceTracker.kt` (Change-/Anomalie-Erkennung) | ✅ |
+| 17.3 | Python-Ports `tactical.py`, `network_tracker.py` + 13 Tests | ✅ |
+| 17.4 | WS-Typen `network_devices_update`/`annotation_update` (Live-Sync) | ✅ |
+| 17.5 | **Test**: Python 65/65 grün; JVM gesamt 104 | ✅ |
+| 17.6 | Room-Entities, Annotation-UI, LLM-Szenariogenerator, ATAK-Roundtrip | ⏳ Roadmap |

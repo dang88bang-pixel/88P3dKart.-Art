@@ -32,9 +32,13 @@ from models import (
     MmwaveTarget,
     PipelineRequest,
     ScenarioConfig,
+    SimulationRequest,
+    TopologyRequest,
     TriangulationRequest,
     UwbPhaseData,
 )
+from network_tracker import DeviceTracker
+from network_topology import TopologyGraph, TopologyHistory
 from pipeline import DataPipeline
 from pointcloud_compressor import PointCloudCompressor
 from rti_solver import Link, RfSample, RtiSolver, build_heatmap
@@ -52,6 +56,9 @@ db = LocalVectorStore()
 ekf = AdaptiveEKF(dt=1.0 / CONFIG.LOOP_HZ)
 uwb_processor = UwbDopplerProcessor(fs=CONFIG.UWB_FS, buffer_secs=CONFIG.UWB_BUFFER_SECS)
 pipeline = DataPipeline()
+topology_graph = TopologyGraph()      # Network3D: Live-Topologie (docs/NETWORK3D.md)
+topology_history = TopologyHistory()  # Time Machine: Snapshot-Replay
+device_tracker = DeviceTracker()      # Live-Netzwerk: Change-/Anomalie-Erkennung
 
 current_mode = "FULL"
 scattering_detected = False
@@ -377,6 +384,75 @@ async def export_data(request: ExportRequest):
     return {"format": request.format, "content": content}
 
 
+# ─── Network3D: Topologie, What-If, Time Machine (docs/NETWORK3D.md) ─
+
+
+@app.post("/api/v1/network/topology")
+async def network_topology_ingest(request: TopologyRequest):
+    """Ingestiert/aktualisiert die Live-Topologie (Upsert) und broadcastet sie."""
+    from network_topology import TopologyEdge, TopologyNode
+
+    for node in request.nodes:
+        topology_graph.upsert_node(TopologyNode.from_dict(node))
+    for edge in request.edges:
+        edge_obj = TopologyEdge.from_dict(edge)
+        if edge_obj.source in topology_graph.nodes and edge_obj.target in topology_graph.nodes:
+            topology_graph.edges[edge_obj.id] = edge_obj
+
+    payload = {
+        "type": "network_topology",
+        "payload": topology_graph.to_dict(),
+    }
+    await manager.broadcast_json(payload)
+    snapshot_index = topology_history.snapshot(topology_graph)
+    return {
+        "status": "ok",
+        "node_count": len(topology_graph.nodes),
+        "edge_count": len(topology_graph.edges),
+        "snapshot_index": snapshot_index,
+    }
+
+
+@app.get("/api/v1/network/topology")
+async def network_topology_get():
+    """Aktuelle Topologie (für Initial-Load und LOD-Refresh)."""
+    return topology_graph.to_dict()
+
+
+@app.post("/api/v1/network/simulate")
+async def network_simulate(request: SimulationRequest):
+    """What-If: Failover-Simulation (Node-Ausfall → Betroffenheit → Rerouting)."""
+    if request.node_id not in topology_graph.nodes:
+        raise HTTPException(status_code=404, detail=f"Node {request.node_id} nicht in der Topologie")
+    result = topology_graph.simulate_failover(request.node_id, request.flows)
+    await manager.broadcast_json({"type": "topology_simulation", "payload": result})
+    return result
+
+
+@app.get("/api/v1/network/history")
+async def network_history(index: int | None = None, limit: int = 100):
+    """Time Machine: Snapshot-Replay der Topologie-Historie."""
+    if index is not None:
+        snapshot = topology_history.replay(index)
+        if snapshot is None:
+            raise HTTPException(status_code=404, detail=f"Snapshot {index} nicht im Fenster")
+        return snapshot
+    low, high = topology_history.range()
+    if low is None:
+        return {"snapshots": []}
+    snapshots = [topology_history.replay(i) for i in range(low, high + 1)]
+    return {"snapshots": snapshots[-limit:]}
+
+
+@app.get("/api/v1/network/devices")
+async def network_devices():
+    """Live-Netzwerk: Geräte des Trackers (Change-/Anomalie-Erkennung)."""
+    return {
+        "devices": list(device_tracker.known_devices().values()),
+        "count": len(device_tracker.known_devices()),
+    }
+
+
 # ─── WebSocket-Endpunkt ──────────────────────────────────────
 @app.websocket("/ws/agent/events")
 async def websocket_endpoint(websocket: WebSocket):
@@ -458,6 +534,17 @@ async def websocket_endpoint(websocket: WebSocket):
                 )
 
             elif msg_type == "triangulation_anchors":
+                await manager.broadcast_json(data)
+
+            elif msg_type == "network_devices_update":
+                # Scan-Zyklus der App → Change-/Anomalie-Erkennung + Broadcast
+                changes = device_tracker.update(payload.get("devices", []))
+                await manager.broadcast_json(
+                    {"type": "network_devices", "payload": changes}
+                )
+
+            elif msg_type == "annotation_update":
+                # Kollaborative Annotation (Live-Sync) → alle Teilnehmer
                 await manager.broadcast_json(data)
 
             # Persistenz nach Positions-Updates

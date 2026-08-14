@@ -250,6 +250,115 @@ if (btnTri) {
     });
 }
 
+// ─── Network3D: Topologie-Layer (docs/NETWORK3D.md) ─────────────
+// 3d-force-graph-Muster in nativem Three.js: Nodes (Typ-/Statusfarben),
+// Spline-Edges (Auslastungsfarben), Flow-Partikel entlang der Kanten,
+// kritische Nodes pulsieren (Spatial Alert).
+const netGroup = new THREE.Group();
+scene.add(netGroup);
+
+const netNodes = new Map();   // id → mesh
+const netEdges = [];          // { curve, color, particles: [...] }
+const NODE_COLORS = {
+    router: 0x4488ff, switch: 0x44aaff, firewall: 0xff8800,
+    vm: 0xaa44ff, container: 0xff44aa, cloud: 0xffffff,
+    server: 0x88cc44, sensor: 0x44ff88,
+};
+const MAX_NET_NODES = 300;
+
+const netParticleGeo = new THREE.SphereGeometry(0.06, 6, 6);
+const netParticleMat = new THREE.MeshBasicMaterial({ color: 0x00ffcc });
+const netNodeGeo = new THREE.SphereGeometry(0.25, 12, 12);
+
+function nodeColor(type, status) {
+    if (status === 'critical') return 0xff3333;
+    if (status === 'warning') return 0xffcc00;
+    if (status === 'down') return 0x555555;
+    return NODE_COLORS[type] || 0x888888;
+}
+
+function applyNetworkTopology(topo) {
+    // Aufräumen
+    netNodes.forEach(mesh => netGroup.remove(mesh));
+    netNodes.clear();
+    netEdges.forEach(edge => edge.particles.forEach(p => netGroup.remove(p)));
+    netEdges.length = 0;
+
+    const nodes = (topo.nodes || []).slice(0, MAX_NET_NODES);
+    const nodeById = new Map(nodes.map(n => [n.id, n]));
+
+    nodes.forEach(n => {
+        const mesh = new THREE.Mesh(
+            netNodeGeo,
+            new THREE.MeshBasicMaterial({ color: nodeColor(n.type, n.status) })
+        );
+        mesh.position.set(n.x, n.z || 0, n.y);
+        mesh.userData = { id: n.id, status: n.status, phase: Math.random() * Math.PI * 2 };
+        netGroup.add(mesh);
+        netNodes.set(n.id, mesh);
+    });
+
+    (topo.edges || []).forEach(e => {
+        const a = nodeById.get(e.source);
+        const b = nodeById.get(e.target);
+        if (!a || !b) return;
+        const pA = new THREE.Vector3(a.x, a.z || 0, a.y);
+        const pB = new THREE.Vector3(b.x, b.z || 0, b.y);
+        const mid = new THREE.Vector3().addVectors(pA, pB).multiplyScalar(0.5);
+        mid.y += pA.distanceTo(pB) * 0.15;
+        const curve = new THREE.QuadraticBezierCurve3(pA, mid, pB);
+        const line = new THREE.Line(
+            new THREE.BufferGeometry().setFromPoints(curve.getPoints(16)),
+            new THREE.LineBasicMaterial({
+                color: e.utilization > 0.8 ? 0xff3333 : e.utilization > 0.5 ? 0xffcc00 : 0x44ff88,
+                transparent: true, opacity: 0.6,
+            })
+        );
+        netGroup.add(line);
+        const particles = Array.from({ length: 3 }, (_, i) => {
+            const p = new THREE.Mesh(netParticleGeo, netParticleMat);
+            p.userData = { t: i / 3, speed: 0.005 + (e.utilization || 0) * 0.02 };
+            netGroup.add(p);
+            return p;
+        });
+        netEdges.push({ curve, color: 0x00ffcc, particles });
+    });
+
+    updateNetStatus(`🌐 ${nodes.length} Nodes · ${(topo.edges || []).length} Links`);
+}
+
+function updateNetStatus(text) {
+    const el = document.getElementById('net-status');
+    if (el) el.textContent = text;
+}
+
+function animateNetwork(time) {
+    const tSec = time * 0.001;
+    netNodes.forEach(mesh => {
+        if (mesh.userData.status === 'critical') {
+            const pulse = 1 + 0.35 * Math.sin(tSec * 5 + mesh.userData.phase);
+            mesh.scale.setScalar(pulse);
+        }
+    });
+    netEdges.forEach(edge => {
+        edge.particles.forEach(p => {
+            const d = p.userData;
+            d.t = (d.t + d.speed) % 1;
+            p.position.copy(edge.curve.getPoint(d.t));
+        });
+    });
+}
+
+let netVisible = true;
+const btnNet = document.getElementById('btn-network');
+if (btnNet) {
+    btnNet.addEventListener('click', () => {
+        netVisible = !netVisible;
+        netGroup.visible = netVisible;
+        btnNet.classList.toggle('active', netVisible);
+    });
+}
+
 // ─── WebSocket ──────────────────────────────────────────────────
 const WS_PROTO = window.location.protocol === 'https:' ? 'wss' : 'ws';
 const WS_URL = `${WS_PROTO}://${window.location.host}/ws`;
@@ -288,6 +397,15 @@ function connect() {
                     applyTriangulationAnchors(msg.payload.anchors);
                 } else if (msg.type === 'position_update' && msg.payload) {
                     applyPositionUpdate(msg.payload);
+                } else if (msg.type === 'network_topology' && msg.payload) {
+                    applyNetworkTopology(msg.payload);
+                } else if (msg.type === 'topology_simulation' && msg.payload) {
+                    updateNetStatus(
+                        `🧪 What-If: ${msg.payload.failing_node} → ` +
+                        `${msg.payload.affected_flows} betroffen, ` +
+                        `${msg.payload.rerouted_flows} reroutet, ` +
+                        `${msg.payload.unreachable_flows} unerreichbar`
+                    );
                 }
             } catch (_) { /* ignore */ }
         }
@@ -343,6 +461,7 @@ document.getElementById('btn-stop').addEventListener('click', () => send('scenar
 function animate(time) {
     requestAnimationFrame(animate);
     animateAvatars(time);
+    animateNetwork(time);
     updateLOD();
     controls.update();
     renderer.render(scene, camera);
