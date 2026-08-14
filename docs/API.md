@@ -23,6 +23,10 @@ Die vollständige OpenAPI-3.0-Spezifikation liegt unter
 | GET | `/api/v1/floorplan/sources` | Grundriss: verifizierter Quellen-Katalog |
 | POST | `/api/v1/floorplan/geocode` | Grundriss: Adresssuche (Nominatim→Photon) |
 | POST | `/api/v1/floorplan/buildings` | Grundriss: Gebäudeumrisse via Overpass (GeoJSON + Broadcast) |
+| GET | `/api/v1/devices` | Geräteinteraktion: Geräte + Layer-Konfiguration |
+| POST | `/api/v1/devices/upsert` | Geräteinteraktion: Gerät upserten (Merge) + Broadcast |
+| POST | `/api/v1/devices/action` | Geräteinteraktion: Capability-geprüfte Aktion |
+| GET/POST | `/api/v1/devices/layers` | Geräteinteraktion: Layer lesen / Sichtbarkeit setzen |
 
 ### Beispiel: Zustand
 
@@ -148,6 +152,9 @@ Nachrichtentypen (JSON `{type, payload}`):
 | `network_devices_update` | → | Scan-Zyklus → Tracker → Broadcast `network_devices` |
 | `annotation_update` | → / ← | Kollaborative Annotation (Live-Sync) |
 | `floorplan_buildings` | ← | Gebäude-GeoJSON (→ Grundriss-Layer im Visualizer) |
+| `devices_update` | → / ← | Geräte-Ingest (DeviceSync) / Registry-Broadcast |
+| `device_action` | → | Client → Agent: Geräteaktion ausführen |
+| `device_action_result` | ← | Ergebnis der Geräteaktion (HUD) |
 
 Binary-Ausgabe: Punktwolke `[N (uint32 LE), N*3 float32]`.
 

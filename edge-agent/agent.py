@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from config import CONFIG
 from database import LocalVectorStore
+from device_registry import Device, DeviceActionEngine, DeviceRegistry
 from ekf_fusion import AdaptiveEKF
 from export_formats import (
     annotations_to_geojson,
@@ -30,6 +31,9 @@ from models import (
     AuraHeatmapRequest,
     AuraRtiRequest,
     BleTokenUpdate,
+    DeviceActionRequest,
+    DeviceLayerRequest,
+    DeviceUpsertRequest,
     EkfState,
     ExportRequest,
     FloorPlanBuildingsRequest,
@@ -66,6 +70,19 @@ pipeline = DataPipeline()
 topology_graph = TopologyGraph()      # Network3D: Live-Topologie (docs/NETWORK3D.md)
 topology_history = TopologyHistory()  # Time Machine: Snapshot-Replay
 device_tracker = DeviceTracker()      # Live-Netzwerk: Change-/Anomalie-Erkennung
+device_registry = DeviceRegistry()    # Geräteinteraktion (docs/DEVICE_INTERACTION.md)
+device_action_engine = DeviceActionEngine(device_registry)
+
+
+def _devices_payload() -> dict:
+    """Broadcast-Payload: Geräte + Layer für alle Visualizer."""
+    return {
+        "type": "devices_update",
+        "payload": {
+            "devices": [d.to_dict() for d in device_registry.devices],
+            "layers": {k: v.to_dict() for k, v in device_registry.layers.items()},
+        },
+    }
 
 current_mode = "FULL"
 scattering_detected = False
@@ -508,6 +525,51 @@ async def floorplan_buildings(request: FloorPlanBuildingsRequest):
     return result
 
 
+# ─── Geräteinteraktion (docs/DEVICE_INTERACTION.md) ──────────────
+
+
+@app.get("/api/v1/devices")
+async def devices_get():
+    """Alle Geräte + Layer-Konfiguration des Registers."""
+    return {
+        "devices": [d.to_dict() for d in device_registry.devices],
+        "layers": {k: v.to_dict() for k, v in device_registry.layers.items()},
+    }
+
+
+@app.post("/api/v1/devices/upsert")
+async def devices_upsert(request: DeviceUpsertRequest):
+    """Gerät upserten (Merge-Semantik) + Broadcast an alle Visualizer."""
+    device = Device.from_dict(request.device)
+    device_registry.upsert(device)
+    device_registry.mark_stale()
+    await manager.broadcast_json(_devices_payload())
+    return {"status": "ok", "device_count": len(device_registry.devices)}
+
+
+@app.post("/api/v1/devices/action")
+async def devices_action(request: DeviceActionRequest):
+    """Capability-geprüfte Geräteaktion ausführen + Ergebnis broadcasten."""
+    result = device_action_engine.execute(request.device_id, request.action, request.params)
+    await manager.broadcast_json({"type": "device_action_result", "payload": result.to_dict()})
+    return result.to_dict()
+
+
+@app.get("/api/v1/devices/layers")
+async def devices_layers_get():
+    return {"layers": {k: v.to_dict() for k, v in device_registry.layers.items()}}
+
+
+@app.post("/api/v1/devices/layers")
+async def devices_layers_set(request: DeviceLayerRequest):
+    """Layer-Sichtbarkeit setzen (propagiert auf die Kategorie)."""
+    ok = device_registry.set_layer_visibility(request.layer_id, request.visible)
+    if not ok:
+        raise HTTPException(status_code=404, detail=f"Layer {request.layer_id} nicht gefunden")
+    await manager.broadcast_json(_devices_payload())
+    return {"status": "ok", "layer_id": request.layer_id, "visible": request.visible}
+
+
 # ─── WebSocket-Endpunkt ──────────────────────────────────────
 @app.websocket("/ws/agent/events")
 async def websocket_endpoint(websocket: WebSocket):
@@ -601,6 +663,24 @@ async def websocket_endpoint(websocket: WebSocket):
             elif msg_type == "annotation_update":
                 # Kollaborative Annotation (Live-Sync) → alle Teilnehmer
                 await manager.broadcast_json(data)
+
+            elif msg_type == "devices_update":
+                # Geräte-Ingest der App (DeviceSync) → Registry → Broadcast
+                for dev_data in payload.get("devices", []):
+                    device_registry.upsert(Device.from_dict(dev_data))
+                device_registry.mark_stale()
+                await manager.broadcast_json(_devices_payload())
+
+            elif msg_type == "device_action":
+                # Client → Agent: Geräteaktion ausführen + Ergebnis broadcasten
+                result = device_action_engine.execute(
+                    payload.get("device_id"),
+                    payload.get("action"),
+                    payload.get("params") or {},
+                )
+                await manager.broadcast_json(
+                    {"type": "device_action_result", "payload": result.to_dict()}
+                )
 
             # Persistenz nach Positions-Updates
             if msg_type in ("lidar", "mmwave"):

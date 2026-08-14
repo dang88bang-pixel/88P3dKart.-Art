@@ -24,6 +24,7 @@ body {
 #tri-status { margin-top: 4px; color: #ffe066; font-size: 12px; }
 #net-status { margin-top: 4px; color: #7fffd4; font-size: 12px; }
 #floorplan-status { margin-top: 4px; color: #9fc8ff; font-size: 12px; }
+#device-status { margin-top: 4px; color: #c8ffb8; font-size: 12px; }
 
 #controls {
     position: absolute;

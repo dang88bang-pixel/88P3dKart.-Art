@@ -294,6 +294,22 @@ y = x[n]−2x[n−1]+x[n−2]; Bewegt-Energie-Verhältnis.
 dt²) und **Zwei-Punkt-Initialisierung** (v aus den ersten beiden Messungen —
 eliminiert den Startup-Lag); Track-Bestätigung (3 Hits) + Coasting.
 
+## 23. Geräteinteraktion (docs/DEVICE_INTERACTION.md)
+
+**Registry:** Upsert mit Merge-Semantik (fehlende Capabilities bleiben
+erhalten, sonst ersetzen; connectionType wird übernommen);
+Layer-Sichtbarkeit propagiert auf die Gerätekategorie;
+Staleness: ONLINE → OFFLINE nach 120 s ohne Lebenszeichen.
+
+**Action-Engine:** Capability-Gating (Aktion nur bei passendem
+`CapabilityType` des Geräts); Standard-Aktionen sind deterministische
+Registry-/Status-Operationen (read_status, locate, set_visibility,
+toggle_led).
+
+**Source-Mapper:** BLE-Token → SENSOR (READ/STREAM, BLE), Netzwerkgerät →
+NETWORK (Typ-Normalisierung über Kind-String), mmWave-Target → SENSOR
+(Tracking); Staleness-Status aus lastSeen.
+
 **Fusion** (`EstimateGate.kt`, `TriangulationService.kt`):
 Frische (RTT ≤ 5 s, BLE ≤ 3 s, FP ≤ 10 s) → Mahalanobis-Gate
 `‖Δ‖ ≤ k√(σ_A²+σ_B²)` (k = 3) → invers-varianz-gewichteter Mittelwert →

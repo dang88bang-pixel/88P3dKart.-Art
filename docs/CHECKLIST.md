@@ -10,7 +10,7 @@
 > abgeglichen. Folgende **fehlende Teile** wurden ergänzt (Schritt 7–9).
 >
 > **Update Aura/Triangulation/UI (14.08.2026):** Dokumenten-Audit — SoC-Angaben
-> auf Qualcomm QCM4290 korrigiert, Testzahlen aktualisiert (99 Python / 135 JVM),
+> auf Qualcomm QCM4290 korrigiert, Testzahlen aktualisiert (111 Python / 148 JVM),
 > neue Schritte 10–12 ergänzt.
 
 ---
@@ -39,7 +39,7 @@
 | 1.10 | `agent.py` | ✅ |
 | 1.11 | `requirements.txt`, `Dockerfile`, `openapi.yaml` | ✅ |
 | 1.12 | **Test**: `pip install` aller Abhängigkeiten | ✅ |
-| 1.13 | **Test**: Unit-Tests grün (99/99 — inkl. RTI, Trilateration, Export, Topologie, Taktik, Ressourcenpolitik, Grundriss, Radarverarbeitung) | ✅ |
+| 1.13 | **Test**: Unit-Tests grün (111/111 — inkl. RTI, Trilateration, Export, Topologie, Taktik, Ressourcenpolitik, Grundriss, Radar, Geräteinteraktion) | ✅ |
 | 1.14 | **Test**: Server + REST-Endpunkte (health, state, pipeline, merge, history, aura, triangulation) | ✅ |
 | 1.15 | **Test**: WebSocket Binär-/JSON-Stream + Telemetrie + Persistenz | ✅ |
 
@@ -254,3 +254,16 @@
 | 20.4 | Fusionsmatrix + Mapping der Recherche-Mechanismen auf bestehende Module | ✅ |
 | 20.5 | **Test**: Python 99/99 grün (14 neue); JVM gesamt 135 (12 neue) | ✅ |
 | 20.6 | SerialManager-Anbindung (Range-Profil → CFAR → Tracker), Pose-/Gang-Modelle, IR-UWB-Feldtest | ⏳ Roadmap |
+
+## 🛰️ Schritt 21 — Geräteinteraktion (docs/DEVICE_INTERACTION.md)
+
+| # | Aufgabe | Status |
+|---|---------|--------|
+| 21.1 | `device/DeviceModels.kt` + `DeviceRegistry.kt` (Merge-Upsert, Layer-Propagation, Staleness) | ✅ |
+| 21.2 | `device/DeviceActionEngine.kt` (Capability-Gating, Standard-Aktionen) + `DeviceSourceMapper.kt` | ✅ |
+| 21.3 | Python-Port `edge-agent/device_registry.py` + 12 Tests | ✅ |
+| 21.4 | REST `/api/v1/devices*` (4 Endpunkte) + WS `devices_update`/`device_action`/`device_action_result` | ✅ |
+| 21.5 | Web-Visualizer: Geräte-Layer (Raycast-Auswahl, Kontextmenü mit capability-gefilterten Aktionen, Kategorie-Sichtbarkeit) | ✅ |
+| 21.6 | Spec-Fehlerkatalog (JS-Tippfehler `capabilitie`, `type.name` im JSON, Map<String,Any>, Alpha-Farben, Engine-Duplikation) | ✅ |
+| 21.7 | **Test**: Python 111/111 grün; JVM gesamt 148; OpenAPI 21 Pfade | ✅ |
+| 21.8 | MainActivity-Anbindung, Layer-Bottom-Sheet, Transport-Adapter (BLE-Kommandos) | ⏳ Roadmap |

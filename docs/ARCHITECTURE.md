@@ -26,6 +26,8 @@ REST/WebSocket und MQTT kommunizieren.
 | | Android-App / Web | Kotlin (`floorplan/`), Three.js-Layer | Parser/Query-Builder, extrudierte Grundrisse mit Etagenhöhen |
 | **10. Personen-/Gegenstandserkennung** | Android-App (`radar/`-Paket) | Kotlin, pure Kernel | CA-CFAR, MTI, Doppler-Geschwindigkeit, Multi-Target-Tracker (CV-Kalman) |
 | | Edge-Agent | Python (`radar_processing.py`) | Identische Numerik (Referenz + Server-Auswertung) |
+| **11. Geräteinteraktion** | Android-App (`device/`-Paket) | Kotlin, StateFlow-Registry | DeviceRegistry (Merge/Layer/Staleness), Action-Engine (Capability-Gating), Source-Mapper |
+| | Edge-Agent / Web | Python (`device_registry.py`), Three.js-Layer | `/api/v1/devices*`, `devices_update`-Broadcast, 3D-Marker mit Kontextmenü |
 
 ---
 

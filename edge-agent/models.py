@@ -175,3 +175,24 @@ class FloorPlanBuildingsRequest(BaseModel):
     lat: float
     lon: float
     radius: float = 100.0
+
+
+class DeviceUpsertRequest(BaseModel):
+    """Geräteinteraktion: Gerät upserten (Device-Dict gemäß Registry)."""
+
+    device: Dict[str, Any]
+
+
+class DeviceActionRequest(BaseModel):
+    """Geräteinteraktion: Capability-geprüfte Aktion ausführen."""
+
+    device_id: str
+    action: str
+    params: Dict[str, Any] = Field(default_factory=dict)
+
+
+class DeviceLayerRequest(BaseModel):
+    """Geräteinteraktion: Layer-Sichtbarkeit setzen."""
+
+    layer_id: str
+    visible: bool

@@ -482,6 +482,259 @@ if (btnFloor) {
     });
 }
 
+// ─── Geräteinteraktion (docs/DEVICE_INTERACTION.md) ────────────
+// Geräte-Registry des Edge-Agents: Marker mit Typ-/Statusfarben, Labels,
+// Raycast-Auswahl (Selektionsring pulsiert), Kontextmenü mit
+// capability-geprüften Aktionen, Layer-Sichtbarkeit je Kategorie.
+const deviceGroup = new THREE.Group();
+scene.add(deviceGroup);
+
+const deviceMarkers = new Map();      // id → { group, mesh }
+const devicePickMeshes = [];
+const DEVICE_CATEGORY_COLORS = {
+    SENSOR: 0x44ff88, NETWORK: 0x4488ff, ACTUATOR: 0xff8800,
+    VEHICLE: 0xff44ff, OTHER: 0x888888,
+};
+const DEVICE_ICONS = {
+    BLE_TOKEN: '🔵', UWB_SENSOR: '📡', MMWAVE_RADAR: '📡', LIDAR: '🔴',
+    WIFI_AP: '📶', WIFI_CLIENT: '📱', BLE_DEVICE: '🔵', ZIGBEE_NODE: '🔶',
+    LORA_GATEWAY: '📻', SMART_LIGHT: '💡', SMART_LOCK: '🔒',
+    EBIKE: '🚲', ESCOOTER: '🛴', EROLLER: '🛵', EV: '🚗',
+};
+const MAX_DEVICE_MARKERS = 250;
+
+const deviceSelectionRing = new THREE.Mesh(
+    new THREE.SphereGeometry(0.35, 16, 16),
+    new THREE.MeshBasicMaterial({ color: 0x44ff88, wireframe: true, transparent: true, opacity: 0.8 })
+);
+deviceSelectionRing.visible = false;
+deviceGroup.add(deviceSelectionRing);
+let selectedDeviceId = null;
+let deviceLayerVisibility = {}; // category → boolean
+
+function applyDevices(payload) {
+    const devices = (payload.devices || []).slice(0, MAX_DEVICE_MARKERS);
+    const layers = payload.layers || {};
+    deviceLayerVisibility = {};
+    for (const layer of Object.values(layers)) {
+        deviceLayerVisibility[layer.category] = layer.is_visible !== false;
+    }
+    const seen = new Set();
+    devices.forEach(device => {
+        seen.add(device.id);
+        upsertDeviceMarker(device);
+    });
+    for (const id of [...deviceMarkers.keys()]) {
+        if (!seen.has(id)) {
+            const entry = deviceMarkers.get(id);
+            deviceGroup.remove(entry.group);
+            disposeMarker(entry);
+            deviceMarkers.delete(id);
+        }
+    }
+    updateDeviceVisibility();
+    const byCat = {};
+    devices.forEach(d => { byCat[d.category] = (byCat[d.category] || 0) + 1; });
+    const parts = Object.entries(byCat).map(([c, n]) => `${n} ${c.toLowerCase()}`).join(' · ');
+    updateDeviceStatus(`🛰️ Geräte: ${devices.length}${parts ? ` (${parts})` : ''}`);
+}
+
+function upsertDeviceMarker(device) {
+    let entry = deviceMarkers.get(device.id);
+    if (!entry) {
+        const group = new THREE.Group();
+        const color = DEVICE_CATEGORY_COLORS[device.category] || 0x888888;
+        const mesh = new THREE.Mesh(
+            new THREE.SphereGeometry(0.22, 12, 12),
+            new THREE.MeshBasicMaterial({ color })
+        );
+        mesh.userData.deviceId = device.id;
+        group.add(mesh);
+
+        const statusDot = new THREE.Mesh(
+            new THREE.SphereGeometry(0.08, 8, 8),
+            new THREE.MeshBasicMaterial({ color: statusColor(device.status) })
+        );
+        statusDot.position.set(0.32, 0.32, 0);
+        statusDot.userData.isStatusDot = true;
+        group.add(statusDot);
+
+        const div = document.createElement('div');
+        div.textContent = device.name || device.id;
+        div.style.cssText = 'color:white;font-size:11px;font-weight:bold;text-shadow:1px 1px 2px black;background:rgba(0,0,0,0.55);padding:1px 6px;border-radius:3px;';
+        const label = new CSS2DObject(div);
+        label.position.set(0, 0.55, 0);
+        group.add(label);
+
+        deviceGroup.add(group);
+        deviceMarkers.set(device.id, { group, mesh, label });
+        devicePickMeshes.push(mesh);
+    }
+    const marker = deviceMarkers.get(device.id);
+    const pos = device.position || [0, 0, 0];
+    // Welt-Konvention [x, y_horizontal, z_Höhe] → Three (x, Höhe, z)
+    marker.group.position.set(pos[0] || 0, pos[2] || 0, pos[1] || 0);
+    marker.mesh.material.color.setHex(DEVICE_CATEGORY_COLORS[device.category] || 0x888888);
+    const dot = marker.group.children.find(c => c.userData.isStatusDot);
+    if (dot) dot.material.color.setHex(statusColor(device.status));
+    marker.group.userData = { device, category: device.category, visible: device.is_visible !== false };
+    updateDeviceVisibility();
+}
+
+function statusColor(status) {
+    if (status === 'ONLINE') return 0x44ff88;
+    if (status === 'OFFLINE') return 0xff3333;
+    if (status === 'UPDATING') return 0xffcc00;
+    if (status === 'CONNECTING') return 0x00ffcc;
+    return 0x888888;
+}
+
+function updateDeviceVisibility() {
+    for (const [id, entry] of deviceMarkers) {
+        const category = entry.group.userData.category;
+        const categoryVisible = deviceLayerVisibility[category] !== false;
+        entry.group.visible = categoryVisible && entry.group.userData.visible;
+    }
+}
+
+function disposeMarker(entry) {
+    entry.group.children.forEach(child => {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) child.material.dispose();
+    });
+    const idx = devicePickMeshes.indexOf(entry.mesh);
+    if (idx >= 0) devicePickMeshes.splice(idx, 1);
+}
+
+function updateDeviceStatus(text) {
+    const el = document.getElementById('device-status');
+    if (el) el.textContent = text;
+}
+
+// ─── Auswahl (Raycast-Picking) + Kontextmenü ───────────────────
+let devicePointerDown = null;
+
+renderer.domElement.addEventListener('pointerdown', (e) => {
+    devicePointerDown = { x: e.clientX, y: e.clientY, button: e.button };
+});
+
+renderer.domElement.addEventListener('pointerup', (e) => {
+    if (!devicePointerDown) return;
+    const moved = Math.hypot(e.clientX - devicePointerDown.x, e.clientY - devicePointerDown.y) > 5;
+    const button = devicePointerDown.button;
+    devicePointerDown = null;
+    if (moved) return;
+
+    const rect = renderer.domElement.getBoundingClientRect();
+    const mouse = new THREE.Vector2(
+        ((e.clientX - rect.left) / rect.width) * 2 - 1,
+        -((e.clientY - rect.top) / rect.height) * 2 + 1,
+    );
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(mouse, camera);
+    const hits = raycaster.intersectObjects(devicePickMeshes, false);
+    if (hits.length > 0) {
+        const id = hits[0].object.userData.deviceId;
+        selectDevice(id);
+        if (button === 2) showDeviceContextMenu(id, e.clientX, e.clientY);
+    } else {
+        if (button === 2) {
+            hideDeviceContextMenu();
+        } else {
+            deselectDevice();
+        }
+    }
+});
+
+renderer.domElement.addEventListener('contextmenu', (e) => e.preventDefault());
+
+function selectDevice(id) {
+    selectedDeviceId = id;
+    const entry = deviceMarkers.get(id);
+    if (entry) {
+        deviceSelectionRing.position.copy(entry.group.position);
+        deviceSelectionRing.visible = true;
+        updateDeviceStatus(`🛰️ Ausgewählt: ${entry.group.userData.device.name || id}`);
+    }
+}
+
+function deselectDevice() {
+    selectedDeviceId = null;
+    deviceSelectionRing.visible = false;
+}
+
+function animateDeviceLayer(time) {
+    if (deviceSelectionRing.visible) {
+        const pulse = 1 + 0.2 * Math.sin(time * 0.004);
+        deviceSelectionRing.scale.setScalar(pulse);
+    }
+}
+
+// ─── Kontextmenü (capability-geprüfte Aktionen) ────────────────
+const deviceContextMenu = document.createElement('div');
+deviceContextMenu.style.cssText = 'display:none;position:fixed;background:rgba(20,20,40,0.95);color:white;padding:8px 0;border-radius:8px;border:1px solid rgba(255,255,255,0.1);min-width:220px;z-index:1000;backdrop-filter:blur(10px);box-shadow:0 8px 32px rgba(0,0,0,0.5);';
+document.body.appendChild(deviceContextMenu);
+
+document.addEventListener('click', (e) => {
+    if (!deviceContextMenu.contains(e.target)) hideDeviceContextMenu();
+});
+
+function hideDeviceContextMenu() {
+    deviceContextMenu.style.display = 'none';
+}
+
+function showDeviceContextMenu(deviceId, clientX, clientY) {
+    const entry = deviceMarkers.get(deviceId);
+    if (!entry) return;
+    const device = entry.group.userData.device;
+    const capabilities = device.capabilities || [];
+    const menu = deviceContextMenu;
+    menu.innerHTML = '';
+
+    const title = document.createElement('div');
+    title.textContent = device.name || device.id;
+    title.style.cssText = 'padding:8px 16px;font-weight:bold;border-bottom:1px solid rgba(255,255,255,0.1);';
+    menu.appendChild(title);
+
+    const capTypes = new Set(capabilities.map(c => c.type));
+    const items = [];
+    if (capTypes.has('READ_DATA')) {
+        items.push({ label: '📊 Status abfragen', action: 'read_status', params: {} });
+        items.push({ label: '📍 Position', action: 'locate', params: {} });
+    }
+    if (capTypes.has('EXECUTE_COMMAND')) {
+        items.push({ label: '💡 LED umschalten', action: 'toggle_led', params: { state: 'true' } });
+    }
+    items.push({ label: '🔇 Ausblenden', action: 'set_visibility', params: { visible: 'false' }, danger: true });
+
+    items.forEach(item => {
+        const row = document.createElement('div');
+        row.textContent = item.label;
+        row.style.cssText = `padding:8px 16px;cursor:pointer;${item.danger ? 'color:#FF6666;' : ''}`;
+        row.onmouseover = () => { row.style.backgroundColor = 'rgba(255,255,255,0.1)'; };
+        row.onmouseout = () => { row.style.backgroundColor = 'transparent'; };
+        row.onclick = () => {
+            send('device_action', { device_id: deviceId, action: item.action, params: item.params });
+            hideDeviceContextMenu();
+        };
+        menu.appendChild(row);
+    });
+
+    menu.style.display = 'block';
+    menu.style.left = Math.min(clientX, window.innerWidth - 240) + 'px';
+    menu.style.top = Math.min(clientY, window.innerHeight - 200) + 'px';
+}
+
+let devicesVisible = true;
+const btnDevices = document.getElementById('btn-devices');
+if (btnDevices) {
+    btnDevices.addEventListener('click', () => {
+        devicesVisible = !devicesVisible;
+        deviceGroup.visible = devicesVisible;
+        btnDevices.classList.toggle('active', devicesVisible);
+    });
+}
+
 // ─── WebSocket ──────────────────────────────────────────────────
 const WS_PROTO = window.location.protocol === 'https:' ? 'wss' : 'ws';
 const WS_URL = `${WS_PROTO}://${window.location.host}/ws`;
@@ -531,6 +784,12 @@ function connect() {
                     );
                 } else if (msg.type === 'floorplan_buildings' && msg.payload) {
                     applyFloorPlanBuildings(msg.payload);
+                } else if (msg.type === 'devices_update' && msg.payload) {
+                    applyDevices(msg.payload);
+                } else if (msg.type === 'device_action_result' && msg.payload) {
+                    updateDeviceStatus(
+                        `🛰️ Aktion ${msg.payload.action}: ${msg.payload.success ? '✅' : '❌'} ${msg.payload.message}`
+                    );
                 }
             } catch (_) { /* ignore */ }
         }
@@ -587,6 +846,7 @@ function animate(time) {
     requestAnimationFrame(animate);
     animateAvatars(time);
     animateNetwork(time);
+    animateDeviceLayer(time);
     updateLOD();
     adaptRenderQuality(time);
     controls.update();
