@@ -13,6 +13,7 @@
 | **Triangulation 1.0** | **WiFi/BLE-Kern (CT45P)** | Trilateration (LM), Path-Loss + Kalibrierung, Fingerprinting, Wi-Fi-RTT-Wrapper, dual-BLE-Backend, Fusion + EKF, REST/WS/Visualizer (docs/TRIANGULATION.md) | ✅ |
 | Triangulation 1.1 | Honeywell-SDK-Backend | 2. BLE-Hardware-Schnittstelle via Mobility SDK, AoA/AoD-Verifikation | ⏳ |
 | Triangulation 1.2 | Flottenrollout | EZConfig-/OEMConfig-Rezepte, Feldkalibrierung | ⏳ |
+| **Verbesserungen 1.0** | **OS-Adoption** | Robuste Trilateration (LTS-1), RSSI-Median-/Kalman-Filter, RTI-Glättungs-Regularisierung, RTT-Responder-Priorisierung (docs/VERBESSERUNGEN.md) | ✅ |
 | Aura 0.2 | SDR-USB-Treiber | RTL-SDR-v5 via USB Host (libusb-Portierung), `IqSource`-Anbindung | ⏳ |
 | Aura 0.3 | VPN-Einbindung | `com.wireguard.android:tunnel` im Flavour `aura-vpn` (VpnService) | ⏳ |
 | Aura 0.4 | Maps 3D Preview | Google Maps 3D SDK (Experimental): extrudierte Heatmap, RTI-Voxel, „Röntgenblick"-Kamera | ⏳ |

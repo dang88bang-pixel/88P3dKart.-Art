@@ -2,7 +2,13 @@
 
 import numpy as np
 
-from trilateration import calibrate_path_loss, rssi_to_distance, solve_trilateration
+from trilateration import (
+    RssiKalmanFilter,
+    calibrate_path_loss,
+    median_filter_rssi,
+    rssi_to_distance,
+    solve_trilateration,
+)
 
 ANCHORS_2D = [
     {"id": "A", "x": 0.0, "y": 0.0, "z": 0.0},
@@ -98,3 +104,69 @@ def test_calibrate_path_loss():
     assert cal["r_squared"] > 0.95
     assert calibrate_path_loss([]) is None
     assert calibrate_path_loss([(1.0, -50.0)]) is None
+
+
+def test_robust_trilateration_rejects_outlier_anchor():
+    """Ein stark verfälschter Distanzwert darf die Lösung nicht ruinieren."""
+    anchors = [
+        {"id": "A", "x": 0.0, "y": 0.0, "z": 0.0},
+        {"id": "B", "x": 12.0, "y": 0.0, "z": 0.0},
+        {"id": "C", "x": 12.0, "y": 12.0, "z": 0.0},
+        {"id": "D", "x": 0.0, "y": 12.0, "z": 0.0},
+        {"id": "E", "x": 6.0, "y": 24.0, "z": 0.0},
+    ]
+    distances = _distances(anchors, 4.0, 6.0)
+    # Anker D +8 m Ausreißer (z. B. Multipath/NLOS)
+    distances["D"] += 8.0
+
+    plain = solve_trilateration(anchors, distances, use_z=False, robust_iterations=0)
+    robust = solve_trilateration(anchors, distances, use_z=False, robust_iterations=2)
+
+    assert plain is not None and robust is not None
+    err_plain = np.hypot(plain["x"] - 4.0, plain["y"] - 6.0)
+    err_robust = np.hypot(robust["x"] - 4.0, robust["y"] - 6.0)
+    assert err_robust < err_plain, f"robust={err_robust:.2f}m nicht besser als plain={err_plain:.2f}m"
+    assert err_robust < 1.0, f"robuste Lösung zu ungenau: {err_robust:.2f}m"
+    assert robust.get("rejected_anchors", 0) >= 1
+
+
+def test_robust_trilateration_keeps_minimum_anchors():
+    """Mit nur 3 Ankern (2D) darf kein Anker entfernt werden."""
+    anchors = [
+        {"id": "A", "x": 0.0, "y": 0.0, "z": 0.0},
+        {"id": "B", "x": 10.0, "y": 0.0, "z": 0.0},
+        {"id": "C", "x": 0.0, "y": 10.0, "z": 0.0},
+    ]
+    distances = _distances(anchors, 3.0, 3.0)
+    result = solve_trilateration(anchors, distances, use_z=False, robust_iterations=3)
+    assert result is not None
+    assert result["anchor_count"] == 3
+    assert abs(result["x"] - 3.0) < 1e-6
+    assert abs(result["y"] - 3.0) < 1e-6
+
+
+def test_median_filter_suppresses_spikes():
+    values = [-60.0, -61.0, -59.0, -62.0, -60.0]
+    assert abs(median_filter_rssi(values, window=5) - float(np.median(values[-5:]))) < 1e-9
+    # Spike am Fensterrand wird ignoriert (Median ist outlier-robust)
+    with_spike = values + [-200.0]
+    assert abs(median_filter_rssi(with_spike, window=5) - float(np.median(with_spike[-5:]))) < 1e-9
+    assert abs(median_filter_rssi(with_spike, window=5) - (-61.0)) < 1e-9
+    # Erst bei kleinem Fenster (Spike-Anteil ≥ 50 %) schlägt der Spike durch
+    assert median_filter_rssi(with_spike, window=2) < -100.0
+    assert median_filter_rssi([], window=5) == 0.0
+
+
+def test_rssi_kalman_filter_converges_and_dampens_jumps():
+    kalman = RssiKalmanFilter(q=4.0, r=16.0)
+    # Konstantes Signal: Filter konvergiert gegen den Wert
+    value = 0.0
+    for _ in range(30):
+        value = kalman.filter("AA:BB", -62.0)
+    assert abs(value - (-62.0)) < 1.0
+    # Einzelner Sprung wird gedämpft (Gain < 1)
+    prev = value
+    jumped = kalman.filter("AA:BB", -80.0)
+    assert abs(jumped - prev) < abs(-80.0 - prev)
+    kalman.clear("AA:BB")
+    assert kalman.value("AA:BB") is None

@@ -122,10 +122,10 @@ curl -X POST http://localhost:8080/api/v1/triangulation/solve \
 ```bash
 cd edge-agent
 source .venv/bin/activate
-python -m pytest tests/ -v    # 33 Tests: EKF, ICP, UWB, Pipeline, RTI, Trilateration
+python -m pytest tests/ -v    # 38 Tests: EKF, ICP, UWB, Pipeline, RTI, Trilateration, robuste Filter
 ```
 
-Kotlin: 51 JVM-Unit-Tests in `android-app/app/src/test/` (X25519 gegen
+Kotlin: 56 JVM-Unit-Tests in `android-app/app/src/test/` (X25519 gegen
 RFC-7748-Vektoren, IQ-Datagramm, FFT/Korrelation, RTI, Path-Loss,
 Fusions-Gate) — Ausführung in Android Studio/CI (`./gradlew test`).
 
@@ -146,7 +146,8 @@ Weitere Details: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md),
 [`docs/CHECKLIST.md`](docs/CHECKLIST.md),
 [`docs/AURA.md`](docs/AURA.md) (Projekt Aura — SDR/RTI/3D),
 [`docs/TRIANGULATION.md`](docs/TRIANGULATION.md) (WiFi-/BLE-Triangulation auf dem CT45P),
-[`docs/UI_UX_PLAN.md`](docs/UI_UX_PLAN.md) (UI/UX-Detailplan: Aktionen & Interaktionen der 3D-Oberfläche).
+[`docs/UI_UX_PLAN.md`](docs/UI_UX_PLAN.md) (UI/UX-Detailplan: Aktionen & Interaktionen der 3D-Oberfläche),
+[`docs/VERBESSERUNGEN.md`](docs/VERBESSERUNGEN.md) (Machbarkeitsanalyse & übernommene Optimierungen aus Open-Source-Projekten).
 
 ---
 

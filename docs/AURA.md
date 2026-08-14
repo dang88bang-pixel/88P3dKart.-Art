@@ -172,7 +172,12 @@ ergibt eine lineare Gleichung. Hunderte Messlinien (während der Bewegung der
 Smartphones) ergeben ein überbestimmtes Gleichungssystem, das mittels
 **Backprojection** oder **Tikhonov-Regularisierung** gelöst wird:
 
-$$\min_{\phi}\ \|A\phi - y\|_2^2 + \lambda \|\phi\|_2^2$$
+$$\min_{\phi}\ \|A\phi - y\|_2^2 + \lambda \|\phi\|_2^2 + \gamma\,\phi^T L \phi$$
+
+Der optionale Glättungsterm $\gamma$ (diskreter Graph-Laplacian L über die
+6-Nachbarschaft der Voxel) reduziert Rausch-Artefakte in dünn abgedeckten
+Regionen (Differenzoperator-Ansatz nach SPIE 8753 — Details in
+[VERBESSERUNGEN.md](VERBESSERUNGEN.md)).
 
 Das Ergebnis ist eine 3D-Rekonstruktion der Dämpfungswerte, die als
 halbtransparente Voxel visualisiert wird. Implementierung:

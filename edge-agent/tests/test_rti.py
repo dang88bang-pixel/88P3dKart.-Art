@@ -115,6 +115,36 @@ def test_locate_peaks_returns_limited_separated_maxima():
     assert err <= 2.5 * VOXEL_SIZE
 
 
+def _total_variation(field):
+    """Nachbarschafts-Variation des Felds (Glättungsmaß, Grid 20×20×2)."""
+    values = np.array([v.attenuation for v in field]).reshape(2, 20, 20)
+    diff = (
+        np.abs(np.diff(values, axis=0)).sum()
+        + np.abs(np.diff(values, axis=1)).sum()
+        + np.abs(np.diff(values, axis=2)).sum()
+    )
+    return float(diff)
+
+
+def test_tikhonov_smoothing_reduces_noise_while_keeping_blob():
+    """Glättungs-Regularisierung (Graph-Laplacian) reduziert die Variation
+    des rekonstruierten Felds, ohne die Blob-Lokalisierung zu verlieren."""
+    solver_plain = _create_solver()
+    field_plain = solver_plain.solve()
+
+    solver_smooth = _create_solver()
+    solver_smooth.smoothing = 2.0
+    field_smooth = solver_smooth.solve()
+
+    tv_plain = _total_variation(field_plain)
+    tv_smooth = _total_variation(field_smooth)
+    assert tv_smooth <= tv_plain + 1e-9, f"Glättung erhöht die Variation ({tv_smooth} > {tv_plain})"
+
+    argmax = max(field_smooth, key=lambda v: v.attenuation)
+    err = _distance((argmax.x, argmax.y, argmax.z), BLOB)
+    assert err <= 2.0 * VOXEL_SIZE, f"Glättung verschiebt den Blob: {err:.2f} m"
+
+
 def test_empty_solver_returns_empty_field():
     solver = RtiSolver(BOUNDS_MIN, BOUNDS_MAX, VOXEL_SIZE)
     assert solver.solve() == []

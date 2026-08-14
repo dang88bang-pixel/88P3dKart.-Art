@@ -72,6 +72,7 @@ class RtiSolver:
         voxel_size: float,
         ellipse_width: float = 0.05,
         regularization: float = 0.1,
+        smoothing: float = 0.0,
     ):
         if voxel_size <= 0:
             raise ValueError("voxel_size muss > 0 sein")
@@ -80,6 +81,10 @@ class RtiSolver:
         self.voxel_size = float(voxel_size)
         self.ellipse_width = float(ellipse_width)
         self.regularization = float(regularization)
+        # Glättungs-Regularisierung γ: diskreter Graph-Laplacian über die
+        # 6-Nachbarschaft des Voxelgitters (Differenzoperator-Ansatz, vgl.
+        # SPIE 8753 „Regularization in radio tomographic imaging").
+        self.smoothing = float(smoothing)
 
         self.nx, self.ny, self.nz = tuple(
             max(1, int(np.ceil((self.bounds_max[i] - self.bounds_min[i]) / voxel_size)))
@@ -151,8 +156,67 @@ class RtiSolver:
 
     # ── Löser ────────────────────────────────────────────────────────
 
+    def _laplacian(self):
+        """Diskreter Graph-Laplacian (6-Nachbarschaft) als sparse Matrix."""
+        n = self.voxel_count
+        matrix = lil_matrix((n, n), dtype=float)
+        for v in range(n):
+            iz = v // (self.nx * self.ny)
+            rem = v % (self.nx * self.ny)
+            iy = rem // self.nx
+            ix = rem % self.nx
+            neighbors = []
+            if ix > 0:
+                neighbors.append(v - 1)
+            if ix < self.nx - 1:
+                neighbors.append(v + 1)
+            if iy > 0:
+                neighbors.append(v - self.nx)
+            if iy < self.ny - 1:
+                neighbors.append(v + self.nx)
+            if iz > 0:
+                neighbors.append(v - self.nx * self.ny)
+            if iz < self.nz - 1:
+                neighbors.append(v + self.nx * self.ny)
+            matrix[v, v] = len(neighbors)
+            for nbr in neighbors:
+                matrix[v, nbr] = -1.0
+        return matrix.tocsr()
+
+    def _apply_laplacian(self, x: np.ndarray) -> np.ndarray:
+        """Matrixfreie Laplacian-Anwendung (O(6n)) für große Gitter."""
+        n = self.voxel_count
+        out = np.zeros(n, dtype=float)
+        for v in range(n):
+            iz = v // (self.nx * self.ny)
+            rem = v % (self.nx * self.ny)
+            iy = rem // self.nx
+            ix = rem % self.nx
+            degree = 0
+            s = 0.0
+            for nbr in self._neighbors(ix, iy, iz):
+                degree += 1
+                s += x[nbr]
+            out[v] = degree * x[v] - s
+        return out
+
+    def _neighbors(self, ix: int, iy: int, iz: int):
+        nx, ny, nz = self.nx, self.ny, self.nz
+        if ix > 0:
+            yield iz * nx * ny + iy * nx + (ix - 1)
+        if ix < nx - 1:
+            yield iz * nx * ny + iy * nx + (ix + 1)
+        if iy > 0:
+            yield iz * nx * ny + (iy - 1) * nx + ix
+        if iy < ny - 1:
+            yield iz * nx * ny + (iy + 1) * nx + ix
+        if iz > 0:
+            yield (iz - 1) * nx * ny + iy * nx + ix
+        if iz < nz - 1:
+            yield (iz + 1) * nx * ny + iy * nx + ix
+
     def solve(self) -> List[Voxel]:
-        """Tikhonov-Lösung: min ||A·phi − y||² + λ·||phi||² (CG, matrixfrei)."""
+        """Tikhonov-Lösung: min ||A·phi − y||² + λ·||phi||² + γ·phiᵀL·phi."""
         if not self.links:
             return []
         a = self.build_weights()
@@ -160,8 +224,13 @@ class RtiSolver:
         b = a.T @ y
 
         if _HAS_SCIPY and self.voxel_count <= 20_000:
+            operator = a.T @ a + self.regularization * sparse_eye(
+                self.voxel_count, format="csr"
+            )
+            if self.smoothing > 0:
+                operator = operator + self.smoothing * self._laplacian()
             phi, _info = sparse_cg(
-                a.T @ a + self.regularization * sparse_eye(self.voxel_count, format="csr"),
+                operator,
                 b,
                 tol=self.CG_TOLERANCE,
                 atol=0,
@@ -185,7 +254,7 @@ class RtiSolver:
         return self._build_field(field)
 
     def _conjugate_gradient_matrix_free(self, a, b: np.ndarray) -> np.ndarray:
-        """Matrixfreies CG für (AᵀA + λI)·x = b — für große Voxelgitter."""
+        """Matrixfreies CG für (AᵀA + λI + γL)·x = b — für große Voxelgitter."""
         n = self.voxel_count
         x = np.zeros(n)
         r = b.copy()
@@ -194,6 +263,8 @@ class RtiSolver:
         tol_sq = self.CG_TOLERANCE ** 2 * max(1.0, rs_old)
         for _ in range(self.MAX_CG_ITERATIONS):
             ap = a.T @ (a @ p) + self.regularization * p
+            if self.smoothing > 0:
+                ap = ap + self.smoothing * self._apply_laplacian(p)
             alpha = rs_old / float(p @ ap)
             x += alpha * p
             r -= alpha * ap

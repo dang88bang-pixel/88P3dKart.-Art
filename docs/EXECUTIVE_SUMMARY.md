@@ -69,7 +69,7 @@ Details: [`UI_UX_PLAN.md`](UI_UX_PLAN.md)
 
 ## Verifikation
 
-- **33/33 Python-Tests** (Edge-Agent: EKF, ICP, UWB, Pipeline, RTI, Trilateration).
-- **51 JVM-Unit-Tests** (Kotlin-Kernmodule: IQ-Datagramm, X25519 gegen
+- **38/38 Python-Tests** (Edge-Agent: EKF, ICP, UWB, Pipeline, RTI, Trilateration).
+- **56 JVM-Unit-Tests** (Kotlin-Kernmodule: IQ-Datagramm, X25519 gegen
   RFC-7748-Vektoren, FFT/Korrelation, RTI, Path-Loss, Fusions-Gate).
 - End-to-End-Smoke-Tests der REST-/WebSocket-Schnittstellen (Aura, Triangulation).

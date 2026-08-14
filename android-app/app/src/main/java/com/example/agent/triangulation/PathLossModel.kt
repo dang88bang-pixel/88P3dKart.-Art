@@ -86,26 +86,97 @@ class PathLossModel(
 }
 
 /**
- * Exponentiell gleitender Mittelwert (EMA) je Sender-MAC — glättet
- * BLE-/Wi-Fi-RSSI-Jitter vor der Distanzschätzung.
+ * RSSI-Filter je Sender-MAC — glättet BLE-/Wi-Fi-RSSI-Jitter vor der
+ * Distanzschätzung. Implementierungen: EMA ([RssiSmoother]),
+ * Median ([RssiMedianFilter]), 1D-Kalman ([RssiKalmanFilter]).
  */
-class RssiSmoother(private val alpha: Float = 0.6f) {
+interface RssiFilter {
+    /** Liefert den gefilterten RSSI-Wert für [key]. */
+    fun smooth(key: String, rssiDbm: Int): Double
+
+    /** Zuletzt gefilterter Wert (oder null). */
+    fun value(key: String): Double?
+
+    fun clear(key: String)
+}
+
+/** Exponentiell gleitender Mittelwert (EMA). */
+class RssiSmoother(private val alpha: Float = 0.6f) : RssiFilter {
 
     private val values = HashMap<String, Double>()
 
-    /** Liefert den geglätteten RSSI-Wert für [key]. */
-    fun smooth(key: String, rssiDbm: Int): Double {
+    override fun smooth(key: String, rssiDbm: Int): Double {
         val prev = values[key] ?: rssiDbm.toDouble()
         val next = alpha * rssiDbm + (1f - alpha) * prev
         values[key] = next
         return next
     }
 
-    fun value(key: String): Double? = values[key]
+    override fun value(key: String): Double? = values[key]
 
-    fun clear(key: String) {
+    override fun clear(key: String) {
         values.remove(key)
     }
 
     fun clearAll() = values.clear()
+}
+
+/**
+ * Gleitender Median-Filter je MAC — unterdrückt RSSI-Spikes (Multipath-
+ * Ausreißer); vgl. MDPI Sensors 2025, 25(9):2834 (Median + MAF).
+ */
+class RssiMedianFilter(private val window: Int = 5) : RssiFilter {
+
+    private val buffers = HashMap<String, ArrayDeque<Int>>()
+
+    override fun smooth(key: String, rssiDbm: Int): Double {
+        val buffer = buffers.getOrPut(key) { ArrayDeque() }
+        buffer.addLast(rssiDbm)
+        while (buffer.size > window) buffer.removeFirst()
+        val sorted = buffer.sorted()
+        return if (sorted.size % 2 == 1) {
+            sorted[sorted.size / 2].toDouble()
+        } else {
+            (sorted[sorted.size / 2 - 1] + sorted[sorted.size / 2]) / 2.0
+        }
+    }
+
+    override fun value(key: String): Double? = buffers[key]?.lastOrNull()?.toDouble()
+
+    override fun clear(key: String) {
+        buffers.remove(key)
+    }
+}
+
+/**
+ * 1D-Kalman-Filter je MAC zur RSSI-Glättung (Zustandsmodell: RSSI konstant,
+ * A = 1, H = 1, Prozessrauschen q, Messrauschen r) — dämpft kurzzeitige
+ * Sprünge; vgl. avibn/indoor-positioning-trilateration, MDPI Sensors 2017.
+ */
+class RssiKalmanFilter(
+    private val q: Double = 4.0,
+    private val r: Double = 16.0,
+) : RssiFilter {
+
+    private data class State(val estimate: Double, val covariance: Double)
+
+    private val states = HashMap<String, State>()
+
+    override fun smooth(key: String, rssiDbm: Int): Double {
+        val prev = states[key] ?: State(rssiDbm.toDouble(), 1.0)
+        // Predict
+        val pPred = prev.covariance + q
+        // Update
+        val gain = pPred / (pPred + r)
+        val estimate = prev.estimate + gain * (rssiDbm - prev.estimate)
+        val covariance = (1.0 - gain) * pPred
+        states[key] = State(estimate, covariance)
+        return estimate
+    }
+
+    override fun value(key: String): Double? = states[key]?.estimate
+
+    override fun clear(key: String) {
+        states.remove(key)
+    }
 }

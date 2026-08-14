@@ -30,6 +30,8 @@ import kotlinx.coroutines.launch
 class BleBeaconTriangulator(
     private val backend: BleRadioBackend,
     private val scanMode: Int = ScanSettings.SCAN_MODE_LOW_LATENCY,
+    /** RSSI-Filterstrategie: EMA (Standard), Median oder 1D-Kalman. */
+    private val rssiFilter: RssiFilter = RssiSmoother(),
 ) {
 
     companion object {
@@ -54,7 +56,6 @@ class BleBeaconTriangulator(
 
     private var scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val anchorsByMac = HashMap<String, BeaconAnchor>()
-    private val smoothers = HashMap<String, RssiSmoother>()
     private val rssiByMac = HashMap<String, Double>()
     private val rssiTimeByMac = HashMap<String, Long>()
 
@@ -83,7 +84,6 @@ class BleBeaconTriangulator(
         anchorsByMac.clear()
         for (a in anchors) {
             anchorsByMac[a.mac.uppercase()] = a
-            smoothers.getOrPut(a.mac.uppercase()) { RssiSmoother() }
         }
     }
 
@@ -110,8 +110,7 @@ class BleBeaconTriangulator(
         val anchor = anchorsByMac[mac] ?: return
         val rssi = result.rssi
 
-        val smoother = smoothers[mac] ?: RssiSmoother().also { smoothers[mac] = it }
-        val smoothed = smoother.smooth(mac, rssi)
+        val smoothed = rssiFilter.smooth(mac, rssi)
 
         scope.launch {
             rssiByMac[mac] = smoothed

@@ -155,26 +155,37 @@ w_i(v) = 1/√(d_tx(v) + d_rx(v))   falls d_tx + d_rx < d_link + λ_w, sonst 0
 
 Lösung des linearen Systems `y = A·φ`:
 
-- **Tikhonov:** `min ‖Aφ − y‖² + λ‖φ‖²` über matrixfreies
+- **Tikhonov:** `min ‖Aφ − y‖² + λ‖φ‖² + γ·φᵀLφ` über matrixfreies
   Conjugate-Gradient (AᵀA-Anwendung ohne explizite Matrix) —
   `aura/RtiSolver.kt` (Kotlin) und `edge-agent/rti_solver.py` (scipy.sparse).
+- **Glättungs-Regularisierung γ:** diskreter Graph-Laplacian L über die
+  6-Nachbarschaft des Voxelgitters (Differenzoperator-Ansatz nach
+  SPIE 8753) — reduziert Rausch-Artefakte in dünn abgedeckten Voxeln,
+  O(6n) matrixfrei.
 - **Backprojection** (Echtzeit-Vorschau): `φ_v = Σ_i w_i,v·y_i / Σ_i w_i,v`.
 - **Peak-Lokalisierung:** Schwellwert 30 % des Maximums + Chebyshev-
   Mindestabstand (Objekt-/Personenkandidaten).
 
 Verifiziert mit synthetischem Szenario (12 Links, Ellipse 0,5 m): Tikhonov
-lokalisiert den Dämpfungs-Blob auf ≤ 1 Voxel genau.
+lokalisiert den Dämpfungs-Blob auf ≤ 1 Voxel genau; γ = 2 senkt die
+Feld-Variation, ohne die Lokalisierung zu verschieben.
 
 ## 15. CT45P-Triangulation (docs/TRIANGULATION.md)
 
 **Trilateration** (`triangulation/TrilaterationEngine.kt`, `trilateration.py`):
 lineare Startlösung (Referenz-Anker-Subtraktion) + **Levenberg-Marquardt**
 mit analytischer Jacobi-Matrix und Gewichtung `w_i = 1/σ_i²`; Qualität über
-Residuum-RMS und Positions-Sigma `√tr((JᵀWJ)⁻¹)`.
+Residuum-RMS und Positions-Sigma `√tr((JᵀWJ)⁻¹)`. **Robustheit:**
+Reject-and-Resolve (LTS-1) — Leave-one-out-Lösungen werden über die
+Trimmed-Kosten (m−1 kleinste quadratische Residuen) bewertet; Anker, deren
+Entfernung die Kosten ≥ 40 % senkt, gelten als Ausreißer (robust gegen
+Masking bei kleinen Ankerzahlen).
 
 **Path-Loss:** `d = 10^((RSSI₀ − RSSI)/(10n))`; Kalibrierung per linearer
 Regression über `x = 10·log10(d)` (Steigung = −n, Achsenabschnitt = RSSI₀)
-+ R²; RSSI-Vorglättung über EMA je MAC (`PathLossModel.kt`, `RssiSmoother`).
++ R²; RSSI-Vorglättung über wählbare Filter je MAC (`RssiFilter`:
+EMA `RssiSmoother`, Median `RssiMedianFilter`, 1D-Kalman
+`RssiKalmanFilter`; vgl. docs/VERBESSERUNGEN.md).
 
 **Fingerprinting:** gewichtetes k-NN (k = 3) mit Gauß-Kern über die
 gemeinsamen BSSIDs (`WifiRssiFingerprinter.kt`).

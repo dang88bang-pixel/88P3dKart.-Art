@@ -10,7 +10,7 @@
 > abgeglichen. Folgende **fehlende Teile** wurden ergänzt (Schritt 7–9).
 >
 > **Update Aura/Triangulation/UI (14.08.2026):** Dokumenten-Audit — SoC-Angaben
-> auf Qualcomm QCM4290 korrigiert, Testzahlen aktualisiert (33 Python / 51 JVM),
+> auf Qualcomm QCM4290 korrigiert, Testzahlen aktualisiert (38 Python / 56 JVM),
 > neue Schritte 10–12 ergänzt.
 
 ---
@@ -39,7 +39,7 @@
 | 1.10 | `agent.py` | ✅ |
 | 1.11 | `requirements.txt`, `Dockerfile`, `openapi.yaml` | ✅ |
 | 1.12 | **Test**: `pip install` aller Abhängigkeiten | ✅ |
-| 1.13 | **Test**: Unit-Tests grün (33/33 — inkl. RTI + Trilateration) | ✅ |
+| 1.13 | **Test**: Unit-Tests grün (38/38 — inkl. RTI, Trilateration, robuste Filter) | ✅ |
 | 1.14 | **Test**: Server + REST-Endpunkte (health, state, pipeline, merge, history, aura, triangulation) | ✅ |
 | 1.15 | **Test**: WebSocket Binär-/JSON-Stream + Telemetrie + Persistenz | ✅ |
 
@@ -137,7 +137,7 @@
 | 10.7 | `aura/TagVelocityTracker.kt`, `GeoPoseMapper.kt`, `RfHeatmapBuilder.kt`, `AuraIntegrator.kt` | ✅ |
 | 10.8 | Integration: `LiveSensorPipeline`, `MainActivity`, `AgentWebSocketClient`, REST `/api/v1/aura/*` | ✅ |
 | 10.9 | Web-Visualizer: RF-Voxel-/Heatmap-Layer + `edge-agent/aura_demo.py` | ✅ |
-| 10.10 | **Test**: JVM-Unit-Tests Aura (36) + Python-Tests RTI (7) grün | ✅ |
+| 10.10 | **Test**: JVM-Unit-Tests Aura (36) + Python-Tests RTI (8) grün | ✅ |
 | 10.11 | WireGuard-Bibliothek (`com.wireguard.android:tunnel`), SDR-USB-Treiber, Maps-3D-Preview | ⏳ Roadmap |
 
 ## 📶 Schritt 11 — Triangulation (Wi-Fi RTT / BLE, docs/TRIANGULATION.md)
@@ -162,3 +162,15 @@
 | 12.1 | Detailplan: 5 Tabs, Wireframes, HUD, Panels, 41 Aktionen, Kamera-Modi, Gesten, Datenbindung, Zustandsmaschine | ✅ |
 | 12.2 | Umsetzungsphasen 0–5 mit Datei-Mapping und Definition of Done | ✅ |
 | 12.3 | Umsetzung Phase 0 (Web) + Phase 1–5 (Android) | ⏳ Roadmap |
+
+## 🔬 Schritt 13 — Verbesserungen aus ähnlichen Projekten (docs/VERBESSERUNGEN.md)
+
+| # | Aufgabe | Status |
+|---|---------|--------|
+| 13.1 | Robuste Trilateration (Reject-and-Resolve, LTS-1) — Kotlin + Python | ✅ |
+| 13.2 | RSSI-Filter: Median + 1D-Kalman (`RssiFilter`-Interface), Python-Äquivalente | ✅ |
+| 13.3 | RTI-Glättungs-Regularisierung (Graph-Laplacian, matrixfrei) | ✅ |
+| 13.4 | Wi-Fi-RTT: 802.11mc-Responder-Bevorzugung (`is80211mcResponder`) | ✅ |
+| 13.5 | Machbarkeitsmatrix (LCI/LCR, TSVD, L-Curve, TV, Dead-Reckoning, Bermuda-Netz) | ✅ dokumentiert |
+| 13.6 | **Test**: Python 38/38 grün; JVM-Tests gespiegelt (56) | ✅ |
+| 13.7 | LCI/LCR-Auswertung, TSVD, Dead-Reckoning-Fusion | ⏳ Roadmap |

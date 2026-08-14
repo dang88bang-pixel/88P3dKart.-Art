@@ -58,13 +58,14 @@ class RtiSolverTest {
         return links
     }
 
-    private fun createSolver(regularization: Float = 0.05f): RtiSolver {
+    private fun createSolver(regularization: Float = 0.05f, smoothing: Float = 0f): RtiSolver {
         val solver = RtiSolver(
             boundsMin = boundsMin,
             boundsMax = boundsMax,
             voxelSize = voxelSize,
             ellipseWidth = 0.5f,
             regularization = regularization,
+            smoothing = smoothing,
         )
         // 1) Links zunächst mit Platzhalter einfügen, um die Gewichte zu bauen
         for ((tx, rx) in linkGeometry()) {
@@ -160,6 +161,43 @@ class RtiSolverTest {
         val solver = RtiSolver(boundsMin, boundsMax, voxelSize)
         assertEquals(0, solver.solve().size)
         assertEquals(0, solver.solveBackprojection().size)
+    }
+
+    @Test
+    fun `tikhonov-glaettung reduziert die variation ohne blob-verlust`() {
+        val plain = createSolver().solve()
+        val smooth = createSolver(smoothing = 2f).solve()
+
+        val tvPlain = totalVariation(plain)
+        val tvSmooth = totalVariation(smooth)
+        assertTrue(
+            "Glättung erhöht die Variation ($tvSmooth > $tvPlain)",
+            tvSmooth <= tvPlain + 1e-9f,
+        )
+        val argmax = smooth.maxByOrNull { it.attenuation }!!
+        val err = distance(floatArrayOf(argmax.x, argmax.y, argmax.z), blob)
+        assertTrue("Glättung verschiebt den Blob: ${err}m", err <= 2.0f * voxelSize)
+    }
+
+    /** Nachbarschafts-Variation (Grid 20×20×2) als Glättungsmaß. */
+    private fun totalVariation(field: List<RtiSolver.Voxel>): Float {
+        val nx = 20
+        val ny = 20
+        val nz = 2
+        fun at(x: Int, y: Int, z: Int): Float =
+            field[z * nx * ny + y * nx + x].attenuation
+
+        var tv = 0f
+        for (z in 0 until nz) {
+            for (y in 0 until ny) {
+                for (x in 0 until nx) {
+                    if (x + 1 < nx) tv += kotlin.math.abs(at(x, y, z) - at(x + 1, y, z))
+                    if (y + 1 < ny) tv += kotlin.math.abs(at(x, y, z) - at(x, y + 1, z))
+                    if (z + 1 < nz) tv += kotlin.math.abs(at(x, y, z) - at(x, y, z + 1))
+                }
+            }
+        }
+        return tv
     }
 
     /** Pearson-Korrelationskoeffizient. */

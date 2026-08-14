@@ -127,11 +127,15 @@ class WifiRttTriangulator(private val context: Context) {
         val scanResults = runCatching { wifiManager?.scanResults }.getOrNull() ?: return
         val candidates = scanResults
             .filter { it.BSSID != null && anchorsByBssid.containsKey(it.BSSID!!.uppercase()) }
-            .take(MAX_APS_PER_REQUEST)
         if (candidates.size < 3) return
+        // Bekannte Anker bevorzugen, die sich als 802.11mc-Responder melden
+        // (vgl. Plinzen/android-rttmanager-sample); APs ohne Flag bleiben
+        // als Fallback im Pool (manche APs setzen das Bit nicht zuverlässig).
+        val (responders, others) = candidates.partition { it.is80211mcResponder }
+        val selected = (responders + others).take(MAX_APS_PER_REQUEST)
 
         val request = try {
-            RangingRequest.Builder().addAccessPoints(candidates).build()
+            RangingRequest.Builder().addAccessPoints(selected).build()
         } catch (e: Exception) {
             Log.w(TAG, "RangingRequest-Fehler: ${e.message}")
             return

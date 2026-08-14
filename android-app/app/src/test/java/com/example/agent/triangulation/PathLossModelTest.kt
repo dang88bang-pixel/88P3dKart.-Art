@@ -58,4 +58,32 @@ class PathLossModelTest {
         smoother.clear("AA:BB")
         assertNull(smoother.value("AA:BB"))
     }
+
+    @Test
+    fun `median-filter unterdrueckt rssi-spikes`() {
+        val median = RssiMedianFilter(window = 5)
+        var value = 0.0
+        for (rssi in listOf(-60, -61, -59, -62, -60)) {
+            value = median.smooth("AA:BB", rssi)
+        }
+        assertEquals(-60.0, value, 1e-9)
+        // Spike wird bei Fenster 5 ignoriert
+        assertEquals(-61.0, median.smooth("AA:BB", -200), 1e-9)
+        median.clear("AA:BB")
+        assertNull(median.value("AA:BB"))
+    }
+
+    @Test
+    fun `kalman-filter konvergiert und daempft sprünge`() {
+        val kalman = RssiKalmanFilter(q = 4.0, r = 16.0)
+        var value = 0.0
+        repeat(30) { value = kalman.smooth("AA:BB", -62) }
+        assertEquals(-62.0, value, 1.0)
+        // Einzelner Sprung wird gedämpft (Gain < 1)
+        val prev = value
+        val jumped = kalman.smooth("AA:BB", -80)
+        assertTrue("Sprung nicht gedämpft: $prev → $jumped", kotlin.math.abs(jumped - prev) < 18.0)
+        kalman.clear("AA:BB")
+        assertNull(kalman.value("AA:BB"))
+    }
 }

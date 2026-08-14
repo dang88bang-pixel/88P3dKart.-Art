@@ -145,4 +145,46 @@ class TrilaterationEngineTest {
         assertTrue(estimate!!.positionSigmaM.isFinite())
         assertTrue(estimate.positionSigmaM <= 1.01)
     }
+
+    @Test
+    fun `robuste loesung verwirft einen ausreisser-anker`() {
+        val anchors = listOf(
+            anchor("A", 0.0, 0.0),
+            anchor("B", 12.0, 0.0),
+            anchor("C", 12.0, 12.0),
+            anchor("D", 0.0, 12.0),
+            anchor("E", 6.0, 24.0),
+        )
+        val distances = anchors.associate { it.id to dist(it, 4.0, 6.0) }.toMutableMap()
+        distances["D"] = distances["D"]!! + 8.0 // Multipath-Ausreißer
+
+        val plain = TrilaterationEngine.solve(anchors, distances, useZ = false, robustIterations = 0)
+        val robust = TrilaterationEngine.solve(anchors, distances, useZ = false, robustIterations = 2)
+
+        assertNotNull(plain)
+        assertNotNull(robust)
+        val errPlain = kotlin.math.hypot(plain!!.x - 4.0, plain.y - 6.0)
+        val errRobust = kotlin.math.hypot(robust!!.x - 4.0, robust.y - 6.0)
+        assertTrue(
+            "robust ($errRobust m) nicht besser als plain ($errPlain m)",
+            errRobust < errPlain,
+        )
+        assertTrue("robuste Lösung zu ungenau: ${errRobust}m", errRobust < 1.0)
+        assertTrue("kein Anker verworfen", robust.rejectedAnchors >= 1)
+    }
+
+    @Test
+    fun `robuste loesung behaelt die mindest-ankerzahl`() {
+        val anchors = listOf(
+            anchor("A", 0.0, 0.0),
+            anchor("B", 10.0, 0.0),
+            anchor("C", 0.0, 10.0),
+        )
+        val distances = anchors.associate { it.id to dist(it, 3.0, 3.0) }
+        val estimate = TrilaterationEngine.solve(anchors, distances, useZ = false, robustIterations = 3)
+        assertNotNull(estimate)
+        assertEquals(3, estimate!!.anchorCount)
+        assertEquals(3.0, estimate.x, 1e-6)
+        assertEquals(3.0, estimate.y, 1e-6)
+    }
 }

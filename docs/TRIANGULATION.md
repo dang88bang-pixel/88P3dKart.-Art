@@ -132,7 +132,11 @@ $$d_i = \|\mathbf{p} - \mathbf{a}_i\| + \varepsilon_i$$
    → Kleinste-Quadrate (≥ 3 Anker in 2D, ≥ 4 in 3D).
 2. **Levenberg-Marquardt-Verfeinerung**: $\min_\mathbf{p}\sum_i w_i(d_i-\|\mathbf{p}-\mathbf{a}_i\|)^2$
    mit $w_i = 1/\sigma_i^2$, analytischer Jacobi-Matrix, adaptiver Dämpfung λ.
-3. **Qualität:** Residuum-RMS, Positions-Sigma $\sqrt{\mathrm{tr}((J^T W J)^{-1})}$,
+3. **Reject-and-Resolve (LTS-1)**: Leave-one-out-Lösungen werden über die
+   Trimmed-Kosten bewertet; Ausreißer-Anker werden verworfen (max. N
+   Durchgänge, Mindest-Ankerzahl bleibt) — Details + Quellen in
+   [VERBESSERUNGEN.md](VERBESSERUNGEN.md).
+4. **Qualität:** Residuum-RMS, Positions-Sigma $\sqrt{\mathrm{tr}((J^T W J)^{-1})}$,
    Konfidenz 0–1.
 
 ### 5.2 Path-Loss-Modell (`PathLossModel`)
@@ -141,8 +145,8 @@ $$d = 10^{\,(RSSI_0 - RSSI)\,/\,(10\,n)}$$
 
 - $RSSI_0$: Referenzpegel bei 1 m, $n$: Pfadverlustexponent (2 Freiraum, 2,7–4 Indoor).
 - Kalibrierung per linearer Regression über $10\log_{10}(d)$ → beide Parameter
-  + Bestimmtheitsmaß R². RSSI-Vorverarbeitung über EMA-Glättung je MAC
-  (`RssiSmoother`).
+  + Bestimmtheitsmaß R². RSSI-Vorverarbeitung über wählbare Filter je MAC
+  (`RssiFilter`: EMA / Median / 1D-Kalman — vgl. [VERBESSERUNGEN.md](VERBESSERUNGEN.md)).
 
 ### 5.3 Fingerprinting (`WifiRssiFingerprinter`)
 

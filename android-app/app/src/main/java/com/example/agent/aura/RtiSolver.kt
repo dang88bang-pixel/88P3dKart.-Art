@@ -27,6 +27,13 @@ class RtiSolver(
     private val ellipseWidth: Float = 0.05f,
     /** Tikhonov-Regularisierungsparameter λ. */
     private val regularization: Float = 0.1f,
+    /**
+     * Glättungs-Regularisierung γ: diskreter Graph-Laplacian über die
+     * 6-Nachbarschaft des Voxelgitters — (WᵀW + λI + γL)·φ = Wᵀy
+     * (Differenzoperator-Ansatz, vgl. SPIE 8753 „Regularization in radio
+     * tomographic imaging" und `edge-agent/rti_solver.py`).
+     */
+    private val smoothing: Float = 0f,
 ) {
 
     companion object {
@@ -34,6 +41,13 @@ class RtiSolver(
         private const val MAX_VOXELS = 500_000
         private const val MAX_CG_ITERATIONS = 500
         private const val CG_TOLERANCE = 1e-6
+
+        fun distance3(a: FloatArray, b: FloatArray): Float {
+            val dx = a[0] - b[0]
+            val dy = a[1] - b[1]
+            val dz = a[2] - b[2]
+            return sqrt(dx * dx + dy * dy + dz * dz)
+        }
     }
 
     /** Eine Messlinie zwischen Sender und Empfänger inkl. gemessener Dämpfung. */
@@ -149,7 +163,7 @@ class RtiSolver(
             for ((v, w) in rows[i]) b[v] += w * y
         }
 
-        // Matrixfreie Anwendung von (AᵀA + λI):
+        // Matrixfreie Anwendung von (AᵀA + λI + γL):
         fun applyM(x: DoubleArray): DoubleArray {
             val out = DoubleArray(n)
             for (i in 0 until m) {
@@ -159,6 +173,10 @@ class RtiSolver(
                 for ((v, w) in row) out[v] += w * s
             }
             for (v in 0 until n) out[v] += regularization * x[v]
+            if (smoothing > 0f) {
+                val lap = applyLaplacian(x)
+                for (v in 0 until n) out[v] += smoothing * lap[v]
+            }
             return out
         }
 
@@ -228,6 +246,29 @@ class RtiSolver(
     }
 
     /**
+     * Matrixfreie Anwendung des diskreten Graph-Laplacian (6-Nachbarschaft):
+     * (Lx)[v] = deg(v)·x[v] − Σ_{n∈N(v)} x[n]  —  O(6n).
+     */
+    private fun applyLaplacian(x: DoubleArray): DoubleArray {
+        val out = DoubleArray(voxelCount)
+        for (v in 0 until voxelCount) {
+            val ix = v % nx
+            val iy = (v / nx) % ny
+            val iz = v / (nx * ny)
+            var degree = 0
+            var sum = 0.0
+            if (ix > 0) { degree++; sum += x[v - 1] }
+            if (ix < nx - 1) { degree++; sum += x[v + 1] }
+            if (iy > 0) { degree++; sum += x[v - nx] }
+            if (iy < ny - 1) { degree++; sum += x[v + nx] }
+            if (iz > 0) { degree++; sum += x[v - nx * ny] }
+            if (iz < nz - 1) { degree++; sum += x[v + nx * ny] }
+            out[v] = degree * x[v] - sum
+        }
+        return out
+    }
+
+    /**
      * Lokale Maxima des Dämpfungsfelds — Kandidaten für Objekte/Personen.
      * @param topK maximale Anzahl zurückgegebener Peaks
      * @param minSeparationVoxels Mindestabstand zwischen Peaks (Voxel, Chebyshev)
@@ -261,14 +302,5 @@ class RtiSolver(
             if (!tooClose) peaks.add(candidate)
         }
         return peaks
-    }
-
-    companion object {
-        fun distance3(a: FloatArray, b: FloatArray): Float {
-            val dx = a[0] - b[0]
-            val dy = a[1] - b[1]
-            val dz = a[2] - b[2]
-            return sqrt(dx * dx + dy * dy + dz * dz)
-        }
     }
 }

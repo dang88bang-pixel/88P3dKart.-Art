@@ -25,6 +25,7 @@ def solve_trilateration(
     distances: Dict[str, float],
     uncertainties: Optional[Dict[str, float]] = None,
     use_z: bool = False,
+    robust_iterations: int = 2,
 ) -> Optional[dict]:
     """Löst die Trilateration.
 
@@ -35,6 +36,12 @@ def solve_trilateration(
         uncertainties: Messunsicherheiten σ in Metern (Standard 1,0 m);
             inverse Varianz = Gewichtung.
         use_z: 3D-Lösung (≥ 4 Anker) oder 2D-Lösung (≥ 3 Anker).
+        robust_iterations: Reject-and-Resolve-Ausreißerbehandlung (Least
+            Trimmed Squares, LTS-1): jede Leave-one-out-Lösung wird bewertet
+            (Summe der m−1 kleinsten quadratischen Residuen); liegt die beste
+            mindestens 40 % unter der Volllösung, wird der betreffende Anker
+            als Ausreißer verworfen und neu gelöst (max. N Durchgänge,
+            Mindest-Ankerzahl bleibt gewahrt).
 
     Returns:
         dict mit Position, Residuum-RMS, Positions-Sigma, Konfidenz — oder
@@ -55,6 +62,52 @@ def solve_trilateration(
     if len(entries) < min_anchors:
         return None
     dim = 3 if use_z else 2
+
+    # Reject-and-Resolve (LTS-1): Leave-one-out-Kandidaten bewerten; der
+    # Anker, dessen Entfernung die Trimmed-Kosten deutlich senkt, ist ein
+    # Ausreißer (robust gegen Masking, im Gegensatz zu studentisierten
+    # Residuen bei kleinen Ankerzahlen).
+    rejected = 0
+    result = _lm_solve(entries, dim)
+
+    def trimmed_cost(solved: dict, es: list) -> float:
+        p = np.array([solved["x"], solved["y"], solved["z"]], dtype=float)[:dim]
+        squared = sorted(
+            (float(np.linalg.norm(np.array([a["x"], a["y"], a["z"]], dtype=float)[:dim] - p)) - d) ** 2
+            for (a, d, _) in es
+        )
+        return float(np.sum(squared[: max(0, len(es) - 1)]))
+
+    for _ in range(max(0, robust_iterations)):
+        if result is None or len(entries) <= min_anchors:
+            break
+        cost_full = trimmed_cost(result, entries)
+        candidates = []
+        for i in range(len(entries)):
+            sub = entries[:i] + entries[i + 1:]
+            cand = _lm_solve(sub, dim)
+            if cand is not None:
+                candidates.append((i, cand))
+        if not candidates:
+            break
+        best_i, best = min(candidates, key=lambda c: trimmed_cost(c[1], entries))
+        if trimmed_cost(best, entries) < 0.6 * cost_full:
+            entries = entries[:best_i] + entries[best_i + 1:]
+            rejected += 1
+            result = best
+        else:
+            break
+
+    if result is None:
+        return None
+    final = _finalize(entries, dim, result)
+    if rejected:
+        final["rejected_anchors"] = rejected
+    return final
+
+
+def _lm_solve(entries, dim: int) -> Optional[dict]:
+    """Einzelner Levenberg-Marquardt-Durchlauf auf den gegebenen Einträgen."""
     w = np.array([1.0 / (e[2] ** 2) for e in entries])
 
     # 1) Startlösung: lineares LSQ (Referenz-Anker subtrahieren) oder Schwerpunkt
@@ -103,7 +156,21 @@ def solve_trilateration(
             converged = True
             break
 
-    # 3) Abschlussbewertung: Residuum-RMS + Positions-Sigma
+    return {
+        "x": float(p[0]),
+        "y": float(p[1]),
+        "z": float(p[2]) if dim == 3 else 0.0,
+        "converged": converged,
+        "iterations": iterations,
+        "anchor_count": len(entries),
+    }
+
+
+def _finalize(entries, dim: int, solved: dict) -> dict:
+    """Residuum-RMS, Positions-Sigma und Konfidenz aus einer Lösung berechnen."""
+    p = np.array([solved["x"], solved["y"], solved["z"]], dtype=float)[:dim]
+    w = np.array([1.0 / (e[2] ** 2) for e in entries])
+
     rms_sum = 0.0
     final_jac = np.zeros((len(entries), dim))
     for i, (a, d, _) in enumerate(entries):
@@ -124,20 +191,20 @@ def solve_trilateration(
         sigma = 1e6
 
     confidence = float(np.clip(1.0 - rms / 3.0, 0.0, 1.0))
-    if not converged:
+    if not solved["converged"]:
         confidence *= 0.6
     if sigma > 50.0:
         confidence = min(confidence, 0.3)
 
     return {
-        "x": float(p[0]),
-        "y": float(p[1]),
-        "z": float(p[2]) if dim == 3 else 0.0,
+        "x": solved["x"],
+        "y": solved["y"],
+        "z": solved["z"],
         "residual_rms_m": rms,
         "position_sigma_m": sigma,
         "confidence": confidence,
-        "converged": converged,
-        "iterations": iterations,
+        "converged": solved["converged"],
+        "iterations": solved["iterations"],
         "anchor_count": len(entries),
     }
 
@@ -193,3 +260,44 @@ def calibrate_path_loss(samples: List[tuple]) -> Optional[dict]:
         "path_loss_exponent": float(max(0.1, -slope)),
         "r_squared": float(np.clip(r, 0.0, 1.0)),
     }
+
+
+class RssiKalmanFilter:
+    """1D-Kalman-Filter je Sender-MAC zur RSSI-Glättung (vgl. avibn/
+    indoor-positioning-trilateration, MDPI Sensors 2017).
+
+    Zustandsmodell: RSSI konstant (A = 1, H = 1) mit Prozessrauschen q und
+    Messrauschen r — unterdrückt kurzzeitige RSSI-Sprünge (Multipath).
+    """
+
+    def __init__(self, q: float = 4.0, r: float = 16.0):
+        self.q = q
+        self.r = r
+        self._state: dict = {}  # key → (estimate, covariance)
+
+    def filter(self, key: str, rssi: float) -> float:
+        est, p = self._state.get(key, (rssi, 1.0))
+        # Predict
+        p_pred = p + self.q
+        # Update
+        k = p_pred / (p_pred + self.r)
+        est = est + k * (rssi - est)
+        p = (1.0 - k) * p_pred
+        self._state[key] = (est, p)
+        return est
+
+    def value(self, key: str) -> Optional[float]:
+        state = self._state.get(key)
+        return state[0] if state else None
+
+    def clear(self, key: str) -> None:
+        self._state.pop(key, None)
+
+
+def median_filter_rssi(values: List[float], window: int = 5) -> float:
+    """Gleitender Median über die letzten [window] RSSI-Werte (Spike-
+    Unterdrückung; vgl. MDPI Sensors 2025, 25(9):2834 — Median + MAF)."""
+    if not values:
+        return 0.0
+    w = values[-window:]
+    return float(np.median(w))

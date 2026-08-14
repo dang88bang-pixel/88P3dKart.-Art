@@ -10,10 +10,15 @@ import kotlin.math.sqrt
  *
  * Verfahren:
  * 1. **Lineare Startlösung** (Referenz-Anker subtrahieren → lineares
- *    Kleinste-Quadrate-System, siehe [linearInit]),
+ *    Kleinste-Quadrate-System, siehe [lmSolve]),
  * 2. **Levenberg-Marquardt-Verfeinerung** (nichtlineares
  *    Kleinste-Quadrate-Problem min Σ wᵢ·(|p−aᵢ| − dᵢ)² mit analytischer
- *    Jacobi-Matrix, Dämpfung λ adaptiv).
+ *    Jacobi-Matrix, Dämpfung λ adaptiv),
+ * 3. **Reject-and-Resolve (LTS-1):** jede Leave-one-out-Lösung wird über die
+ *    Trimmed-Kosten (Summe der m−1 kleinsten quadratischen Residuen)
+ *    bewertet; liegt die beste ≥ 40 % unter der Volllösung, wird der
+ *    betreffende Anker als Ausreißer verworfen (robust gegen Masking —
+ *    spiegelbildlich zu `edge-agent/trilateration.py`).
  *
  * Ausgabe inkl. Residuum-RMS, Positions-Sigma ((JᵀWJ)⁻¹-Spur) und
  * Konfidenzwert — Grundlage für die Sensorfusion (Mahalanobis-Gate in
@@ -43,11 +48,22 @@ object TrilaterationEngine {
         val converged: Boolean,
         val iterations: Int,
         val anchorCount: Int,
+        /** Anzahl der verworfenen Ausreißer-Anker. */
+        val rejectedAnchors: Int = 0,
     )
 
     private const val MAX_ITERATIONS = 40
     private const val CONVERGENCE_DELTA = 1e-12
     private const val DEFAULT_UNCERTAINTY_M = 1.0
+
+    /** Interne Lösung eines LM-Durchlaufs. */
+    private data class LmResult(
+        val p: DoubleArray,
+        val converged: Boolean,
+        val iterations: Int,
+    )
+
+    private data class Entry(val anchor: Anchor, val distance: Double, val uncertainty: Double)
 
     /**
      * Löst die Trilateration.
@@ -56,6 +72,7 @@ object TrilaterationEngine {
      * @param uncertainties Messunsicherheiten σ in Metern (Standard 1,0 m);
      *        inverse Varianz = Gewichtung
      * @param useZ 3D-Lösung (≥ 4 Anker) oder 2D-Lösung (≥ 3 Anker)
+     * @param robustIterations Reject-and-Resolve-Durchgänge (LTS-1, Standard 2)
      * @return [Estimate] oder null bei zu wenigen/gültigen Messungen
      */
     fun solve(
@@ -63,25 +80,109 @@ object TrilaterationEngine {
         distances: Map<String, Double>,
         uncertainties: Map<String, Double> = emptyMap(),
         useZ: Boolean = true,
+        robustIterations: Int = 2,
     ): Estimate? {
-        val entries = anchors.mapNotNull { a ->
+        var entries = anchors.mapNotNull { a ->
             val d = distances[a.id]
             if (d == null || !d.isFinite() || d < 0.0) return@mapNotNull null
             var u = uncertainties[a.id] ?: DEFAULT_UNCERTAINTY_M
             if (!u.isFinite() || u <= 0.0) u = DEFAULT_UNCERTAINTY_M
-            Triple(a, d, u)
-        }
+            Entry(a, d, u)
+        }.toMutableList()
 
         val minAnchors = if (useZ) 4 else 3
         if (entries.size < minAnchors) return null
         val dim = if (useZ) 3 else 2
-        val weights = DoubleArray(entries.size) { 1.0 / (entries[it].third * entries[it].third) }
 
-        // 1) Startlösung
-        var p = linearInit(entries, dim)
-            ?: centroidInit(entries, dim)
+        // 1) Volllösung
+        var result = lmSolve(entries, dim) ?: return null
 
-        // 2) Levenberg-Marquardt
+        // 2) Reject-and-Resolve (LTS-1)
+        var rejected = 0
+        var iter = 0
+        while (iter < robustIterations.coerceAtLeast(0) && entries.size > minAnchors) {
+            val costFull = trimmedCost(result.p, entries, dim)
+            var bestIdx = -1
+            var bestCost = Double.POSITIVE_INFINITY
+            var bestResult: LmResult? = null
+            for (i in entries.indices) {
+                val sub = entries.filterIndexed { idx, _ -> idx != i }
+                val candidate = lmSolve(sub, dim) ?: continue
+                val c = trimmedCost(candidate.p, entries, dim)
+                if (c < bestCost) {
+                    bestCost = c
+                    bestIdx = i
+                    bestResult = candidate
+                }
+            }
+            if (bestIdx >= 0 && bestResult != null && bestCost < 0.6 * costFull) {
+                entries.removeAt(bestIdx)
+                result = bestResult
+                rejected++
+                iter++
+            } else {
+                break
+            }
+        }
+
+        // 3) Abschlussbewertung
+        val weights = DoubleArray(entries.size) { 1.0 / (entries[it].uncertainty * entries[it].uncertainty) }
+        var rmsSum = 0.0
+        val jacobian = Array(entries.size) { DoubleArray(dim) }
+        for (i in entries.indices) {
+            val dx = result.p[0] - entries[i].anchor.x
+            val dy = result.p[1] - entries[i].anchor.y
+            val dz = if (dim == 3) result.p[2] - entries[i].anchor.z else 0.0
+            val dist = sqrt(dx * dx + dy * dy + dz * dz)
+            val r = dist - entries[i].distance
+            rmsSum += r * r
+            val safe = if (dist < 1e-6) 1e-6 else dist
+            jacobian[i][0] = dx / safe
+            jacobian[i][1] = dy / safe
+            if (dim == 3) jacobian[i][2] = dz / safe
+        }
+        val rms = sqrt(rmsSum / entries.size)
+
+        val jtwj = DoubleArray(dim * dim)
+        for (i in entries.indices) {
+            val w = weights[i]
+            for (row in 0 until dim) {
+                for (col in 0 until dim) {
+                    jtwj[row * dim + col] += jacobian[i][row] * w * jacobian[i][col]
+                }
+            }
+        }
+        val sigma = sqrt(traceInverse(jtwj, dim))
+
+        var confidence = (1.0 - rms / 3.0).coerceIn(0.0, 1.0).toFloat()
+        if (!result.converged) confidence *= 0.6f
+        if (sigma > 50.0) confidence = minOf(confidence, 0.3f)
+
+        return Estimate(
+            x = result.p[0],
+            y = result.p[1],
+            z = if (dim == 3) result.p[2] else 0.0,
+            residualRmsM = rms,
+            positionSigmaM = sigma,
+            confidence = confidence,
+            converged = result.converged,
+            iterations = result.iterations,
+            anchorCount = entries.size,
+            rejectedAnchors = rejected,
+        )
+    }
+
+    // ── LM-Durchlauf ─────────────────────────────────────────────────
+
+    /**
+     * Levenberg-Marquardt auf den gegebenen Einträgen:
+     * Start über das lineare LSQ-System (Referenz-Anker-Subtraktion).
+     */
+    private fun lmSolve(entries: List<Entry>, dim: Int): LmResult? {
+        val weights = DoubleArray(entries.size) { 1.0 / (entries[it].uncertainty * entries[it].uncertainty) }
+
+        var p = linearInit(entries, dim) ?: centroidInit(entries, dim)
+
         var lambda = 1e-3
         var cost = Double.POSITIVE_INFINITY
         var converged = false
@@ -93,13 +194,13 @@ object TrilaterationEngine {
             val jacobian = Array(entries.size) { DoubleArray(dim) }
             var newCost = 0.0
             for (i in entries.indices) {
-                val (a, d, _) = entries[i]
+                val a = entries[i].anchor
                 val dx = p[0] - a.x
                 val dy = p[1] - a.y
                 val dz = if (dim == 3) p[2] - a.z else 0.0
                 val dist = sqrt(dx * dx + dy * dy + dz * dz)
                 val safe = if (dist < 1e-6) 1e-6 else dist
-                val r = dist - d
+                val r = dist - entries[i].distance
                 residuals[i] = r
                 newCost += weights[i] * r * r
                 jacobian[i][0] = dx / safe
@@ -140,50 +241,20 @@ object TrilaterationEngine {
             }
         }
 
-        // 3) Abschlussbewertung: Residuum-RMS + Positions-Sigma
-        var rmsSum = 0.0
-        val jacobian = Array(entries.size) { DoubleArray(dim) }
-        for (i in entries.indices) {
-            val (a, d, _) = entries[i]
-            val dx = p[0] - a.x
-            val dy = p[1] - a.y
-            val dz = if (dim == 3) p[2] - a.z else 0.0
+        return LmResult(p, converged, iterations)
+    }
+
+    /** Trimmed-Kosten (LTS-1): Summe der m−1 kleinsten quadratischen Residuen. */
+    private fun trimmedCost(p: DoubleArray, entries: List<Entry>, dim: Int): Double {
+        val squared = entries.map { e ->
+            val dx = p[0] - e.anchor.x
+            val dy = p[1] - e.anchor.y
+            val dz = if (dim == 3) p[2] - e.anchor.z else 0.0
             val dist = sqrt(dx * dx + dy * dy + dz * dz)
-            val r = dist - d
-            rmsSum += r * r
-            val safe = if (dist < 1e-6) 1e-6 else dist
-            jacobian[i][0] = dx / safe
-            jacobian[i][1] = dy / safe
-            if (dim == 3) jacobian[i][2] = dz / safe
-        }
-        val rms = sqrt(rmsSum / entries.size)
-
-        val jtwj = DoubleArray(dim * dim)
-        for (i in entries.indices) {
-            val w = weights[i]
-            for (row in 0 until dim) {
-                for (col in 0 until dim) {
-                    jtwj[row * dim + col] += jacobian[i][row] * w * jacobian[i][col]
-                }
-            }
-        }
-        val sigma = sqrt(traceInverse(jtwj, dim))
-
-        var confidence = (1.0 - rms / 3.0).coerceIn(0.0, 1.0).toFloat()
-        if (!converged) confidence *= 0.6f
-        if (sigma > 50.0) confidence = minOf(confidence, 0.3f)
-
-        return Estimate(
-            x = p[0],
-            y = p[1],
-            z = if (dim == 3) p[2] else 0.0,
-            residualRmsM = rms,
-            positionSigmaM = sigma,
-            confidence = confidence,
-            converged = converged,
-            iterations = iterations,
-            anchorCount = entries.size,
-        )
+            val r = dist - e.distance
+            r * r
+        }.sorted()
+        return squared.take(max(0, entries.size - 1)).sum()
     }
 
     // ── Startlösungen ───────────────────────────────────────────────
@@ -192,16 +263,15 @@ object TrilaterationEngine {
      * Lineares Kleinste-Quadrate-System durch Subtraktion des Referenz-Ankers:
      * 2·(aᵢ−a₀)·p = d₀² − dᵢ² + ‖aᵢ‖² − ‖a₀‖².
      */
-    private fun linearInit(
-        entries: List<Triple<Anchor, Double, Double>>,
-        dim: Int,
-    ): DoubleArray? {
-        val (a0, d0, _) = entries[0]
+    private fun linearInit(entries: List<Entry>, dim: Int): DoubleArray? {
+        val a0 = entries[0].anchor
+        val d0 = entries[0].distance
         val rows = entries.size - 1
         val aMat = DoubleArray(rows * dim)
         val bVec = DoubleArray(rows)
         for (i in 1 until entries.size) {
-            val (ai, di, _) = entries[i]
+            val ai = entries[i].anchor
+            val di = entries[i].distance
             aMat[(i - 1) * dim] = 2.0 * (ai.x - a0.x)
             aMat[(i - 1) * dim + 1] = 2.0 * (ai.y - a0.y)
             if (dim == 3) aMat[(i - 1) * dim + 2] = 2.0 * (ai.z - a0.z)
@@ -229,15 +299,12 @@ object TrilaterationEngine {
     }
 
     /** Fallback: Anker-Schwerpunkt. */
-    private fun centroidInit(
-        entries: List<Triple<Anchor, Double, Double>>,
-        dim: Int,
-    ): DoubleArray {
+    private fun centroidInit(entries: List<Entry>, dim: Int): DoubleArray {
         val c = DoubleArray(dim)
-        for ((a, _, _) in entries) {
-            c[0] += a.x
-            c[1] += a.y
-            if (dim == 3) c[2] += a.z
+        for (e in entries) {
+            c[0] += e.anchor.x
+            c[1] += e.anchor.y
+            if (dim == 3) c[2] += e.anchor.z
         }
         val n = entries.size.toDouble()
         c[0] /= n
