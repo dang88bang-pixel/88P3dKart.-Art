@@ -2,6 +2,8 @@ package com.example.agent.ui.map
 
 import android.os.Bundle
 import android.view.LayoutInflater
+import android.view.SurfaceHolder
+import android.view.SurfaceView
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
@@ -14,13 +16,18 @@ class MapFragment : Fragment() {
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?,
     ): View {
         val view = inflater.inflate(R.layout.fragment_map, container, false)
-        val mapView: View = view.findViewById(R.id.map_canvas_view)
+        // fragment_map.xml definiert eine SurfaceView mit id map_canvas_view.
+        // Vorher wurde das Ergebnis fälschlich als generische View gehalten —
+        // View.holder existiert nicht (das schlug als Compile-Fehler fehl).
+        val mapView = view.findViewById<SurfaceView>(R.id.map_canvas_view)
 
         mapView.post {
-            val canvas = mapView.holder?.lockCanvas()
-            if (canvas != null) {
+            val holder: SurfaceHolder = mapView.holder
+            val canvas = holder.lockCanvas() ?: return@post
+            try {
                 renderer.draw(canvas, mapView.width, mapView.height)
-                mapView.holder.unlockCanvasAndPost(canvas)
+            } finally {
+                holder.unlockCanvasAndPost(canvas)
             }
         }
         return view

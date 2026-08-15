@@ -2,12 +2,12 @@ package com.example.agent
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.lifecycleScope
 import com.example.agent.network.AgentWebSocketClient
 import com.example.agent.aura.AuraIntegrator
 import com.example.agent.pipeline.LiveSensorPipeline
@@ -23,6 +23,7 @@ import com.example.agent.storage.SpatialRecord
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -42,38 +43,103 @@ class MainActivity : AppCompatActivity() {
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
-    companion object {
-        private const val REQUEST_PERMISSIONS = 100
+    /**
+     * Permission-Erlaubnis-Flag. Die gesamte Hardware-Initialisierung
+     * (BLE-Scan, IMU, USB-Serial, UWB) wird erst NACH dem Grant gestartet —
+     * sonst riskiert man SecurityException-Crashes, wenn der User die
+     * Permissions ablehnt.
+     */
+    private val requiredPermissions: Array<String> by lazy {
+        buildList {
+            add(Manifest.permission.BLUETOOTH_SCAN)
+            add(Manifest.permission.BLUETOOTH_CONNECT)
+            add(Manifest.permission.ACCESS_FINE_LOCATION)
+            add(Manifest.permission.UWB_RANGING)
+            // ab Android 13 (API 33): NEARBY_WIFI_DEVICES für Wi-Fi RTT-Scans
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                add(Manifest.permission.NEARBY_WIFI_DEVICES)
+            }
+        }.toTypedArray()
+    }
+
+    private val permissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { results ->
+        val allGranted = results.values.all { it }
+        if (allGranted) {
+            Log.i("MainActivity", "Alle Runtime-Permissions erteilt — starte Hardware")
+            initializeHardware()
+        } else {
+            Log.w(
+                "MainActivity",
+                "Permissions abgelehnt: ${results.filterValues { !it }.keys}"
+            )
+            // Wir starten trotzdem mit dem, was erlaubt ist — die
+            // Manager prüfen ihre Permission selbst und loggen/fail-soft.
+            initializeHardware()
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        requestPermissions()
+        // Software-/Datenebene: benötigt KEINE Permissions, kann sofort starten.
+        ekf = EkfFusion(dt = 0.05f)
+        db = AppDatabase.getInstance(this)
+        pipeline = PipelineOrchestrator(this)
+        livePipeline = LiveSensorPipeline()
+        webSocketClient = AgentWebSocketClient().also { it.connect() }
 
-        // Hardware
+        // Permission-Flow zuerst; Hardware wird im Callback initialisiert.
+        if (hasAllRequiredPermissions()) {
+            initializeHardware()
+        } else {
+            permissionLauncher.launch(requiredPermissions)
+        }
+    }
+
+    private fun hasAllRequiredPermissions(): Boolean =
+        requiredPermissions.all {
+            ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
+        }
+
+    /**
+     * Initialisiert alle Hardware-Manager. Wird aufgerufen, sobald die
+     * Runtime-Permissions geklärt sind.
+     *
+     * Bugfix-Historie: Vorher wurden BLE-/IMU-/Serial-Manager unbedingt
+     * in `onCreate` gestartet — bei abgelehnten Permissions flogen
+     * SecurityExceptions oder die Listener registrierten sich auf
+     * nicht-existente Sensoren. Jetzt mit explizitem Permission-Check
+     * pro Manager (fail-soft).
+     */
+    private fun initializeHardware() {
+        // USB-Serial (RPLIDAR + mmWave) — benötigt nur USB-HOST-Feature,
+        // keine Runtime-Permissions. Wenn das Gerät nicht erkannt wird,
+        // ist `usbManager.deviceList` schlicht leer.
         serialManager = SerialManager(this).also {
             it.initDevices()
             it.triggerLidarScan()
             it.configureMmwave(reduced = false)
         }
+
+        // BLE-Token — prüft ACCESS_FINE_LOCATION intern (siehe BleTokenManager).
         bleManager = BleTokenManager(this).also { it.startScan() }
+
+        // IMU — kein Runtime-Permission; SensorManager wirft nicht, wenn
+        // ein Sensor fehlt (Register wird null), darum sichere Callbacks.
         imuManager = ImuManager(this).also { it.start() }
+
+        // UWB — benötigt UWB_RANGING. startRanging wird per UI-Action
+        // getriggert; hier nur Manager instanziieren.
         uwbManager = UwbManager(this)
-
-        ekf = EkfFusion(dt = 0.05f)
-        db = AppDatabase.getInstance(this)
-        pipeline = PipelineOrchestrator()
-        livePipeline = LiveSensorPipeline()
-
-        // Netzwerk
-        webSocketClient = AgentWebSocketClient().also { it.connect() }
-
-        // Aura (SDR/RTI) — docs/AURA.md §8.1
-        auraIntegrator = AuraIntegrator().also {
-            it.setPoseProvider { ekf.getState() }
+        uwbManager.onPhase = { phase ->
+            webSocketClient.sendUwbPhase("CT45P-01", phase)
         }
+
+        // Aura (SDR/RTI) — defensiv starten (Port belegt → nur Log).
+        auraIntegrator = AuraIntegrator().also { it.setPoseProvider { ekf.getState() } }
         scope.launch {
             auraIntegrator.rtiVoxels.collect { voxels ->
                 livePipeline.onRtiVoxels(voxels)
@@ -90,14 +156,13 @@ class MainActivity : AppCompatActivity() {
                 Log.w("Aura", "[${alert.severity}] ${alert.message}")
             }
         }
-        // Tunnel-Empfänger defensiv starten (Port belegt → nur Log, keine Crashs)
         try {
             auraIntegrator.start()
         } catch (e: Exception) {
             Log.w("Aura", "Tunnel-Start übersprungen: ${e.message}")
         }
 
-        // Triangulation (Wi-Fi RTT / BLE / Fingerprinting) — docs/TRIANGULATION.md
+        // Triangulation (Wi-Fi RTT / BLE / Fingerprinting)
         triangulation = TriangulationService(this, ekf)
         scope.launch {
             triangulation.fused.collect { estimate ->
@@ -115,7 +180,7 @@ class MainActivity : AppCompatActivity() {
             Log.w("Triangulation", "Start übersprungen: ${e.message}")
         }
 
-        // LiDAR → EKF + Pipeline + WebSocket
+        // Sensor → EKF + Pipeline + WebSocket
         scope.launch {
             serialManager.lidarPoints.collect { points ->
                 if (points.isNotEmpty()) {
@@ -125,8 +190,6 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
-
-        // mmWave → EKF + WebSocket
         scope.launch {
             serialManager.mmwaveTargets.collect { targets ->
                 if (targets.isNotEmpty()) {
@@ -136,21 +199,22 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
-
-        // BLE-Token → WebSocket (+ Tag-Geschwindigkeit über Aura, sobald eine
-        // Positionsquelle — UWB-Ranging oder RSSI-Triangulation — verfügbar ist:
-        //   auraIntegrator.onTagPosition(token.mac, x, y, z)
-        // siehe docs/AURA.md §6)
         scope.launch {
             bleManager.tokenUpdates.collect { token ->
                 Log.d("BLE", "Token ${token.mac} RSSI=${token.rssi}")
                 webSocketClient.sendBleTokens("CT45P-01", listOf(token))
             }
         }
-
-        // UWB-Phase → WebSocket (Micro-Doppler)
-        uwbManager.onPhase = { phase ->
-            webSocketClient.sendUwbPhase("CT45P-01", phase)
+        // IMU: Sample-konsistent puffern (siehe ImuManager für Details).
+        scope.launch {
+            imuManager.imuUpdates.collect { sample ->
+                // LiveSensorPipeline.onImu erwartet (orient, accel).
+                // Orientierung leiten wir hier nicht aus dem Roh-Sample ab
+                // (das wäre SensorFusion-Aufgabe); für die Pipeline reicht
+                // aktuell die Akzeleration. Mag/Gyro werden hier nicht
+                // weitergereicht — bewusst, damit die API-Diff klein bleibt.
+                livePipeline.onImu(orientation = sample.gyro, accel = sample.accel)
+            }
         }
 
         // Telemetrie (alle 5 s)
@@ -183,30 +247,17 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
-    private fun requestPermissions() {
-        val permissions = listOf(
-            Manifest.permission.BLUETOOTH_SCAN,
-            Manifest.permission.BLUETOOTH_CONNECT,
-            Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.UWB_RANGING,
-        )
-        val needed = permissions.filter {
-            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
-        }
-        if (needed.isNotEmpty()) {
-            ActivityCompat.requestPermissions(this, needed.toTypedArray(), REQUEST_PERMISSIONS)
-        }
-    }
-
     override fun onDestroy() {
         super.onDestroy()
-        webSocketClient.disconnect()
-        auraIntegrator.stop()
-        triangulation.stop()
-        serialManager.close()
-        bleManager.stopScan()
-        imuManager.stop()
-        uwbManager.stopRanging()
+        // Reihenfolge: zuerst Manager stoppen, dann erst den Scope canceln.
+        // Sonst könnten laufende Coroutines noch in die Manager schreiben.
+        runCatching { webSocketClient.disconnect() }
+        runCatching { auraIntegrator.stop() }
+        runCatching { triangulation.stop() }
+        runCatching { serialManager.close() }
+        runCatching { bleManager.stopScan() }
+        runCatching { imuManager.stop() }
+        runCatching { uwbManager.stopRanging() }
         scope.cancel()
     }
 }
