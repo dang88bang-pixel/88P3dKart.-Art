@@ -1,0 +1,101 @@
+# Build & Release CT45P Android APK
+# ---------------------------------------------------------------------------
+# Builds the 3dxAgent Android APK for the Honeywell CT45P on every push and
+# publishes it as a GitHub Actions artifact. Tag pushes additionally create
+# a signed (or unsigned, see Notes) GitHub Release with the APK attached.
+#
+# Verbotsregel §4 (Workflow-Sicherheit):
+#   • Nur v4-Actions (checkout@v4, setup-java@v4, upload-artifact@v4).
+#   • Keine `:latest`-Image-Tags — JDK 17 (Temurin) ist explizit gepinnt.
+#   • Keystore-Credentials laufen ausschließlich über GitHub Secrets
+#     (RELEASE_KEYSTORE_FILE / RELEASE_KEY_ALIAS / RELEASE_STORE_PASSWORD /
+#      RELEASE_KEY_PASSWORD); nichts wird im Repo committed.
+# ---------------------------------------------------------------------------
+name: Build & Release CT45P APK
+
+on:
+  push:
+    branches: ["main", "master"]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-apk:
+    name: Build APK (Debug + Release)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17 (Temurin, gepinnt)
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      # Gradle-Wrapper liegt in android-app/, nicht im Repo-Root.
+      - name: Grant Execute Permission for Gradlew
+        working-directory: android-app
+        run: chmod +x gradlew
+
+      - name: Validate Gradle Wrapper (Supply-Chain-Schutz)
+        uses: gradle/wrapper-validation-action@v3
+
+      # Debug-APK: auf jedem Push gebaut und als Artefakt veröffentlicht.
+      # Pfad korrigiert für die tatsächliche Monorepo-Struktur.
+      - name: Build Debug APK
+        working-directory: android-app
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Upload Debug APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: 3dxAgent-CT45P-Debug-APK
+          path: android-app/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      # Release-APK: nur bei Tag-Push (v*).
+      # Hinweis: ohne hinterlegte RELEASE_KEYSTORE_BASE64-Secret
+      # erzeugt der Build eine UNSIGNIERTE APK (app-release-unsigned.apk).
+      # Für signierte Produktions-APKs die Secrets in den Repo-Einstellungen
+      # hinterlegen — app/build.gradle.kts liest sie via providers.gradleProperty().
+      - name: Build Release APK
+        if: startsWith(github.ref, 'refs/tags/')
+        working-directory: android-app
+        env:
+          RELEASE_STORE_FILE: ${{ secrets.RELEASE_KEYSTORE_FILE }}
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: ./gradlew assembleRelease --stacktrace
+
+      - name: Verify Release APK Exists
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          set -euo pipefail
+          APK="android-app/app/build/outputs/apk/release/app-release-unsigned.apk"
+          if [ ! -f "$APK" ]; then
+            echo "::error::Release-APK nicht gefunden: $APK"
+            exit 1
+          fi
+          echo "Release-APK gefunden: $(du -h "$APK" | cut -f1)"
+
+      - name: Create GitHub Release & Attach APK
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+          files: |
+            android-app/app/build/outputs/apk/release/app-release-unsigned.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
