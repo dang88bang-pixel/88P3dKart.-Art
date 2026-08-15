@@ -82,6 +82,83 @@ paths:
       responses:
         '200':
           description: Pipeline-Ergebnis
+
+  /api/v1/bluetooth/accessories:
+    get:
+      summary: Liste aller Bluetooth-Zubehörgeräte
+      parameters:
+        - name: type
+          in: query
+          schema: { type: string, enum: [TOKEN_CLASSIC, TOKEN_PRO, SENSOR_TAG, WEARABLE, ASSET_TAG, REMOTE_CONTROLLER, RELAY, GATEWAY_BRIDGE] }
+      responses:
+        '200':
+          description: Zubehörliste + Stats
+    post:
+      summary: Legacy alias – update
+      description: Siehe /update Endpunkt
+  /api/v1/bluetooth/accessories/update:
+    post:
+      summary: Batch-Update von Bluetooth-Zubehör (von CT45P / MQTT)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                device_id: { type: string }
+                accessories:
+                  type: array
+                  items: { type: object }
+      responses:
+        '200':
+          description: Update bestätigt
+  /api/v1/bluetooth/accessories/{mac}:
+    get:
+      summary: Einzelnes Zubehör + Health
+      parameters:
+        - name: mac
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Detail
+        '404':
+          description: Nicht gefunden
+    delete:
+      summary: Zubehör entfernen (z.B. verloren)
+      parameters:
+        - name: mac
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Gelöscht
+  /api/v1/bluetooth/health:
+    get:
+      summary: Health-Übersicht aller Zubehörgeräte
+      responses:
+        '200':
+          description: Health Summary
+  /api/v1/bluetooth/stats:
+    get:
+      summary: Statistik – nach Typ, LowBat, SOS
+      responses:
+        '200':
+          description: Stats
+  /api/v1/bluetooth/cleanup:
+    post:
+      summary: Expired Accessories entfernen
+      parameters:
+        - name: max_age_s
+          in: query
+          schema: { type: number, default: 60 }
+      responses:
+        '200':
+          description: Bereinigt
+
 components:
   schemas:
     EkfState:

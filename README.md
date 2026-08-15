@@ -1,6 +1,6 @@
 # 🧭 3dxAgent — Autonomes 3D-Kartierungs- & Lageerkennungssystem
 
-**Version:** 4.4.0-ClientRules · **Zielplattform:** Honeywell CT45P + Multi-Sensor Edge-Netzwerk
+**Version:** 4.5.0-BT-Accessories · **Zielplattform:** Honeywell CT45P + Multi-Sensor Edge-Netzwerk + Bluetooth-Zubehör Ökosystem
 
 Die **3dxAgent-Plattform** verwandelt das Industrie-Smartphone **Honeywell CT45P**
 in ein hochpräzises, autonomes 3D-Kartierungs- und Lageerkennungssystem. Durch die
@@ -16,13 +16,14 @@ Die **v2.0.0-DataPipeline** ergänzt eine vollständige
 Sensor-/Netzwerkdaten → Analyse → Mesh → 3D-Umgebung → Exakte Abbildung → Evaluierungsagent
 ```
 
-Die Erweiterungen **v3.x–v4.4.0** ergänzen zudem:
+Die Erweiterungen **v3.x–v4.5.0** ergänzen zudem:
 - **Offline-Betrieb** — UWB-DFT, ICP/Kabsch, Madgwick-IMU, Trilateration und ein
   lokaler REST/WebSocket-Server direkt in Kotlin auf dem CT45P (Package `offline/`)
 - **Smart Mesh Integrator** — adaptiver Octree, semantische Klassifikation
   (Person/Gegenstand/Wand/Boden), Bewegungsdetektion
 - **Client-Regelwerk** — Anbindung beliebiger externer Geräte (Token, Relay,
   Sensor, Gateway, Wearable) mit Authentifizierung, Signalauswertung und Health-Check
+- **Bluetooth-Zubehör Ökosystem (v4.5.0)** — 12+ Typen (Token Pro, Sensor-Tag BME280, Wearable HRM, Asset-Tag iBeacon/Eddystone, Remote, Gateway, Headset, HID, Classic SPP) mit GATT, Classic, adaptivem Scan, SOS, Bonding, Health-Monitor und universeller nRF52840 Firmware
 
 ---
 
@@ -30,14 +31,14 @@ Die Erweiterungen **v3.x–v4.4.0** ergänzen zudem:
 
 ```text
 88P3dKart.-Art/
-├── edge-agent/                # Python 3.11 + FastAPI + NumPy/SciPy (lauffähig)
-├── web-visualizer/            # Node.js + Three.js (lauffähig)
-├── android-app/               # Kotlin CT45P-App (Scaffolding, kompiliert mit Android Studio)
-├── ble-token-firmware/        # nRF52 Zephyr (Scaffolding)
-├── mosquitto/                 # MQTT-Broker-Konfiguration
+├── edge-agent/                # Python 3.11 + FastAPI + NumPy/SciPy (lauffähig) inkl. bluetooth_accessories.py
+├── web-visualizer/            # Node.js + Three.js (lauffähig) + BT Zubehör Panel
+├── android-app/               # Kotlin CT45P-App – bluetooth/ package (12 Gerätetypen, GATT, Classic, Health)
+├── ble-token-firmware/        # nRF52 Zephyr – Universal Firmware (Token/Sensor/Wearable/Asset/Remote/Gateway)
+├── mosquitto/                 # MQTT-Broker-Konfiguration (erweitert für bt topics)
 ├── nginx/                     # Reverse-Proxy (optional, HTTPS)
 ├── docker-compose.yml         # Orchestrierung (4 Services)
-└── docs/                      # Architektur, API, Roadmap, Checkliste
+└── docs/                      # Architektur, API, Roadmap, Checkliste, BLUETOOTH_ACCESSORIES.md
 ```
 
 ---
@@ -107,7 +108,21 @@ Weitere Details: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md),
 
 | Protokoll | Endpunkt | Zweck |
 |-----------|----------|-------|
-| REST (HTTPS) | `:8080/api/v1/...` | Konfiguration, Historie, Szenarien, Map-Merge, Pipeline |
-| WebSocket | `:8080/ws/agent/events` | Binärer Punktwolken-Stream + JSON-Status |
-| MQTT | `:1883` | BLE-Token-Rohdaten externer Smartphones |
+| REST (HTTPS) | `:8080/api/v1/...` | Konfiguration, Historie, Szenarien, Map-Merge, Pipeline, Bluetooth Zubehör |
+| WebSocket | `:8080/ws/agent/events` | Binärer Punktwolken-Stream + JSON-Status + BT Zubehör Live |
+| MQTT | `:1883` | BLE-Token + `bluetooth/accessories/#`, `sensors/#`, `wearables/#`, `events/#` |
 | USB-Serial | `/dev/ttyUSB0`, `/dev/ttyACM0` | LiDAR, mmWave (CT45P Host-Modus) |
+| BLE GATT | `8d81e7c0-b7c8-...` | Custom 3dx Service – Data Notify, Config Write, Command Write |
+| BLE Standard | `0x180F, 0x180A, 0x181A, 0x180D` | Battery, Device Info, Env Sensing, Heart Rate |
+| BT Classic SPP | `00001101-...` | RFCOMM für HC-05, Headset, HID Remote |
+
+### 🆕 Bluetooth-Zubehör REST
+
+```bash
+curl http://localhost:8080/api/v1/bluetooth/accessories | jq
+curl http://localhost:8080/api/v1/bluetooth/stats | jq
+curl http://localhost:8080/api/v1/bluetooth/health | jq
+curl http://localhost:8080/api/v1/bluetooth/accessories/aa:bb:cc:dd:ee:01 | jq
+```
+
+Details: [`docs/BLUETOOTH_ACCESSORIES.md`](docs/BLUETOOTH_ACCESSORIES.md)

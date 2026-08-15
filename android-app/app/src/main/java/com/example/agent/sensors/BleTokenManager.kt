@@ -1,12 +1,11 @@
 package com.example.agent.sensors
 
-import android.bluetooth.BluetoothAdapter
-import android.bluetooth.le.ScanCallback
-import android.bluetooth.le.ScanResult
 import android.content.Context
-import android.content.pm.PackageManager
 import android.util.Log
-import androidx.core.content.ContextCompat
+import com.example.agent.bluetooth.BluetoothAccessory
+import com.example.agent.bluetooth.BluetoothAccessoryManager
+import com.example.agent.bluetooth.BluetoothAccessoryType
+import com.example.agent.network.ClientRegistry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -16,13 +15,23 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 
 /**
- * BLE-Token-Scanner für nRF52840-Token (Company ID 0x0059).
- * Extrahiert IMU-Beschleunigungswerte, RSSI und Batteriestand.
+ * BLE-Token-Manager – jetzt Wrapper um den neuen BluetoothAccessoryManager.
+ *
+ * Backward-kompatibel: stellt weiterhin TokenData Flow bereit,
+ * nutzt intern aber das erweiterte Bluetooth-Zubehör-Ökosystem.
+ *
+ * Unterstützt automatisch:
+ * - TOKEN_CLASSIC (0x0059 legacy)
+ * - TOKEN_PRO (V2)
+ * - ASSET_TAG (iBeacon/Eddystone)
+ * - Alle anderen Zubehörtypen über accessoryUpdates Flow
  */
-class BleTokenManager(private val context: Context) {
-
+class BleTokenManager(
+    context: Context,
+    clientRegistry: ClientRegistry? = null,
+) {
     companion object {
-        private const val COMPANY_ID = 0x0059
+        private const val TAG = "BleTokenManager"
     }
 
     data class TokenData(
@@ -32,56 +41,93 @@ class BleTokenManager(private val context: Context) {
         val accelY: Float,
         val accelZ: Float,
         val battery: Int,
+        val type: String = "token",
+        val temperature: Float? = null,
+        val flags: Int = 0,
     )
 
-    private val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
-    private val scanner = bluetoothAdapter.bluetoothLeScanner
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val accessoryManager = BluetoothAccessoryManager(context, clientRegistry)
 
     private val _tokenUpdates = MutableSharedFlow<TokenData>(extraBufferCapacity = 50)
     val tokenUpdates: SharedFlow<TokenData> = _tokenUpdates.asSharedFlow()
 
-    private val scanCallback = object : ScanCallback() {
-        override fun onScanResult(callbackType: Int, result: ScanResult) {
-            val record = result.scanRecord ?: return
-            val data = record.getManufacturerSpecificData(COMPANY_ID) ?: return
-            if (data.size < 9) return
+    /** Vollständiger Zubehör-Stream (alle Typen) */
+    private val _accessoryUpdates = MutableSharedFlow<BluetoothAccessory>(extraBufferCapacity = 100)
+    val accessoryUpdates: SharedFlow<BluetoothAccessory> = _accessoryUpdates.asSharedFlow()
 
-            val accelX = (data[2].toShort() / 1000f)
-            val accelY = (data[4].toShort() / 1000f)
-            val accelZ = (data[6].toShort() / 1000f)
-            val battery = data[8].toInt() and 0xFF
+    /** Direkter Zugriff auf den neuen Manager für erweiterte Features */
+    val bluetoothAccessoryManager: BluetoothAccessoryManager = accessoryManager
 
-            scope.launch {
-                _tokenUpdates.emit(
-                    TokenData(result.device.address, result.rssi, accelX, accelY, accelZ, battery)
-                )
+    init {
+        scope.launch {
+            accessoryManager.accessories.collect { list ->
+                list.forEach { acc ->
+                    // Token-Filter für Legacy Flow
+                    if (acc.type in setOf(
+                            BluetoothAccessoryType.TOKEN_CLASSIC,
+                            BluetoothAccessoryType.TOKEN_PRO,
+                            BluetoothAccessoryType.ASSET_TAG,
+                        )
+                    ) {
+                        _tokenUpdates.emit(
+                            TokenData(
+                                mac = acc.macAddress,
+                                rssi = acc.rssi,
+                                accelX = acc.accelX,
+                                accelY = acc.accelY,
+                                accelZ = acc.accelZ,
+                                battery = acc.batteryLevel,
+                                type = acc.type.name,
+                                temperature = acc.temperatureC,
+                                flags = acc.flags,
+                            )
+                        )
+                    }
+                    _accessoryUpdates.emit(acc)
+                }
             }
         }
 
-        override fun onScanFailed(errorCode: Int) {
-            Log.w("BleTokenManager", "Scan fehlgeschlagen: $errorCode")
+        scope.launch {
+            accessoryManager.events.collect { ev ->
+                when (ev) {
+                    is BluetoothAccessoryManager.AccessoryEvent.SosTriggered ->
+                        Log.w(TAG, "SOS von ${ev.accessory.macAddress}")
+                    is BluetoothAccessoryManager.AccessoryEvent.ButtonPressed ->
+                        Log.i(TAG, "Button von ${ev.accessory.macAddress}")
+                    else -> {}
+                }
+            }
         }
     }
 
     fun startScan() {
-        val fineLocation = ContextCompat.checkSelfPermission(
-            context, android.Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-        if (!fineLocation) {
-            Log.w("BleTokenManager", "ACCESS_FINE_LOCATION fehlt — Scan übersprungen")
-            return
-        }
-        try {
-            scanner.startScan(scanCallback)
-        } catch (e: SecurityException) {
-            Log.e("BleTokenManager", "Berechtigung fehlt: ${e.message}")
-        }
+        Log.i(TAG, "Starte erweiterten BLE Scan via BluetoothAccessoryManager")
+        accessoryManager.startScan(BluetoothAccessoryManager.ScanMode.BALANCED)
+    }
+
+    fun startHighAccuracyScan() {
+        Log.i(TAG, "Starte High-Accuracy Scan (alle Zubehörtypen)")
+        accessoryManager.startScan(BluetoothAccessoryManager.ScanMode.HIGH_ACCURACY)
+    }
+
+    fun startOfflineTrackingScan() {
+        accessoryManager.startScan(BluetoothAccessoryManager.ScanMode.OFFLINE_TRACKING)
     }
 
     fun stopScan() {
-        try {
-            scanner.stopScan(scanCallback)
-        } catch (_: SecurityException) {}
+        accessoryManager.stopScan()
     }
+
+    /** Zugriff auf erkannt Zubehör */
+    fun getAllAccessories(): List<BluetoothAccessory> = accessoryManager.getAllAccessories()
+    fun getTokens(): List<BluetoothAccessory> = accessoryManager.getAccessoriesByType(BluetoothAccessoryType.TOKEN_PRO) +
+        accessoryManager.getAccessoriesByType(BluetoothAccessoryType.TOKEN_CLASSIC)
+    fun getSensorTags(): List<BluetoothAccessory> = accessoryManager.getAccessoriesByType(BluetoothAccessoryType.SENSOR_TAG)
+    fun getWearables(): List<BluetoothAccessory> = accessoryManager.getAccessoriesByType(BluetoothAccessoryType.WEARABLE)
+    fun getAssetTags(): List<BluetoothAccessory> = accessoryManager.getAccessoriesByType(BluetoothAccessoryType.ASSET_TAG)
+    fun getAllTypes(): Map<BluetoothAccessoryType, List<BluetoothAccessory>> =
+        BluetoothAccessoryType.values().associateWith { type -> accessoryManager.getAccessoriesByType(type) }.filter { it.value.isNotEmpty() }
 }
+

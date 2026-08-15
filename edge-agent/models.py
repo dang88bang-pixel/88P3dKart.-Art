@@ -79,3 +79,63 @@ class PipelineResult(BaseModel):
 class MergeRequest(BaseModel):
     device_ids: List[str]
     reference: Optional[str] = None
+
+
+class BluetoothAccessoryPayload(BaseModel):
+    """Ein einzelnes Bluetooth-Zubehör aus Android App / MQTT."""
+
+    mac: Optional[str] = None
+    mac_address: Optional[str] = None
+    type: str = "GENERIC_BLE"
+    name: Optional[str] = None
+    rssi: int = -100
+    battery: Optional[int] = 100
+    battery_level: Optional[int] = None
+    tx_power: Optional[int] = None
+    distance_m: Optional[float] = None
+    protocol_version: int = 1
+    flags: int = 0
+    accel_x: Optional[float] = 0.0
+    accel_y: Optional[float] = 0.0
+    accel_z: Optional[float] = 0.0
+    temperature_c: Optional[float] = None
+    humidity_pct: Optional[float] = None
+    pressure_hpa: Optional[float] = None
+    air_quality_ppm: Optional[float] = None
+    light_lux: Optional[float] = None
+    heart_rate_bpm: Optional[int] = None
+    steps: Optional[int] = None
+    ibeacon_uuid: Optional[str] = None
+    ibeacon_major: Optional[int] = None
+    ibeacon_minor: Optional[int] = None
+    eddystone_url: Optional[str] = None
+    eddystone_namespace: Optional[str] = None
+    eddystone_instance: Optional[str] = None
+    button_state: int = 0
+    firmware_version: Optional[str] = None
+    data_quality: float = 0.9
+
+    def normalized(self) -> Dict[str, Any]:
+        # Merge fields to common dict for registry
+        d = self.model_dump()
+        # Map alias
+        if d.get("mac_address") and not d.get("mac"):
+            d["mac"] = d["mac_address"]
+        if d.get("battery_level") is not None:
+            d["battery"] = d["battery_level"]
+        return d
+
+
+class BluetoothAccessoriesUpdate(BaseModel):
+    device_id: str
+    timestamp: float
+    accessories: List[Dict[str, Any]] = Field(default_factory=list)
+    count: Optional[int] = None
+
+
+class AccessoryEvent(BaseModel):
+    device_id: str
+    timestamp: float
+    mac: str
+    event_type: str  # sos, button, fall, etc.
+    payload: Dict[str, Any] = Field(default_factory=dict)

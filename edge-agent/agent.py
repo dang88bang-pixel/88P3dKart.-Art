@@ -16,7 +16,9 @@ from database import LocalVectorStore
 from ekf_fusion import AdaptiveEKF
 from icp_merger import ICPMerger
 from models import (
+    AccessoryEvent,
     BleTokenUpdate,
+    BluetoothAccessoriesUpdate,
     EkfState,
     LidarFrame,
     MergeRequest,
@@ -28,6 +30,7 @@ from models import (
 from pipeline import DataPipeline
 from pointcloud_compressor import PointCloudCompressor
 from uwb_processor import UwbDopplerProcessor
+from bluetooth_accessories import global_accessory_registry, BluetoothAccessory
 
 logging.basicConfig(
     level=logging.INFO,
@@ -104,7 +107,7 @@ async def lifespan(app: FastAPI):
     logger.info("Edge-Agent wird heruntergefahren...")
 
 
-app = FastAPI(title="3dxAgent Edge-Agent", version="2.0.0", lifespan=lifespan)
+app = FastAPI(title="3dxAgent Edge-Agent + Bluetooth Accessories", version="4.5.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"]
 )
@@ -188,9 +191,110 @@ async def run_pipeline(request: PipelineRequest):
     return result
 
 
+# ─── Bluetooth-Zubehör REST-Endpunkte ───────────────────────
+@app.get("/api/v1/bluetooth/accessories")
+async def list_accessories(type: str = None):
+    if type:
+        from bluetooth_accessories import BluetoothAccessoryType
+        try:
+            t = BluetoothAccessoryType(type.upper())
+            accs = global_accessory_registry.get_by_type(t)
+        except Exception:
+            accs = global_accessory_registry.get_all()
+    else:
+        accs = global_accessory_registry.get_all()
+    return {
+        "count": len(accs),
+        "accessories": [a.to_dict() for a in accs],
+        "stats": global_accessory_registry.stats(),
+    }
+
+
+@app.get("/api/v1/bluetooth/accessories/{mac}")
+async def get_accessory(mac: str):
+    acc = global_accessory_registry.get(mac)
+    if not acc:
+        raise HTTPException(status_code=404, detail=f"Accessory {mac} nicht gefunden")
+    health = global_accessory_registry.evaluate_health(mac)
+    return {
+        "accessory": acc.to_dict(),
+        "health": {
+            "status": health.status,
+            "score": health.score,
+            "warnings": health.warnings,
+            "details": health.details,
+        } if health else None,
+    }
+
+
+@app.get("/api/v1/bluetooth/health")
+async def bluetooth_health():
+    health_list = global_accessory_registry.evaluate_all_health()
+    return {
+        "total": len(health_list),
+        "healthy": len([h for h in health_list if h.status == "HEALTHY"]),
+        "degraded": len([h for h in health_list if h.status == "DEGRADED"]),
+        "critical": len([h for h in health_list if h.status == "CRITICAL"]),
+        "lost": len([h for h in health_list if h.status == "LOST"]),
+        "items": [
+            {
+                "mac": h.mac,
+                "type": h.type.value,
+                "status": h.status,
+                "score": h.score,
+                "warnings": h.warnings,
+            }
+            for h in health_list
+        ],
+    }
+
+
+@app.get("/api/v1/bluetooth/stats")
+async def bluetooth_stats():
+    return global_accessory_registry.stats()
+
+
+@app.post("/api/v1/bluetooth/accessories/update")
+async def update_accessories(update: BluetoothAccessoriesUpdate):
+    updated = global_accessory_registry.update_batch(update.accessories)
+    # Broadcast an WebSocket clients
+    await manager.broadcast_json(
+        {
+            "type": "bluetooth_accessories_update",
+            "payload": {
+                "device_id": update.device_id,
+                "count": len(updated),
+                "accessories": [a.to_dict() for a in updated],
+            },
+        }
+    )
+    return {"status": "ok", "updated": len(updated), "total": global_accessory_registry.count()}
+
+
+@app.delete("/api/v1/bluetooth/accessories/{mac}")
+async def delete_accessory(mac: str):
+    acc = global_accessory_registry.get(mac)
+    if not acc:
+        raise HTTPException(status_code=404, detail="Nicht gefunden")
+    # Entferne
+    global_accessory_registry._accessories.pop(mac.lower(), None)
+    return {"status": "deleted", "mac": mac}
+
+
+@app.post("/api/v1/bluetooth/cleanup")
+async def cleanup_accessories(max_age_s: float = 60.0):
+    removed = global_accessory_registry.remove_expired(max_age_s)
+    return {"status": "ok", "removed": removed, "remaining": global_accessory_registry.count()}
+
+
 @app.get("/api/v1/health")
 async def health():
-    return {"status": "ok", "mode": current_mode, "mqtt": getattr(app.state, "mqtt_bridge", None).available if hasattr(app.state, "mqtt_bridge") else False}
+    return {
+        "status": "ok",
+        "mode": current_mode,
+        "mqtt": getattr(app.state, "mqtt_bridge", None).available if hasattr(app.state, "mqtt_bridge") else False,
+        "bluetooth": global_accessory_registry.stats(),
+    }
 
 
 # ─── WebSocket-Endpunkt ──────────────────────────────────────
@@ -228,6 +332,55 @@ async def websocket_endpoint(websocket: WebSocket):
             elif msg_type == "ble":
                 ble_data = BleTokenUpdate(**payload)
                 logger.debug("BLE-Tokens: %d", len(ble_data.tokens))
+                # Legacy tokens ebenfalls in Bluetooth Registry einpflegen
+                try:
+                    if ble_data.tokens:
+                        global_accessory_registry.update_batch(ble_data.tokens)
+                        # Auch an WebSocket Clients verteilen
+                        await manager.broadcast_json(
+                            {"type": "ble_update", "payload": {"device_id": device_id, "count": len(ble_data.tokens)}}
+                        )
+                except Exception as e:
+                    logger.warning("BLE Batch Fehler: %s", e)
+
+            elif msg_type == "bluetooth_accessories":
+                try:
+                    acc_update = BluetoothAccessoriesUpdate(**payload)
+                    updated = global_accessory_registry.update_batch(acc_update.accessories)
+                    logger.info("Bluetooth Accessories Update von %s: %d Geräte, total %d", device_id, len(updated), global_accessory_registry.count())
+                    # An alle visualizer broadcast
+                    await manager.broadcast_json(
+                        {
+                            "type": "bluetooth_accessories_update",
+                            "payload": {
+                                "device_id": device_id,
+                                "count": len(updated),
+                                "accessories": [a.to_dict() for a in updated],
+                                "stats": global_accessory_registry.stats(),
+                            },
+                        }
+                    )
+                except Exception as e:
+                    logger.error("bluetooth_accessories Parse Fehler: %s", e)
+
+            elif msg_type == "accessory_event":
+                try:
+                    ev = AccessoryEvent(**payload)
+                    acc = global_accessory_registry.update_from_payload(ev.payload or {"mac": ev.mac})
+                    logger.warning("Accessory Event %s von %s: %s", ev.event_type, ev.mac, ev.payload)
+                    await manager.broadcast_json(
+                        {
+                            "type": "accessory_event",
+                            "payload": {
+                                "device_id": device_id,
+                                "mac": ev.mac,
+                                "event_type": ev.event_type,
+                                "accessory": acc.to_dict(),
+                            },
+                        }
+                    )
+                except Exception as e:
+                    logger.error("accessory_event Fehler: %s", e)
 
             elif msg_type == "uwb_phase":
                 uwb = UwbPhaseData(**payload)

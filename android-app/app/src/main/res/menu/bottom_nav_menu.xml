@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:id="@+id/navigation_live" android:title="3D" />
-    <item android:id="@+id/navigation_map" android:title="Karte" />
-    <item android:id="@+id/navigation_scenario" android:title="Szenario" />
+    <item android:id="@+id/navigation_live" android:title="3D" android:icon="@android:drawable/ic_menu_view" />
+    <item android:id="@+id/navigation_map" android:title="Karte" android:icon="@android:drawable/ic_menu_mapmode" />
+    <item android:id="@+id/navigation_scenario" android:title="Szenario" android:icon="@android:drawable/ic_menu_slideshow" />
+    <item android:id="@+id/navigation_bluetooth" android:title="BT Zubehör" android:icon="@android:drawable/stat_sys_data_bluetooth" />
 </menu>

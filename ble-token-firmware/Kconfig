@@ -1,0 +1,77 @@
+# 3dxAgent Bluetooth Zubehör Kconfig
+
+mainmenu "3dxAgent BLE Zubehör Firmware (nRF52840)"
+
+config ACCESSORY_TYPE
+    string "Accessory Type Name"
+    default "3dxAgent-Token"
+
+choice ACCESSORY_SELECT
+    prompt "Bluetooth Zubehör Typ"
+    default ACCESSORY_TYPE_TOKEN
+
+config ACCESSORY_TYPE_TOKEN
+    bool "Token Classic/Pro – IMU + Batterie + Temperatur (Standard)"
+
+config ACCESSORY_TYPE_SENSOR_TAG
+    bool "Sensor Tag – BME280/SHT4x Umwelt (Temp/Feuchte/Druck/Luft)"
+
+config ACCESSORY_TYPE_WEARABLE
+    bool "Wearable – HRM + Steps + IMU"
+
+config ACCESSORY_TYPE_ASSET_TAG
+    bool "Asset Tag – iBeacon + Eddystone"
+
+config ACCESSORY_TYPE_REMOTE
+    bool "Remote Controller – Buttons + Joystick"
+
+config ACCESSORY_TYPE_GATEWAY
+    bool "Gateway Bridge – Scanner Rolle BLE→MQTT"
+
+endchoice
+
+config PROTOCOL_VERSION
+    int "Protokoll Version (1=legacy 9B, 2=extended 16B+)"
+    default 2
+
+config ADV_INTERVAL_MS
+    int "Advertising Intervall ms im Normalbetrieb"
+    default 200
+
+config ADV_INTERVAL_MOVING_MS
+    int "Advertising Intervall ms bei Bewegung"
+    default 100
+
+config ADV_INTERVAL_SOS_MS
+    int "Advertising Intervall ms bei SOS"
+    default 50
+
+config ENABLE_GATT_SERVICE
+    bool "Aktiviere Custom GATT Service (Data/Config/Command)"
+    default y
+
+config ENABLE_BATTERY_SERVICE
+    bool "Battery Service 0x180F"
+    default y
+
+config ENABLE_DEVICE_INFO
+    bool "Device Info Service"
+    default y
+
+config ENABLE_I2C_SENSORS
+    bool "I2C Sensoren aktivieren (BME280, BMI270)"
+    default y
+
+config HAS_BUTTON
+    bool "Board hat SOS/Button"
+    default y
+
+config HAS_LED
+    bool "Board hat LED für Status"
+    default y
+
+config LOW_BATTERY_THRESHOLD
+    int "Low Battery Schwelle %"
+    default 15
+
+source "Kconfig.zephyr"

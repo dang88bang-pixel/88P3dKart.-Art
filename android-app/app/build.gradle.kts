@@ -11,10 +11,10 @@ android {
 
     defaultConfig {
         applicationId = "com.example.agent"
-        minSdk = 31 // Android 12+ für UWB
+        minSdk = 31 // Android 12+ für UWB + BLE 5.0
         targetSdk = 34
-        versionCode = 1
-        versionName = "2.0.0"
+        versionCode = 5
+        versionName = "4.5.0-BT-Accessories"
     }
 
     buildTypes {

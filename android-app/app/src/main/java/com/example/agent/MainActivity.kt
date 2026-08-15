@@ -8,7 +8,11 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import com.example.agent.bluetooth.BluetoothAccessory
+import com.example.agent.bluetooth.BluetoothAccessoryManager
+import com.example.agent.bluetooth.BluetoothAccessoryType
 import com.example.agent.network.AgentWebSocketClient
+import com.example.agent.network.ClientRegistry
 import com.example.agent.pipeline.PipelineOrchestrator
 import com.example.agent.sensors.BleTokenManager
 import com.example.agent.sensors.EkfFusion
@@ -32,6 +36,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var ekf: EkfFusion
     private lateinit var db: AppDatabase
     private lateinit var pipeline: PipelineOrchestrator
+    private lateinit var clientRegistry: ClientRegistry
     lateinit var webSocketClient: AgentWebSocketClient
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
@@ -46,13 +51,19 @@ class MainActivity : AppCompatActivity() {
 
         requestPermissions()
 
+        // Registry für einheitliches Client-Health/Recovery
+        clientRegistry = ClientRegistry()
+
         // Hardware
         serialManager = SerialManager(this).also {
             it.initDevices()
             it.triggerLidarScan()
             it.configureMmwave(reduced = false)
         }
-        bleManager = BleTokenManager(this).also { it.startScan() }
+        bleManager = BleTokenManager(this, clientRegistry).also {
+            // High-Accuracy für taktische Einsätze – erkennt alle Zubehörtypen
+            it.startHighAccuracyScan()
+        }
         imuManager = ImuManager(this).also { it.start() }
         uwbManager = UwbManager(this)
 
@@ -85,11 +96,53 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // BLE-Token → WebSocket
+        // BLE-Token (legacy) → WebSocket
         scope.launch {
             bleManager.tokenUpdates.collect { token ->
-                Log.d("BLE", "Token ${token.mac} RSSI=${token.rssi}")
+                Log.d("BLE", "Token ${token.mac} RSSI=${token.rssi} type=${token.type}")
                 webSocketClient.sendBleTokens("CT45P-01", listOf(token))
+            }
+        }
+
+        // NEU: Vollständiges Bluetooth-Zubehör Ökosystem
+        scope.launch {
+            bleManager.accessoryUpdates.collect { accessory ->
+                handleAccessoryUpdate(accessory)
+            }
+        }
+
+        scope.launch {
+            bleManager.bluetoothAccessoryManager.events.collect { event ->
+                when (event) {
+                    is BluetoothAccessoryManager.AccessoryEvent.SosTriggered -> {
+                        Log.w("BT-ACCESSORY", "🚨 SOS von ${event.accessory.macAddress} (${event.accessory.name})")
+                        webSocketClient.sendAccessoryEvent(
+                            "CT45P-01",
+                            event.accessory.macAddress,
+                            "sos",
+                            event.accessory.toSignalPayload()
+                        )
+                    }
+                    is BluetoothAccessoryManager.AccessoryEvent.ButtonPressed -> {
+                        Log.i("BT-ACCESSORY", "Button Press ${event.accessory.macAddress}")
+                        webSocketClient.sendAccessoryEvent(
+                            "CT45P-01",
+                            event.accessory.macAddress,
+                            "button",
+                            event.accessory.toSignalPayload()
+                        )
+                    }
+                    else -> {}
+                }
+            }
+        }
+
+        scope.launch {
+            bleManager.bluetoothAccessoryManager.accessories.collect { list ->
+                if (list.isNotEmpty()) {
+                    val summary = list.groupBy { it.type }.mapValues { it.value.size }
+                    Log.i("BT-ACCESSORY", "Zubehör Übersicht: $summary • gesamt ${list.size}")
+                }
             }
         }
 
@@ -98,11 +151,17 @@ class MainActivity : AppCompatActivity() {
             webSocketClient.sendUwbPhase("CT45P-01", phase)
         }
 
-        // Telemetrie (alle 5 s)
+        // Telemetrie + periodischer Accessory Dump (alle 5 s)
         scope.launch {
             while (true) {
                 delay(5000)
+                val accessories = bleManager.getAllAccessories()
+                val lowBat = accessories.count { it.batteryLevel < 20 }
                 webSocketClient.sendTelemetry("CT45P-01", 85f, 45f, false)
+                if (accessories.isNotEmpty()) {
+                    webSocketClient.sendBluetoothAccessories("CT45P-01", accessories)
+                }
+                if (lowBat > 0) Log.w("BT-ACCESSORY", "$lowBat Zubehör mit niedrigem Akku")
             }
         }
 
@@ -114,6 +173,36 @@ class MainActivity : AppCompatActivity() {
                 db.spatialDao().deleteOlderThan(cutoff)
             }
         }
+    }
+
+    private suspend fun handleAccessoryUpdate(accessory: BluetoothAccessory) {
+        // Weiterleitung als ClientSignal für Pipeline Integration
+        // Sensor-Umgebungsdaten → Kontext, Wearable → Person, Asset-Tag → Beacon, etc.
+        val payload = accessory.toSignalPayload()
+        when (accessory.type) {
+            BluetoothAccessoryType.SENSOR_TAG -> {
+                // Umwelt-Daten (Temperatur/Feuchte/Luft) für BIM und Evakuierungssimulation
+                Log.d("SENSOR-TAG", "${accessory.macAddress} T=${accessory.temperatureC} H=${accessory.humidityPct}")
+            }
+            BluetoothAccessoryType.WEARABLE -> {
+                // Vitaldaten (HR, Steps) → Avatar Status im taktischen Szenario
+                Log.d("WEARABLE", "${accessory.macAddress} HR=${accessory.heartRateBpm} Steps=${accessory.steps}")
+            }
+            BluetoothAccessoryType.REMOTE_CONTROLLER -> {
+                // Fernbedienung für Szenario-Steuerung
+                if (accessory.buttonState != 0) {
+                    Log.i("REMOTE", "Button ${accessory.buttonState} von ${accessory.macAddress}")
+                }
+            }
+            else -> {}
+        }
+    }
+
+    private fun mapTokenFromAccessory(acc: BluetoothAccessory, sos: Boolean = false): Map<String, Any?> {
+        return acc.toSignalPayload() + mapOf(
+            "sos" to sos,
+            "flags" to if (sos) acc.flags or com.example.agent.bluetooth.AccessoryFlags.SOS else acc.flags,
+        )
     }
 
     private suspend fun saveCurrentState() {
@@ -129,12 +218,23 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun requestPermissions() {
-        val permissions = listOf(
+        val permissions = mutableListOf(
             Manifest.permission.BLUETOOTH_SCAN,
             Manifest.permission.BLUETOOTH_CONNECT,
+            Manifest.permission.BLUETOOTH_ADVERTISE,
             Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION,
             Manifest.permission.UWB_RANGING,
         )
+        // Background Location für Foreground Service ab Android Q
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            permissions.add(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+        }
+        // Legacy BT für Android <12
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.S) {
+            permissions.add(Manifest.permission.BLUETOOTH)
+            permissions.add(Manifest.permission.BLUETOOTH_ADMIN)
+        }
         val needed = permissions.filter {
             ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
         }
@@ -147,7 +247,7 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
         webSocketClient.disconnect()
         serialManager.close()
-        bleManager.stopScan()
+        bleManager.bluetoothAccessoryManager.cleanup()
         imuManager.stop()
         uwbManager.stopRanging()
         scope.cancel()
