@@ -26,6 +26,13 @@ target/
 *.apk
 *.aab
 
+# Release-Keystore für CI-Build (siehe .github/workflows/build-apk.yml).
+# Generiert vom Workflow, committed zurück ins Repo, damit Folge-Builds
+# denselben Signatur-Key verwenden. Für Produktiv-Repos später durch
+# Repo-Secrets ersetzen.
+!android-app/keystore/
+!android-app/keystore/*.jks
+
 # Databases
 *.db
 *.db-wal

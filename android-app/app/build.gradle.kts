@@ -17,10 +17,44 @@ android {
         versionName = "2.0.0"
     }
 
+    signingConfigs {
+        create("release") {
+            // Credentials werden in ~/.gradle/gradle.properties
+            // (lokal) bzw. in den GitHub-Actions-Secrets (CI)
+            // hinterlegt. Siehe .github/workflows/build-apk.yml.
+            val ksFile = providers.gradleProperty("RELEASE_STORE_FILE")
+            val ksPass = providers.gradleProperty("RELEASE_STORE_PASSWORD")
+            val ksAlias = providers.gradleProperty("RELEASE_KEY_ALIAS")
+            val keyPass = providers.gradleProperty("RELEASE_KEY_PASSWORD")
+            if (ksFile.isPresent && ksPass.isPresent && ksAlias.isPresent && keyPass.isPresent) {
+                storeFile = rootProject.file(ksFile.get())
+                storePassword = ksPass.get()
+                keyAlias = ksAlias.get()
+                keyPassword = keyPass.get()
+            }
+        }
+    }
+
     buildTypes {
         release {
+            // ProGuard ist hier noch aus, weil einige der Reflection-
+            // Abhängigkeiten (Java-WebSocket, FelHR85-UsbSerial) mit
+            // Keep-Regeln abgesichert werden müssen, bevor man es
+            // aktiviert. Die Defaults aus proguard-rules.pro reichen
+            // für assembleRelease — das Ergebnis ist eine nicht-
+            // obsfukierte, aber korrekt signierte APK.
             isMinifyEnabled = false
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+            // Nur wenn der Keystore konfiguriert ist, signieren wir
+            // release. Sonst fällt Gradle auf den Debug-Key zurück
+            // (oder bricht — abhängig von der Android-Version).
+            val ksFile = providers.gradleProperty("RELEASE_STORE_FILE")
+            if (ksFile.isPresent) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
     compileOptions {
