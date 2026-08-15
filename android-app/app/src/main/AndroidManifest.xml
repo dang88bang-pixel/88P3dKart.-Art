@@ -36,6 +36,23 @@
         android:name="android.permission.NEARBY_WIFI_DEVICES"
         android:usesPermissionFlags="neverForLocation" />
 
+    <!-- Phase 5 Härtung: Package-Visibility für den Honeywell-Scanner
+         (Android 11+). Ohne <queries> liefert resolveActivity()/queryIntent-
+         Activities() für die Honeywell-Dekodier-Dienste leer — der
+         CT45pFilamentBridge-Honeywell-Receiver könnte den Scanner nicht
+         anbinden. Abgedeckt: DataCollection-Intents (com.honeywell.decode)
+         und AIDC (com.honeywell.aidc). -->
+    <queries>
+        <package android:name="com.honeywell.decode" />
+        <package android:name="com.honeywell.aidc" />
+        <intent>
+            <action android:name="com.honeywell.decode.intent.ACTION" />
+        </intent>
+        <intent>
+            <action android:name="com.honeywell.scan.decode.ACTION" />
+        </intent>
+    </queries>
+
     <application
         android:allowBackup="true"
         android:label="3dxAgent"
