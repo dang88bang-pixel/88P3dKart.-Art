@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+import { ContextRing } from './context-ring.js';
 
 // ─── Szene ──────────────────────────────────────────────────────
 const scene = new THREE.Scene();
@@ -33,6 +34,11 @@ dirLight.position.set(10, 20, 5);
 scene.add(dirLight);
 scene.add(new THREE.HemisphereLight(0x445566, 0x221133, 0.7));
 scene.add(new THREE.GridHelper(40, 20, 0x88aaff, 0x335577));
+
+// ─── Kontextring für externe Entitäten ─────────────────────────
+// Zweite Darstellungsebene: Fremddaten jenseits des Nahfelds werden
+// richtungstreu auf einen Ring projiziert statt massstäblich gezeichnet.
+const contextRing = new ContextRing(scene);
 
 // ─── Punktwolke ────────────────────────────────────────────────
 const MAX_POINTS = 150000;
@@ -120,6 +126,12 @@ function connect() {
                 else if (msg.type === 'scenario_status') {
                     document.getElementById('scenario-status').textContent = msg.status;
                 }
+                else if (msg.type === 'external_entities') {
+                    updateExternalStatus(contextRing.update(msg.payload));
+                }
+                else if (msg.type === 'geo_anchor' || msg.type === 'geo_fix') {
+                    updateGeoStatus(msg.type, msg.payload);
+                }
             } catch (_) { /* ignore */ }
         }
     };
@@ -130,6 +142,38 @@ function connect() {
     };
 }
 connect();
+
+// ─── Statusanzeige externer Daten ──────────────────────────────
+function updateExternalStatus(stats) {
+    const el = document.getElementById('external-status');
+    if (!el) return;
+
+    if (!stats.anchorSet) {
+        el.textContent = '🧭 Kein GeoAnchor — externe Daten ausgeblendet';
+        el.className = 'warn';
+        return;
+    }
+
+    const bits = [`📡 ${stats.shown} extern`];
+    if (stats.projected) bits.push(`${stats.projected} projiziert`);
+    if (stats.stale) bits.push(`⚠ ${stats.stale} veraltet`);
+    el.textContent = bits.join(' · ');
+    el.className = stats.stale ? 'warn' : '';
+}
+
+function updateGeoStatus(type, payload) {
+    const el = document.getElementById('geo-status');
+    if (!el) return;
+
+    if (type === 'geo_anchor') {
+        const fix = payload.fix ?? {};
+        el.textContent = `🧭 Anker ${fix.lat?.toFixed(5)}, ${fix.lon?.toFixed(5)}`
+            + ` (±${Math.round(fix.accuracy_m ?? 0)} m, ${fix.source ?? '?'})`;
+    } else {
+        el.textContent = `📍 Fix ${payload.lat?.toFixed(5)}, ${payload.lon?.toFixed(5)}`
+            + ` (±${Math.round(payload.accuracy_m ?? 0)} m, ${payload.source ?? '?'})`;
+    }
+}
 
 function updateAvatars(avatarData) {
     avatarData.forEach((data, i) => {
@@ -169,6 +213,38 @@ document.getElementById('btn-evacuation').addEventListener('click', () =>
 document.getElementById('btn-tactical').addEventListener('click', () =>
     send('scenario_start', { scenario: 'tactical', units: 6 }));
 document.getElementById('btn-stop').addEventListener('click', () => send('scenario_stop'));
+
+const btnExternal = document.getElementById('btn-external');
+if (btnExternal) {
+    btnExternal.addEventListener('click', () => {
+        const on = !contextRing.visible;
+        contextRing.setVisible(on);
+        btnExternal.classList.toggle('active', on);
+    });
+}
+
+// Erstbefüllung: der WebSocket sendet erst beim nächsten Poll-Zyklus.
+fetch('/api/v1/external/entities')
+    .then((r) => (r.ok ? r.json() : null))
+    .then((snapshot) => {
+        if (snapshot) updateExternalStatus(contextRing.update(snapshot));
+    })
+    .catch(() => { /* Endpunkt kann deaktiviert sein */ });
+
+// Lizenzhinweise sind Pflicht, sobald Fremddaten angezeigt werden
+// (docs/LICENSES.md) — daher aus den Quellen selbst befüllt.
+fetch('/api/v1/external/sources')
+    .then((r) => (r.ok ? r.json() : null))
+    .then((data) => {
+        const el = document.getElementById('attribution');
+        if (!el || !data?.sources?.length) return;
+        const texts = data.sources
+            .filter((s) => s.enabled)
+            .map((s) => s.attribution || s.license)
+            .filter(Boolean);
+        if (texts.length) el.textContent = 'Daten: ' + [...new Set(texts)].join(' · ');
+    })
+    .catch(() => { /* optional */ });
 
 // ─── Renderloop ────────────────────────────────────────────────
 function animate(time) {

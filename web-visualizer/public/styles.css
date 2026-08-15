@@ -60,3 +60,54 @@ body {
     border: 1px solid #88ff88;
     z-index: 10;
 }
+
+/* ─── Externe Entitäten / Kontextring ───────────────────────── */
+#geo-status,
+#external-status {
+    font-size: 12px;
+    color: #99bbdd;
+    margin-top: 4px;
+}
+#geo-status.warn,
+#external-status.warn { color: #ffbb55; }
+
+#controls button.active {
+    background: #2a6b4a;
+    box-shadow: 0 0 0 1px #33dd88 inset;
+}
+
+/* Marker-Beschriftung im Ring — mehrzeilig, daher pre-line */
+.ctx-label {
+    color: #dceaff;
+    font-size: 11px;
+    line-height: 1.25;
+    white-space: pre-line;
+    text-align: center;
+    text-shadow: 0 0 4px #000, 0 0 2px #000;
+    pointer-events: none;
+}
+.ctx-label.stale {
+    color: #999999;
+    font-style: italic;
+}
+
+.ctx-north {
+    color: #4499ff;
+    font-size: 13px;
+    font-weight: bold;
+    text-shadow: 0 0 4px #000;
+    pointer-events: none;
+}
+
+/* Namensnennung ist bei CC-BY-Daten Pflicht, nicht optional */
+#attribution {
+    position: absolute;
+    bottom: 6px;
+    right: 12px;
+    color: #7788aa;
+    font-size: 10px;
+    z-index: 10;
+    pointer-events: none;
+    max-width: 45vw;
+    text-align: right;
+}

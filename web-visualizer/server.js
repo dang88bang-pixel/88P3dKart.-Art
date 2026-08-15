@@ -13,6 +13,38 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 
+// ─── REST-Proxy zum Edge-Agent ───────────────────────────────
+// Der Browser darf den Agent nicht direkt ansprechen: im Container-Verbund
+// ist `edge-agent` nur intern auflösbar, und ein absoluter Client-URL würde
+// zusätzlich CORS erzwingen. Deshalb relativ anfragen und hier weiterreichen.
+const AGENT_HTTP_URL = process.env.AGENT_HTTP_URL || 'http://localhost:8080';
+
+app.use('/api/v1', (req, res) => {
+  const target = new URL(AGENT_HTTP_URL);
+  const proxyReq = http.request(
+    {
+      hostname: target.hostname,
+      port: target.port || 80,
+      path: '/api/v1' + req.url,
+      method: req.method,
+      headers: { ...req.headers, host: target.host },
+    },
+    (proxyRes) => {
+      res.writeHead(proxyRes.statusCode || 502, proxyRes.headers);
+      proxyRes.pipe(res);
+    }
+  );
+
+  proxyReq.on('error', (err) => {
+    console.error('[Web-Viz] Agent-REST nicht erreichbar:', err.message);
+    if (!res.headersSent) {
+      res.status(502).json({ detail: 'Edge-Agent nicht erreichbar' });
+    }
+  });
+
+  req.pipe(proxyReq);
+});
+
 // ─── WebSocket-Proxy zum Edge-Agent ──────────────────────────
 const AGENT_WS_URL = process.env.AGENT_WS_URL || 'ws://localhost:8080/ws/agent/events';
 const RECONNECT_MS = parseInt(process.env.AGENT_RECONNECT_MS || '5000', 10);

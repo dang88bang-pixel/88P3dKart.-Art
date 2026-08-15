@@ -15,15 +15,23 @@ from config import CONFIG
 from database import LocalVectorStore
 from ekf_fusion import AdaptiveEKF
 from icp_merger import ICPMerger
+from external.manager import ExternalEntityManager
+from geo.resolver import GeoResolver
 from models import (
     BleTokenUpdate,
     EkfState,
+    ExternalEntitySnapshot,
+    GeoAnchor,
+    GeoAnchorRequest,
+    GeoFix,
+    GeolocateRequest,
     LidarFrame,
     MergeRequest,
     MmwaveTarget,
     PipelineRequest,
     ScenarioConfig,
     UwbPhaseData,
+    accuracy_to_quality,
 )
 from pipeline import DataPipeline
 from pointcloud_compressor import PointCloudCompressor
@@ -40,6 +48,8 @@ db = LocalVectorStore()
 ekf = AdaptiveEKF(dt=1.0 / CONFIG.LOOP_HZ)
 uwb_processor = UwbDopplerProcessor(fs=CONFIG.UWB_FS, buffer_secs=CONFIG.UWB_BUFFER_SECS)
 pipeline = DataPipeline()
+geo_resolver = GeoResolver()
+external_manager = ExternalEntityManager(geo_resolver)
 
 current_mode = "FULL"
 scattering_detected = False
@@ -100,8 +110,48 @@ async def lifespan(app: FastAPI):
     mqtt_bridge.start()
     app.state.mqtt_bridge = mqtt_bridge
 
+    # Externe Tracking-Feeds: Broadcast über den bestehenden WS-Kanal,
+    # kein zweiter Endpunkt (docs/API_INTEGRATION_REVIEW.md, W3)
+    async def _broadcast_entities(snapshot: ExternalEntitySnapshot) -> None:
+        payload = snapshot.model_dump()
+        await manager.broadcast_json({"type": "external_entities", "payload": payload})
+        mqtt_bridge.publish_json("3dxagent/external/entities", payload)
+
+    external_manager.set_update_callback(_broadcast_entities)
+    external_manager.start()
+
+    # Retention war implementiert, wurde aber nie ausgeführt. Ohne diesen
+    # Task verfällt kein Fix — die von den Provider-ToS erzwungene
+    # 30-Tage-Grenze (Google) wäre damit verletzt, siehe docs/LICENSES.md.
+    async def _retention_loop() -> None:
+        while True:
+            try:
+                await asyncio.sleep(CONFIG.RETENTION_INTERVAL_S)
+                expired = await asyncio.to_thread(db.purge_expired_geo)
+                aged = await asyncio.to_thread(db.enforce_retention)
+                if expired or aged:
+                    logger.info(
+                        "Retention: %d abgelaufene Geo-Fixes, %d Altdatensätze entfernt",
+                        expired,
+                        aged,
+                    )
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                # Ein Datenbankfehler darf den Agenten nicht beenden
+                logger.exception("Retention-Durchlauf fehlgeschlagen")
+
+    retention_task = asyncio.create_task(_retention_loop())
+
     yield
     logger.info("Edge-Agent wird heruntergefahren...")
+    retention_task.cancel()
+    try:
+        await retention_task
+    except asyncio.CancelledError:
+        pass
+    await external_manager.stop()
+    await geo_resolver.aclose()
 
 
 app = FastAPI(title="3dxAgent Edge-Agent", version="2.0.0", lifespan=lifespan)
@@ -186,6 +236,130 @@ async def run_pipeline(request: PipelineRequest):
     )
     result["device_id"] = request.device_id
     return result
+
+
+# ─── Georeferenzierung ───────────────────────────────────────
+@app.post("/api/v1/geolocate", response_model=GeoFix)
+async def geolocate(request: GeolocateRequest):
+    """Netzwerkbasierte Ortung über die konfigurierte Provider-Kaskade.
+
+    Standardmässig sind nur Offline-Provider aktiv (GEO_OFFLINE_ONLY=true) —
+    ohne lokalen Datenbestand liefert der Endpunkt daher bewusst 404.
+    """
+    if not CONFIG.GEO_ENABLED:
+        raise HTTPException(status_code=503, detail="Geolokalisierung deaktiviert")
+    if request.is_empty():
+        raise HTTPException(
+            status_code=400, detail="Keine Scan-Daten (WLAN/Zelle/BLE) übermittelt"
+        )
+
+    fix = await geo_resolver.locate(request)
+    if fix is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Kein Fix oberhalb der Qualitätsschwelle ermittelbar",
+        )
+
+    db.save_geo_fix(
+        lat=fix.lat,
+        lon=fix.lon,
+        accuracy_m=fix.accuracy_m,
+        source=fix.source,
+        license=fix.license,
+        quality=fix.quality,
+        ttl_days=fix.ttl_days,
+    )
+    await manager.broadcast_json({"type": "geo_fix", "payload": fix.model_dump()})
+    return fix
+
+
+@app.get("/api/v1/geo/providers")
+async def geo_providers():
+    return {
+        "enabled": CONFIG.GEO_ENABLED,
+        "offline_only": CONFIG.GEO_OFFLINE_ONLY,
+        "min_quality": CONFIG.GEO_MIN_QUALITY,
+        "providers": geo_resolver.describe_providers(),
+    }
+
+
+@app.get("/api/v1/geo/audit")
+async def geo_audit(limit: int = 50):
+    """Nachvollziehbarkeit: welcher Provider wurde wann mit welchem Ergebnis
+    befragt. Grundlage für das Verarbeitungsverzeichnis."""
+    return {"entries": geo_resolver.audit_log[-limit:]}
+
+
+@app.post("/api/v1/geo/anchor", response_model=GeoAnchor)
+async def set_geo_anchor(request: GeoAnchorRequest):
+    """Setzt die Verknüpfung lokaler Frame <-> WGS84.
+
+    Ohne Anker ist keine externe Entität in der lokalen Szene platzierbar.
+    """
+    fix = GeoFix(
+        lat=request.lat,
+        lon=request.lon,
+        accuracy_m=request.accuracy_m,
+        altitude_m=request.altitude_m,
+        source=request.source,
+        license=request.license,
+        timestamp=time.time(),
+        quality=accuracy_to_quality(request.accuracy_m),
+    )
+    anchor = GeoAnchor(
+        fix=fix,
+        local_origin=request.local_origin,
+        heading_deg=request.heading_deg,
+        frame_id=request.frame_id,
+    )
+    geo_resolver.set_anchor(anchor)
+    await manager.broadcast_json(
+        {"type": "geo_anchor", "payload": anchor.model_dump()}
+    )
+    return anchor
+
+
+@app.get("/api/v1/geo/anchor")
+async def get_geo_anchor():
+    anchor = geo_resolver.anchor
+    if anchor is None:
+        raise HTTPException(status_code=404, detail="Kein GeoAnchor gesetzt")
+    return anchor
+
+
+@app.delete("/api/v1/geo/anchor")
+async def delete_geo_anchor():
+    geo_resolver.clear_anchor()
+    return {"status": "cleared"}
+
+
+# ─── Externe Tracking-Feeds ──────────────────────────────────
+@app.get("/api/v1/external/entities", response_model=ExternalEntitySnapshot)
+async def external_entities():
+    """Aktueller Stand aller externen Entitäten — projiziert und gefiltert."""
+    return external_manager.snapshot()
+
+
+@app.get("/api/v1/external/sources")
+async def external_sources():
+    return {
+        "enabled": CONFIG.EXT_ENABLED,
+        "radius_m": CONFIG.EXT_RADIUS_M,
+        "max_age_s": CONFIG.EXT_MAX_AGE_S,
+        "anchor_set": geo_resolver.anchor is not None,
+        "sources": [s.model_dump() for s in external_manager.status()],
+    }
+
+
+@app.post("/api/v1/external/refresh")
+async def external_refresh():
+    """Erzwingt einen sofortigen Abruf aller Quellen (Diagnose)."""
+    if not CONFIG.EXT_ENABLED:
+        raise HTTPException(status_code=503, detail="Externe Feeds deaktiviert")
+    for source in external_manager.sources:
+        if source.available():
+            await source.poll()
+    return external_manager.snapshot()
 
 
 @app.get("/api/v1/health")

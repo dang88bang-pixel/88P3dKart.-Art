@@ -80,6 +80,21 @@ class MqttBleBridge:
         self._thread = Thread(target=_loop, daemon=True)
         self._thread.start()
 
+    def publish_json(self, topic: str, payload: Any, retain: bool = False) -> bool:
+        """Veröffentlicht ein Objekt als JSON. Gibt zurück, ob es rausging.
+
+        Wird für `3dxagent/external/entities` genutzt, damit Drittsysteme den
+        externen Lagestand mitlesen können, ohne den WebSocket zu belegen.
+        """
+        if not MQTT_AVAILABLE or self.client is None or not self.running:
+            return False
+        try:
+            self.client.publish(topic, json.dumps(payload, default=str), retain=retain)
+            return True
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("MQTT-Veröffentlichung auf %s fehlgeschlagen: %s", topic, exc)
+            return False
+
     def stop(self) -> None:
         self.running = False
         if self.client is not None:

@@ -1,6 +1,6 @@
 # 🧭 3dxAgent — Autonomes 3D-Kartierungs- & Lageerkennungssystem
 
-**Version:** 4.4.0-ClientRules · **Zielplattform:** Honeywell CT45P + Multi-Sensor Edge-Netzwerk
+**Version:** 4.5.0-Geo · **Zielplattform:** Honeywell CT45P + Multi-Sensor Edge-Netzwerk
 
 Die **3dxAgent-Plattform** verwandelt das Industrie-Smartphone **Honeywell CT45P**
 in ein hochpräzises, autonomes 3D-Kartierungs- und Lageerkennungssystem. Durch die
@@ -16,13 +16,23 @@ Die **v2.0.0-DataPipeline** ergänzt eine vollständige
 Sensor-/Netzwerkdaten → Analyse → Mesh → 3D-Umgebung → Exakte Abbildung → Evaluierungsagent
 ```
 
-Die Erweiterungen **v3.x–v4.4.0** ergänzen zudem:
+Die Erweiterungen **v3.x–v4.5.0** ergänzen zudem:
 - **Offline-Betrieb** — UWB-DFT, ICP/Kabsch, Madgwick-IMU, Trilateration und ein
   lokaler REST/WebSocket-Server direkt in Kotlin auf dem CT45P (Package `offline/`)
 - **Smart Mesh Integrator** — adaptiver Octree, semantische Klassifikation
   (Person/Gegenstand/Wand/Boden), Bewegungsdetektion
 - **Client-Regelwerk** — Anbindung beliebiger externer Geräte (Token, Relay,
   Sensor, Gateway, Wearable) mit Authentifizierung, Signalauswertung und Health-Check
+- **Georeferenzierung (v4.5.0)** — optionaler `GeoAnchor` verankert die lokale
+  Szene in WGS84 (`edge-agent/geo/`). Netzwerkortung ist **offline-first**
+  (`GEO_OFFLINE_ONLY=true`); Online-Provider sprechen das Ichnaea-Protokoll.
+  Ein Netzwerk-Fix fliesst bewusst **nicht** in den EKF — Begründung in
+  `docs/GEOLOCATION_CHANGE_PLAN.md` (Entscheidung E1)
+- **Externe Tracking-Feeds (v4.5.0)** — GTFS-Realtime als einzige Quelle
+  (`edge-agent/external/`), gefiltert nach Radius, Alter und Qualität. Die
+  Darstellung erfolgt über einen **Kontextring** statt massstäblich, weil ein
+  Bus in 800 m sonst ausserhalb der 40-m-Szene läge
+  (`web-visualizer/public/context-ring.js`)
 
 ---
 

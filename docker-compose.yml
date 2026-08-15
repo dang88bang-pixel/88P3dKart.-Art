@@ -18,6 +18,35 @@ services:
       - AGENT_LOOP_HZ=20
       - MQTT_HOST=mosquitto
       - MQTT_PORT=1883
+      # --- Georeferenzierung (v4.5.0-Geo) ---
+      # Standard: nur Offline-Provider. Auf false setzen heisst, dass
+      # Scan-Daten des Einsatzorts einen fremden Server erreichen.
+      - GEO_ENABLED=${GEO_ENABLED:-true}
+      - GEO_OFFLINE_ONLY=${GEO_OFFLINE_ONLY:-true}
+      - GEO_PROVIDER_CHAIN=${GEO_PROVIDER_CHAIN:-offline_cell,beacondb}
+      - GEO_MIN_QUALITY=${GEO_MIN_QUALITY:-0.35}
+      - GEO_CACHE_TTL_S=${GEO_CACHE_TTL_S:-300}
+      - GEO_TIMEOUT_S=${GEO_TIMEOUT_S:-4.0}
+      - GEO_OFFLINE_CELL_DB=/data/opencellid.sqlite
+      - GEO_BEACONDB_URL=${GEO_BEACONDB_URL:-}
+      - GEO_LOCAL_ICHNAEA_URL=${GEO_LOCAL_ICHNAEA_URL:-}
+      - GEO_COMBAIN_URL=${GEO_COMBAIN_URL:-}
+      - GEO_COMBAIN_KEY=${GEO_COMBAIN_KEY:-}
+      - GEO_GOOGLE_KEY=${GEO_GOOGLE_KEY:-}
+      # --- Externe Tracking-Feeds ---
+      # Standardmässig aus: erfordert Prüfung von Lizenz und Zweckbindung.
+      - EXT_ENABLED=${EXT_ENABLED:-false}
+      - EXT_SOURCES=${EXT_SOURCES:-gtfs_rt}
+      - EXT_RADIUS_M=${EXT_RADIUS_M:-2000}
+      - EXT_MAX_AGE_S=${EXT_MAX_AGE_S:-120}
+      - EXT_MIN_QUALITY=${EXT_MIN_QUALITY:-0.3}
+      - EXT_MAX_ENTITIES=${EXT_MAX_ENTITIES:-500}
+      - GTFS_RT_URL=${GTFS_RT_URL:-}
+      - GTFS_RT_POLL_S=${GTFS_RT_POLL_S:-20}
+      - GTFS_RT_API_KEY=${GTFS_RT_API_KEY:-}
+      - GTFS_RT_API_KEY_HEADER=${GTFS_RT_API_KEY_HEADER:-Authorization}
+      - GTFS_RT_LICENSE=${GTFS_RT_LICENSE:-unknown}
+      - GTFS_RT_ATTRIBUTION=${GTFS_RT_ATTRIBUTION:-}
     ports:
       - "8080:8080"
     depends_on:
@@ -37,6 +66,7 @@ services:
       - "3000:3000"
     environment:
       - AGENT_WS_URL=ws://edge-agent:8080/ws/agent/events
+      - AGENT_HTTP_URL=http://edge-agent:8080
       - PORT=3000
     depends_on:
       - edge-agent
