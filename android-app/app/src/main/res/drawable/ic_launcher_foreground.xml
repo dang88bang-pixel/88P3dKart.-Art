@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    App-Icon Vordergrund (Vector Drawable, ab API 21 unterstützt).
+    Stilisierter "3D-Würfel" im 3dxAgent-Look, gezeichnet in der
+    Primärfarbe aus colors.xml. Wird vom Adaptive-Icon
+    (mipmap-anydpi-v26/ic_launcher.xml) als Foreground verwendet.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- zentrierter Würfel, Kantenlänge 48dp -->
+    <path
+        android:fillColor="#0066FF"
+        android:strokeColor="#00C8A0"
+        android:strokeWidth="1.5"
+        android:pathData="M30,30 L78,30 L78,78 L30,78 Z" />
+    <path
+        android:fillColor="#00C8A0"
+        android:pathData="M30,30 L54,42 L78,30 L54,18 Z" />
+    <path
+        android:fillColor="#0044CC"
+        android:pathData="M30,30 L54,42 L54,90 L30,78 Z" />
+    <path
+        android:fillColor="#00C8A0"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="0.5"
+        android:pathData="M30,30 L78,30 M30,30 L30,78 M78,30 L78,78 M30,78 L78,78 M54,42 L54,90" />
+</vector>

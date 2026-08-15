@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Hintergrund des App-Icons. Hintergrund des 3dxAgent-Logos: dunkles
+    "surface" aus colors.xml. Wird vom Adaptive-Icon als Background
+    referenziert.
+-->
+<resources>
+    <color name="ic_launcher_background">#1A1A2E</color>
+</resources>

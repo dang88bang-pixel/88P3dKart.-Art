@@ -1,5 +1,6 @@
 package com.example.agent.pipeline
 
+import android.content.Context
 import android.util.Log
 
 /**
@@ -7,7 +8,7 @@ import android.util.Log
  *
  *   Sensor-/Netzwerkdaten → Analyse → Mesh → 3D-Umgebung → Exakte Abbildung → Evaluierungsagent
  */
-class PipelineOrchestrator {
+class PipelineOrchestrator(context: Context) {
 
     companion object {
         private const val TAG = "Pipeline"
@@ -25,7 +26,12 @@ class PipelineOrchestrator {
         val evaluation: EvaluationAgent.Evaluation,
     )
 
-    private val acquisition = DataAcquisitionService(android.app.Application())
+    // Bugfix: Vorher wurde hier `android.app.Application()` als
+    // Pseudo-Context erzeugt — das ist ein Anti-Pattern (leeres
+    // Application-Objekt ohne echten Lebenszyklus) und konnte bei jedem
+    // späteren Zugriff auf System-Services crashen. Jetzt wird der
+    // echte Context aus MainActivity weitergereicht.
+    private val acquisition = DataAcquisitionService(context.applicationContext)
     private val interpreter = DataInterpreter()
     private val meshGenerator = MeshGenerator()
     private val reconstructor = EnvironmentReconstructor()
