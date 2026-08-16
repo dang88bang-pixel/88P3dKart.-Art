@@ -76,6 +76,29 @@ class LocalVectorStore:
                 )
                 """
             )
+            # --- Georeferenzierung (v4.5.0-Geo) ---
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS geo_fixes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp REAL NOT NULL,
+                    lat REAL NOT NULL,
+                    lon REAL NOT NULL,
+                    accuracy_m REAL NOT NULL,
+                    source TEXT NOT NULL,
+                    license TEXT NOT NULL,
+                    quality REAL NOT NULL,
+                    expires_at REAL,
+                    scan_id TEXT
+                )
+                """
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_geo_expires ON geo_fixes(expires_at)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_geo_time ON geo_fixes(timestamp DESC)"
+            )
 
     def save_transform(
         self,
@@ -125,7 +148,69 @@ class LocalVectorStore:
                 """,
                 (row["max_records"],),
             ).rowcount
+            # Befund C2 des Prüfberichts: merged_maps hatte keine Retention.
+            # Georeferenzierte Merge-Ergebnisse dürfen lizenzpflichtige
+            # Koordinaten nicht unbegrenzt konservieren.
+            deleted += conn.execute(
+                "DELETE FROM merged_maps WHERE timestamp < ?", (cutoff,)
+            ).rowcount
             return deleted
+
+    # ─── Georeferenzierung ─────────────────────────────────────
+    def save_geo_fix(
+        self,
+        lat: float,
+        lon: float,
+        accuracy_m: float,
+        source: str,
+        license: str,
+        quality: float,
+        ttl_days: Optional[int] = None,
+        scan_id: Optional[str] = None,
+    ) -> None:
+        """Speichert einen Fix; ``ttl_days`` erzwingt ein Ablaufdatum.
+
+        Google erlaubt laut ToS max. 30 Tage Zwischenspeicherung — der Wert
+        kommt aus dem Provider und wird hier in ``expires_at`` materialisiert.
+        """
+        now = time.time()
+        expires_at = now + ttl_days * 86400 if ttl_days else None
+        with self._get_conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO geo_fixes
+                (timestamp, lat, lon, accuracy_m, source, license, quality,
+                 expires_at, scan_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    now,
+                    lat,
+                    lon,
+                    accuracy_m,
+                    source,
+                    license,
+                    quality,
+                    expires_at,
+                    scan_id,
+                ),
+            )
+
+    def purge_expired_geo(self) -> int:
+        """Löscht lizenzpflichtig ablaufende Fixes (Google-ToS: max. 30 Tage)."""
+        now = time.time()
+        with self._get_conn() as conn:
+            return conn.execute(
+                "DELETE FROM geo_fixes WHERE expires_at IS NOT NULL AND expires_at < ?",
+                (now,),
+            ).rowcount
+
+    def get_latest_geo_fix(self) -> Optional[Dict[str, Any]]:
+        with self._get_conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM geo_fixes ORDER BY timestamp DESC LIMIT 1"
+            ).fetchone()
+            return dict(row) if row else None
 
     def get_latest(self, device_id: str, limit: int = 100) -> List[Dict[str, Any]]:
         with self._get_conn() as conn:

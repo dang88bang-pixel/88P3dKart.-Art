@@ -148,6 +148,11 @@ scene.add(dirLight);
 scene.add(new THREE.HemisphereLight(0x445566, 0x221133, 0.7));
 scene.add(new THREE.GridHelper(40, 20, 0x88aaff, 0x335577));
 
+// ─── Kontextring für externe Entitäten ─────────────────────────
+// Zweite Darstellungsebene: Fremddaten jenseits des Nahfelds werden
+// richtungstreu auf einen Ring projiziert statt massstäblich gezeichnet.
+const contextRing = new ContextRing(scene);
+
 // ─── Punktwolke ────────────────────────────────────────────────
 const MAX_POINTS = 150000;
 const geometry = new THREE.BufferGeometry();
@@ -1060,6 +1065,38 @@ function connect() {
     };
 }
 connect();
+
+// ─── Statusanzeige externer Daten ──────────────────────────────
+function updateExternalStatus(stats) {
+    const el = document.getElementById('external-status');
+    if (!el) return;
+
+    if (!stats.anchorSet) {
+        el.textContent = '🧭 Kein GeoAnchor — externe Daten ausgeblendet';
+        el.className = 'warn';
+        return;
+    }
+
+    const bits = [`📡 ${stats.shown} extern`];
+    if (stats.projected) bits.push(`${stats.projected} projiziert`);
+    if (stats.stale) bits.push(`⚠ ${stats.stale} veraltet`);
+    el.textContent = bits.join(' · ');
+    el.className = stats.stale ? 'warn' : '';
+}
+
+function updateGeoStatus(type, payload) {
+    const el = document.getElementById('geo-status');
+    if (!el) return;
+
+    if (type === 'geo_anchor') {
+        const fix = payload.fix ?? {};
+        el.textContent = `🧭 Anker ${fix.lat?.toFixed(5)}, ${fix.lon?.toFixed(5)}`
+            + ` (±${Math.round(fix.accuracy_m ?? 0)} m, ${fix.source ?? '?'})`;
+    } else {
+        el.textContent = `📍 Fix ${payload.lat?.toFixed(5)}, ${payload.lon?.toFixed(5)}`
+            + ` (±${Math.round(payload.accuracy_m ?? 0)} m, ${payload.source ?? '?'})`;
+    }
+}
 
 function updateAvatars(avatarData) {
     avatarData.forEach((data, i) => {
