@@ -957,6 +957,7 @@ function connect() {
         } else {
             try {
                 const msg = JSON.parse(event.data);
+
                 if (msg.type === 'avatar_update') updateAvatars(msg.avatars);
                 else if (msg.type === 'scenario_status') {
                     document.getElementById('scenario-status').textContent = msg.status;
@@ -1014,7 +1015,42 @@ function connect() {
                         statusEl.textContent = `🛡️ Tactical: ${overview.operational || 0} ops / ${overview.total || 0} total • Readiness ${(overview.avg_readiness || 1).toFixed(2)}`;
                     }
                 }
-            } catch (_) { /* ignore */ }
+                else if (msg.type === 'bluetooth_accessories_update') {
+                    const payload = msg.payload;
+                    const accs = payload.accessories || [];
+                    accs.forEach(acc => {
+                        updateAccessoryMesh(acc.mac || acc.mac_address, acc);
+                    });
+                    renderBtList();
+                    if (payload.stats) updateBtStats(payload.stats);
+                    // fetch health
+                    fetch('/api/v1/bluetooth/health').then(r => r.json()).then(h => updateBtHealth(h)).catch(()=>{});
+                }
+                else if (msg.type === 'ble_update') {
+                    // legacy
+                }
+                else if (msg.type === 'accessory_event') {
+                    const p = msg.payload;
+                    console.warn('🚨 Accessory Event', p.event_type, p.mac);
+                    if (p.event_type === 'sos') {
+                        const el = document.getElementById('scenario-status');
+                        el.textContent = `🚨 SOS von ${p.mac} !`;
+                        el.style.color = '#ff4444';
+                        setTimeout(()=> { el.style.color = '#88ddff'; }, 5000);
+                    }
+                    if (p.accessory) {
+                        updateAccessoryMesh(p.mac, p.accessory);
+                        renderBtList();
+                    }
+                }
+                else if (msg.type === 'sensor_tag_update' || msg.type === 'wearable_update') {
+                    const acc = msg.payload;
+                    if (acc.mac) {
+                        updateAccessoryMesh(acc.mac, acc);
+                        renderBtList();
+                    }
+                }
+            } catch (e) { console.warn('WS parse', e); }
         }
     };
 
@@ -1050,6 +1086,12 @@ function animateAvatars(time) {
         avatar.position.x += (tx - avatar.position.x) * 0.02;
         avatar.position.z += (tz - avatar.position.z) * 0.02;
         avatar.rotation.y = Math.atan2(tx - avatar.position.x, tz - avatar.position.z);
+    });
+}
+
+function animateBtMeshes(time) {
+    btMeshes.forEach(m => {
+        m.rotation.y += 0.005;
     });
 }
 

@@ -2,18 +2,32 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- USB Host -->
+    <!-- Hardware Features -->
     <uses-feature android:name="android.hardware.usb.host" android:required="true" />
+    <uses-feature android:name="android.hardware.bluetooth_le" android:required="true" />
+    <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
 
-    <!-- Bluetooth LE -->
-    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+    <!-- Bluetooth LE + Classic – Vollständiges Zubehör-Ökosystem -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
-    <!-- UWB (Android 12+) -->
+    <!-- Location – für BLE Scan erforderlich (Android <12) -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+
+    <!-- UWB (Android 12+) – für präzise Ortung -->
     <uses-permission android:name="android.permission.UWB_RANGING" />
 
-    <!-- Storage -->
+    <!-- HID & Audio Zubehör -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.BLUETOOTH_STACK" tools:ignore="ProtectedPermissions" xmlns:tools="http://schemas.android.com/tools" />
+
+    <!-- Storage (legacy) -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="29" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
@@ -80,6 +94,18 @@
             <meta-data
                 android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"
                 android:resource="@xml/usb_device_filter" />
+
+            <!-- Bluetooth Device Discovery -->
+            <intent-filter>
+                <action android:name="android.bluetooth.device.action.FOUND" />
+                <action android:name="android.bluetooth.adapter.action.DISCOVERY_FINISHED" />
+            </intent-filter>
         </activity>
+
+        <!-- Optional: Foreground Service für BLE (Taktische Einsätze benötigen Hintergrund-Scan) -->
+        <service
+            android:name=".sensors.BluetoothAccessoryScanService"
+            android:foregroundServiceType="connectedDevice|location"
+            android:exported="false" />
     </application>
 </manifest>

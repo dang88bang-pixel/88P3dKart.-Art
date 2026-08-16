@@ -272,7 +272,7 @@ class MainActivity : AppCompatActivity() {
         }
         scope.launch {
             bleManager.tokenUpdates.collect { token ->
-                Log.d("BLE", "Token ${token.mac} RSSI=${token.rssi}")
+                Log.d("BLE", "Token ${token.mac} RSSI=${token.rssi} type=${token.type}")
                 webSocketClient.sendBleTokens("CT45P-01", listOf(token))
             }
             supportFragmentManager.beginTransaction()
@@ -307,11 +307,17 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Telemetrie (alle 5 s)
+        // Telemetrie + periodischer Accessory Dump (alle 5 s)
         scope.launch {
             while (true) {
                 delay(5000)
+                val accessories = bleManager.getAllAccessories()
+                val lowBat = accessories.count { it.batteryLevel < 20 }
                 webSocketClient.sendTelemetry("CT45P-01", 85f, 45f, false)
+                if (accessories.isNotEmpty()) {
+                    webSocketClient.sendBluetoothAccessories("CT45P-01", accessories)
+                }
+                if (lowBat > 0) Log.w("BT-ACCESSORY", "$lowBat Zubehör mit niedrigem Akku")
             }
         }
 

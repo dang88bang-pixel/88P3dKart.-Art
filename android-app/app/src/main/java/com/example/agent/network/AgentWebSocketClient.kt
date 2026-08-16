@@ -239,6 +239,46 @@ class AgentWebSocketClient(
             ),
         )
 
+    /** Überladung für direktes Senden von Accessory Payload Maps (z.B. SOS, Button Events) */
+    fun sendBleTokens(deviceId: String, tokens: List<Map<String, Any?>>) {
+        sendPayload(
+            "ble",
+            mapOf(
+                "device_id" to deviceId,
+                "timestamp" to System.currentTimeMillis() / 1000.0,
+                "tokens" to tokens,
+            )
+        )
+    }
+
+    /** Vollständiges Bluetooth-Zubehör Paket an Edge-Agent senden */
+    fun sendBluetoothAccessories(deviceId: String, accessories: List<com.example.agent.bluetooth.BluetoothAccessory>) {
+        val list = accessories.map { it.toSignalPayload() }
+        sendPayload(
+            "bluetooth_accessories",
+            mapOf(
+                "device_id" to deviceId,
+                "timestamp" to System.currentTimeMillis() / 1000.0,
+                "accessories" to list,
+                "count" to list.size,
+            )
+        )
+    }
+
+    /** Einzelnes SOS / Button Event */
+    fun sendAccessoryEvent(deviceId: String, mac: String, eventType: String, payload: Map<String, Any?>) {
+        sendPayload(
+            "accessory_event",
+            mapOf(
+                "device_id" to deviceId,
+                "timestamp" to System.currentTimeMillis() / 1000.0,
+                "mac" to mac,
+                "event_type" to eventType,
+                "payload" to payload,
+            )
+        )
+    }
+
     fun sendUwbPhase(deviceId: String, phase: Float) {
         send(
             "uwb_phase",

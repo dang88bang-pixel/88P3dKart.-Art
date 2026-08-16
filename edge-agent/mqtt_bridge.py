@@ -52,6 +52,11 @@ class MqttBleBridge:
         if rc == 0:
             logger.info("MQTT verbunden mit %s:%s", self.broker_host, self.port)
             client.subscribe("ble/tokens/#")
+            client.subscribe("bluetooth/accessories/#")
+            client.subscribe("bluetooth/sensors/#")
+            client.subscribe("bluetooth/wearables/#")
+            client.subscribe("bluetooth/events/#")
+            logger.info("MQTT subscribed: ble/tokens/#, bluetooth/#")
         else:
             logger.error("MQTT-Verbindung fehlgeschlagen, Code %d", rc)
 
@@ -61,6 +66,23 @@ class MqttBleBridge:
             device_id = msg.topic.split("/")[-1]
             payload["device_id"] = device_id
             payload["timestamp"] = time.time()
+
+            # In Bluetooth Registry einpflegen + Weiterleitung
+            topic = msg.topic.lower()
+
+            # Lazy import to avoid circular dependencies at module load
+            try:
+                from bluetooth_accessories import global_accessory_registry
+                if topic.startswith("ble/tokens/") or topic.startswith("bluetooth/"):
+                    # Unterschiedliche Payloads: einzelnes Gerät oder Liste
+                    if isinstance(payload, list):
+                        global_accessory_registry.update_batch(payload)
+                    elif isinstance(payload, dict) and "accessories" in payload:
+                        global_accessory_registry.update_batch(payload["accessories"])
+                    elif isinstance(payload, dict) and ("mac" in payload or "mac_address" in payload):
+                        global_accessory_registry.update_from_payload(payload)
+            except Exception as e:
+                logger.debug("BT Registry update skip: %s", e)
 
             if self.ws_manager is not None:
                 self.ws_manager.broadcast_json_sync(

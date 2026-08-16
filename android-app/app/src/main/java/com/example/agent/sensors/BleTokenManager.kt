@@ -9,7 +9,10 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
-import androidx.core.content.ContextCompat
+import com.example.agent.bluetooth.BluetoothAccessory
+import com.example.agent.bluetooth.BluetoothAccessoryManager
+import com.example.agent.bluetooth.BluetoothAccessoryType
+import com.example.agent.network.ClientRegistry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -136,4 +139,15 @@ class BleTokenManager(private val context: Context) {
         return ContextCompat.checkSelfPermission(context, permission) ==
             PackageManager.PERMISSION_GRANTED
     }
+
+    /** Zugriff auf erkannt Zubehör */
+    fun getAllAccessories(): List<BluetoothAccessory> = accessoryManager.getAllAccessories()
+    fun getTokens(): List<BluetoothAccessory> = accessoryManager.getAccessoriesByType(BluetoothAccessoryType.TOKEN_PRO) +
+        accessoryManager.getAccessoriesByType(BluetoothAccessoryType.TOKEN_CLASSIC)
+    fun getSensorTags(): List<BluetoothAccessory> = accessoryManager.getAccessoriesByType(BluetoothAccessoryType.SENSOR_TAG)
+    fun getWearables(): List<BluetoothAccessory> = accessoryManager.getAccessoriesByType(BluetoothAccessoryType.WEARABLE)
+    fun getAssetTags(): List<BluetoothAccessory> = accessoryManager.getAccessoriesByType(BluetoothAccessoryType.ASSET_TAG)
+    fun getAllTypes(): Map<BluetoothAccessoryType, List<BluetoothAccessory>> =
+        BluetoothAccessoryType.values().associateWith { type -> accessoryManager.getAccessoriesByType(type) }.filter { it.value.isNotEmpty() }
 }
+

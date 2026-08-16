@@ -19,13 +19,15 @@
 #include <stdint.h>
 
 #include <zephyr/bluetooth/bluetooth.h>
-#include <zephyr/bluetooth/hci.h>
 #include <zephyr/drivers/sensor.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/util.h>
 
-LOG_MODULE_REGISTER(ble_token, LOG_LEVEL_INF);
+#include "common/battery.h"
+#include "common/button.h"
+#include "common/advertising.h"
+#include "common/gatt_custom.h"
 
 #define COMPANY_ID 0x0059
 #define PROTOCOL_VERSION 1
@@ -48,11 +50,7 @@ struct __packed token_payload {
 BUILD_ASSERT(sizeof(struct token_payload) == 13,
              "token manufacturer payload has changed");
 
-static struct bt_le_adv_param adv_param =
-    BT_LE_ADV_PARAM_INIT(BT_LE_ADV_OPT_USE_IDENTITY,
-                         BT_GAP_ADV_FAST_INT_MIN_2,
-                         BT_GAP_ADV_FAST_INT_MAX_2,
-                         NULL);
+LOG_MODULE_REGISTER(main, LOG_LEVEL_INF);
 
 #if DT_NODE_EXISTS(DT_NODELABEL(bmi270))
 static const struct device *imu = DEVICE_DT_GET(DT_NODELABEL(bmi270));

@@ -1,6 +1,6 @@
 # 🧭 3dxAgent — Autonomes 3D-Kartierungs- & Lageerkennungssystem
 
-**Version:** 4.4.0-ClientRules · **Zielplattform:** Honeywell CT45P + Multi-Sensor Edge-Netzwerk
+**Version:** 4.5.0-BT-Accessories · **Zielplattform:** Honeywell CT45P + Multi-Sensor Edge-Netzwerk + Bluetooth-Zubehör Ökosystem
 
 Die **3dxAgent-Plattform** nutzt das Industrie-Smartphone **Honeywell CT45P**
 als mobilen Bedien-, Enrollment- und Autorisierungsmaster. In der empfohlenen
@@ -177,7 +177,7 @@ Drahtlosgeräten ohne Cloud (v16.0.0 + v17.x):
 ├── mosquitto/                 # MQTT-Broker-Konfiguration
 ├── nginx/                     # Reverse-Proxy (optional, HTTPS)
 ├── docker-compose.yml         # Orchestrierung (4 Services)
-└── docs/                      # Architektur, API, Roadmap, Checkliste
+└── docs/                      # Architektur, API, Roadmap, Checkliste, BLUETOOTH_ACCESSORIES.md
 ```
 
 ---
@@ -284,7 +284,21 @@ Weitere Details: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md),
 
 | Protokoll | Endpunkt | Zweck |
 |-----------|----------|-------|
-| REST (HTTPS) | `:8080/api/v1/...` | Konfiguration, Historie, Szenarien, Map-Merge, Pipeline |
-| WebSocket | `:8080/ws/agent/events` | Binärer Punktwolken-Stream + JSON-Status |
-| MQTT | `:1883` | BLE-Token-Rohdaten externer Smartphones |
+| REST (HTTPS) | `:8080/api/v1/...` | Konfiguration, Historie, Szenarien, Map-Merge, Pipeline, Bluetooth Zubehör |
+| WebSocket | `:8080/ws/agent/events` | Binärer Punktwolken-Stream + JSON-Status + BT Zubehör Live |
+| MQTT | `:1883` | BLE-Token + `bluetooth/accessories/#`, `sensors/#`, `wearables/#`, `events/#` |
 | USB-Serial | `/dev/ttyUSB0`, `/dev/ttyACM0` | LiDAR, mmWave (CT45P Host-Modus) |
+| BLE GATT | `8d81e7c0-b7c8-...` | Custom 3dx Service – Data Notify, Config Write, Command Write |
+| BLE Standard | `0x180F, 0x180A, 0x181A, 0x180D` | Battery, Device Info, Env Sensing, Heart Rate |
+| BT Classic SPP | `00001101-...` | RFCOMM für HC-05, Headset, HID Remote |
+
+### 🆕 Bluetooth-Zubehör REST
+
+```bash
+curl http://localhost:8080/api/v1/bluetooth/accessories | jq
+curl http://localhost:8080/api/v1/bluetooth/stats | jq
+curl http://localhost:8080/api/v1/bluetooth/health | jq
+curl http://localhost:8080/api/v1/bluetooth/accessories/aa:bb:cc:dd:ee:01 | jq
+```
+
+Details: [`docs/BLUETOOTH_ACCESSORIES.md`](docs/BLUETOOTH_ACCESSORIES.md)

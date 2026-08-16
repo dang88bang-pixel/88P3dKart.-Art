@@ -91,6 +91,16 @@ class Config:
     ALARM_OUTBOX_RETRY_MS: int = int(os.getenv("AGENT_ALARM_OUTBOX_RETRY_MS", "5000"))
     ALARM_OUTBOX_BATCH_SIZE: int = int(os.getenv("AGENT_ALARM_OUTBOX_BATCH_SIZE", "100"))
 
+    # --- Bluetooth Zubehör ---
+    BT_MAX_DEVICES: int = int(os.getenv("BT_MAX_DEVICES", "150"))
+    BT_EXPIRY_SECS: float = float(os.getenv("BT_EXPIRY_SECS", "60"))
+    BT_MQTT_TOPICS: str = os.getenv(
+        "BT_MQTT_TOPICS",
+        "ble/tokens/#,bluetooth/accessories/#,bluetooth/sensors/#,bluetooth/wearables/#,bluetooth/events/#",
+    )
+    BT_ENABLE_CLASSIC: bool = os.getenv("BT_ENABLE_CLASSIC", "true").lower() in ("1", "true", "yes")
+    BT_ENABLE_GATT: bool = os.getenv("BT_ENABLE_GATT", "true").lower() in ("1", "true", "yes")
+
     # --- Retention ---
     RETENTION_DAYS: int = int(os.getenv("RETENTION_DAYS", "7"))
     MAX_RECORDS: int = int(os.getenv("MAX_RECORDS", "100000"))

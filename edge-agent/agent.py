@@ -82,6 +82,7 @@ from pointcloud_compressor import PointCloudCompressor
 from rti_solver import Link, RfSample, RtiSolver, build_heatmap
 from trilateration import solve_trilateration
 from uwb_processor import UwbDopplerProcessor
+from bluetooth_accessories import global_accessory_registry, BluetoothAccessory
 
 logging.basicConfig(
     level=logging.INFO,
