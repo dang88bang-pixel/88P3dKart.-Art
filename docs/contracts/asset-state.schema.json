@@ -1,0 +1,307 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://3dxagent.local/schemas/asset-state/1.0.0",
+  "title": "3dxAgent AssetState",
+  "description": "Revisioned gateway projection for one managed asset. UI-only selection and favorite state are intentionally excluded.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "state_revision",
+    "asset_id",
+    "kind",
+    "display_name",
+    "enrollment_state",
+    "connectivity",
+    "health",
+    "trust",
+    "assurance_class",
+    "last_observed_at",
+    "capabilities",
+    "endpoint_refs",
+    "range",
+    "position",
+    "active_alarm_ids",
+    "quality_flags"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "state_revision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "asset_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "pattern": "^[A-Za-z0-9._:/-]+$"
+    },
+    "kind": {
+      "enum": [
+        "BATTERY_TOKEN",
+        "E_SCOOTER",
+        "E_BIKE",
+        "E_MOTORCYCLE",
+        "E_QUAD",
+        "LIDAR_SENSOR",
+        "RADAR_SENSOR",
+        "UWB_TRACKER",
+        "SMART_TAG",
+        "BLE_ADAPTER",
+        "CHARGER",
+        "GATEWAY",
+        "UNKNOWN"
+      ]
+    },
+    "display_name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "enrollment_state": {
+      "enum": ["UNENROLLED", "PENDING", "ENROLLED", "REVOKED"]
+    },
+    "connectivity": {
+      "enum": ["ONLINE", "STALE", "OFFLINE", "UNKNOWN"]
+    },
+    "health": {
+      "enum": ["HEALTHY", "DEGRADED", "FAULT", "UNKNOWN"]
+    },
+    "trust": {
+      "enum": ["UNVERIFIED", "VERIFIED", "EXPIRED", "REVOKED"]
+    },
+    "assurance_class": {
+      "enum": ["A0", "A1", "A2", "A3"]
+    },
+    "last_observed_at": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    },
+    "capabilities": {
+      "type": "array",
+      "uniqueItems": true,
+      "maxItems": 128,
+      "items": {
+        "type": "string",
+        "minLength": 3,
+        "maxLength": 120,
+        "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"
+      }
+    },
+    "endpoint_refs": {
+      "type": "array",
+      "uniqueItems": true,
+      "maxItems": 32,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 160
+      }
+    },
+    "range": {
+      "oneOf": [
+        {"type": "null"},
+        {"$ref": "#/$defs/rangeEstimate"}
+      ]
+    },
+    "position": {
+      "oneOf": [
+        {"type": "null"},
+        {"$ref": "#/$defs/positionEstimate"}
+      ]
+    },
+    "active_alarm_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "maxItems": 64,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 160
+      }
+    },
+    "quality_flags": {
+      "$ref": "#/$defs/qualityFlags"
+    }
+  },
+  "$defs": {
+    "estimateStatus": {
+      "enum": [
+        "VALID",
+        "LOW_CONFIDENCE",
+        "STALE",
+        "UNOBSERVABLE",
+        "UNSUPPORTED",
+        "INVALID"
+      ]
+    },
+    "qualityFlags": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "STALE",
+          "NLOS_POSSIBLE",
+          "UNCALIBRATED",
+          "CLOCK_UNCERTAIN",
+          "INTERPOLATED",
+          "SIMULATED",
+          "DEGRADED_SOURCE",
+          "INSUFFICIENT_GEOMETRY",
+          "OUTLIER_REJECTED"
+        ]
+      }
+    },
+    "rangeEstimate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "status",
+        "value_m",
+        "confidence",
+        "observed_at",
+        "age_ms",
+        "source_ids",
+        "quality_flags"
+      ],
+      "properties": {
+        "method": {
+          "enum": [
+            "BLE_RSSI",
+            "UWB_TOF",
+            "UWB_TDOA",
+            "WIFI_RSSI",
+            "LIDAR_ASSOCIATION",
+            "MANUAL"
+          ]
+        },
+        "status": {
+          "$ref": "#/$defs/estimateStatus"
+        },
+        "value_m": {
+          "type": ["number", "null"],
+          "minimum": 0
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "standard_deviation_m": {
+          "type": ["number", "null"],
+          "minimum": 0
+        },
+        "lower_95_m": {
+          "type": ["number", "null"],
+          "minimum": 0
+        },
+        "upper_95_m": {
+          "type": ["number", "null"],
+          "minimum": 0
+        },
+        "observed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "age_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "source_ids": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          }
+        },
+        "calibration_id": {
+          "type": ["string", "null"],
+          "maxLength": 160
+        },
+        "quality_flags": {
+          "$ref": "#/$defs/qualityFlags"
+        }
+      }
+    },
+    "positionEstimate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "frame_id",
+        "dimensions",
+        "coordinates_m",
+        "covariance_diagonal",
+        "confidence",
+        "observed_at",
+        "source_ids",
+        "quality_flags"
+      ],
+      "properties": {
+        "status": {
+          "$ref": "#/$defs/estimateStatus"
+        },
+        "frame_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[A-Za-z][A-Za-z0-9_.:/-]*$"
+        },
+        "dimensions": {
+          "enum": [2, 3]
+        },
+        "coordinates_m": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 3,
+          "items": {
+            "type": "number"
+          }
+        },
+        "covariance_diagonal": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 3,
+          "items": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "observed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "source_ids": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          }
+        },
+        "calibration_id": {
+          "type": ["string", "null"],
+          "maxLength": 160
+        },
+        "quality_flags": {
+          "$ref": "#/$defs/qualityFlags"
+        }
+      }
+    }
+  }
+}

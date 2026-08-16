@@ -1,32 +1,48 @@
 """Pydantic-Datenmodelle für REST-API & WebSocket."""
-from typing import Any, Dict, List, Optional
+from datetime import datetime
+from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+DEVICE_ID_PATTERN = r"^[A-Za-z0-9._:-]{1,160}$"
+ASSET_ID_PATTERN = r"^[A-Za-z0-9._:/-]{1,160}$"
+POLICY_ID_PATTERN = (
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-"
+    r"[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+)
+MAX_POINT_COMPONENTS = 150_000
 
 
 class LidarFrame(BaseModel):
-    """Eingehende LiDAR-Punktwolke (von CT45P)."""
+    """Bounded incoming LiDAR point cloud."""
 
-    device_id: str
+    device_id: str = Field(pattern=DEVICE_ID_PATTERN)
     timestamp: float
-    points: List[float]  # [x1,y1,z1, x2,y2,z2, ...]
+    points: List[float] = Field(max_length=MAX_POINT_COMPONENTS)
     scattering_detected: bool = False
+
+    @field_validator("points")
+    @classmethod
+    def complete_xyz_tuples(cls, value: List[float]) -> List[float]:
+        if len(value) % 3:
+            raise ValueError("points must contain complete x/y/z tuples")
+        return value
 
 
 class MmwaveTarget(BaseModel):
-    device_id: str
+    device_id: str = Field(pattern=DEVICE_ID_PATTERN)
     timestamp: float
-    targets: List[Dict[str, float]] = Field(default_factory=list)
+    targets: List[Dict[str, float]] = Field(default_factory=list, max_length=4096)
 
 
 class BleTokenUpdate(BaseModel):
-    device_id: str
+    device_id: str = Field(pattern=DEVICE_ID_PATTERN)
     timestamp: float
-    tokens: List[Dict[str, Any]] = Field(default_factory=list)
+    tokens: List[Dict[str, Any]] = Field(default_factory=list, max_length=4096)
 
 
 class UwbPhaseData(BaseModel):
-    device_id: str
+    device_id: str = Field(pattern=DEVICE_ID_PATTERN)
     timestamp: float
     phase: float  # Radians
 
@@ -59,9 +75,16 @@ class ScenarioConfig(BaseModel):
 
 
 class PipelineRequest(BaseModel):
-    device_id: str
-    points: List[float] = Field(default_factory=list)  # [x1,y1,z1, ...]
+    device_id: str = Field(pattern=DEVICE_ID_PATTERN)
+    points: List[float] = Field(default_factory=list, max_length=MAX_POINT_COMPONENTS)
     metadata: Dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("points")
+    @classmethod
+    def complete_xyz_tuples(cls, value: List[float]) -> List[float]:
+        if len(value) % 3:
+            raise ValueError("points must contain complete x/y/z tuples")
+        return value
 
 
 class PipelineResult(BaseModel):

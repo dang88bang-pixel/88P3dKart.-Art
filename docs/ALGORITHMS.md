@@ -58,11 +58,14 @@ Implementierung: `offline/SemanticEngine.kt`.
 Poisson-Gleichung `Δφ = ∇·V`; für den CT45P als **Distanzfeld + Oberflächen-Extraktion**
 an besetzten/leeren Zellgrenzen umgesetzt (`offline/PoissonReconstruction.kt`).
 
-## 5. UWB-Micro-Doppler (DFT)
+## 5. UWB-Micro-Doppler (DFT, experimentell)
 
-DFT im Bereich 0.15–0.6 Hz (20 Bins) auf dem Phasen-Ringbuffer (20 Hz, 5 s),
-Hanning-Fenster, Konfidenz = Peak-/Gesamtenergie, gültig bei > 0.3.
-Implementierung: `offline/UwbDoppler.kt` (Kotlin) und `edge-agent/uwb_processor.py` (FFT).
+DFT im Bereich 0.15–0.6 Hz (20 Bins) auf einem Phasen-Ringbuffer (20 Hz, 5 s),
+Hanning-Fenster, Konfidenz = Peak-/Gesamtenergie, prototypisch gültig bei > 0.3.
+Implementierung: `offline/UwbDoppler.kt` (Kotlin) und `edge-agent/uwb_processor.py`
+(FFT). Der CT45 XP weist laut öffentlicher Spezifikation kein integriertes UWB
+aus; echte Rohphasendaten benötigen ein dafür geeignetes externes UWB-Modul.
+Aus einer Distanz abgeleitete „Phase“ ist kein Ersatz für Rohphase.
 
 ## 6. ICP-Map-Merging (Kabsch-Umeyama)
 

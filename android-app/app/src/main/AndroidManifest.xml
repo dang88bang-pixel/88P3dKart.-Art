@@ -8,7 +8,6 @@
     <!-- Bluetooth LE -->
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
     <!-- UWB (Android 12+) -->
@@ -28,6 +27,7 @@
 
     <!-- Netzwerk -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- Wi-Fi RTT & RSSI-Scans (Triangulation, docs/TRIANGULATION.md) -->
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
@@ -54,7 +54,7 @@
     </queries>
 
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:label="3dxAgent"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -62,13 +62,17 @@
         android:theme="@style/Theme.ThreeAgent">
 
         <activity
-            android:name=".MainActivity"
+            android:name=".EnrollmentActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+        </activity>
 
+        <activity
+            android:name=".MainActivity"
+            android:exported="false">
             <!-- USB-Device-Filter (RPLIDAR, FTDI mmWave) -->
             <intent-filter>
                 <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />

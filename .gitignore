@@ -54,6 +54,7 @@ local.properties
 .env.*
 !.env.example
 ssl/
+secrets/
 *.pem
 *.key
 *.crt

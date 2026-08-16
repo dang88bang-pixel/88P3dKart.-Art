@@ -1,0 +1,604 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://3dxagent.local/schemas/alarm-event/1.0.0",
+  "title": "3dxAgent AlarmEvent",
+  "description": "Immutable alarm transition emitted by the authoritative gateway or an explicitly degraded CT45P-local fallback. The authority field prevents both origins from being conflated.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "event_id",
+    "correlation_id",
+    "deduplication_key",
+    "authority",
+    "authority_id",
+    "gateway_id",
+    "boot_id",
+    "state_revision",
+    "policy_id",
+    "policy_revision",
+    "policy_snapshot_hash",
+    "previous_policy_revision",
+    "previous_policy_snapshot_hash",
+    "asset_id",
+    "severity",
+    "event_type",
+    "reason_code",
+    "previous_state",
+    "new_state",
+    "occurred_monotonic_ns",
+    "occurred_at",
+    "evidence",
+    "actor",
+    "integrity"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "event_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "correlation_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "deduplication_key": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 240,
+      "pattern": "^[A-Za-z0-9._:/-]+$"
+    },
+    "authority": {
+      "enum": [
+        "GATEWAY_AUTHORITATIVE",
+        "CT45P_LOCAL_DEGRADED"
+      ]
+    },
+    "authority_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "gateway_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "boot_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "state_revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "policy_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "policy_revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "policy_snapshot_hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "previous_policy_revision": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1,
+      "description": "Previous immutable policy revision for POLICY_UPDATED; null otherwise."
+    },
+    "previous_policy_snapshot_hash": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "Previous canonical policy snapshot SHA-256 for POLICY_UPDATED; null otherwise."
+    },
+    "asset_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "severity": {
+      "enum": [
+        "INFO",
+        "WARNING",
+        "CRITICAL"
+      ]
+    },
+    "event_type": {
+      "enum": [
+        "POLICY_ENABLED",
+        "POLICY_UPDATED",
+        "POLICY_DISABLED",
+        "PENDING_STARTED",
+        "PENDING_CANCELED",
+        "TRIGGERED",
+        "CLEAR_PENDING_STARTED",
+        "CLEAR_PENDING_CANCELED",
+        "CLEARED",
+        "DATA_LOSS_STARTED",
+        "DATA_LOSS_CLEARED",
+        "ACKNOWLEDGED",
+        "SNOOZED",
+        "SNOOZE_EXPIRED",
+        "EVALUATION_ERROR",
+        "EVALUATION_RECOVERED"
+      ]
+    },
+    "reason_code": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 120,
+      "pattern": "^[A-Z][A-Z0-9_]*(\\.[A-Z0-9_]+)*$"
+    },
+    "previous_state": {
+      "$ref": "#/$defs/alarmState"
+    },
+    "new_state": {
+      "$ref": "#/$defs/alarmState"
+    },
+    "occurred_monotonic_ns": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "evidence": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/evidence"
+        }
+      ]
+    },
+    "actor": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/actor"
+        }
+      ]
+    },
+    "integrity": {
+      "$ref": "#/$defs/integrity"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "authority": {
+            "const": "GATEWAY_AUTHORITATIVE"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "gateway_id": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "POLICY_UPDATED"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "previous_policy_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "previous_policy_snapshot_hash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "actor": {
+            "allOf": [
+              {
+                "$ref": "#/$defs/actor"
+              },
+              {
+                "properties": {
+                  "action": {
+                    "const": "UPDATE"
+                  }
+                },
+                "type": "object"
+              }
+            ]
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "previous_policy_revision": {
+            "const": null
+          },
+          "previous_policy_snapshot_hash": {
+            "const": null
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "ACKNOWLEDGED"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "actor": {
+            "allOf": [
+              {
+                "$ref": "#/$defs/actor"
+              },
+              {
+                "properties": {
+                  "action": {
+                    "const": "ACKNOWLEDGE"
+                  }
+                },
+                "type": "object"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "SNOOZED"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "actor": {
+            "allOf": [
+              {
+                "$ref": "#/$defs/actor"
+              },
+              {
+                "properties": {
+                  "action": {
+                    "const": "SNOOZE"
+                  }
+                },
+                "type": "object"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "POLICY_DISABLED"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "actor": {
+            "allOf": [
+              {
+                "$ref": "#/$defs/actor"
+              },
+              {
+                "properties": {
+                  "action": {
+                    "const": "DISABLE"
+                  }
+                },
+                "type": "object"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "POLICY_ENABLED"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "actor": {
+            "allOf": [
+              {
+                "$ref": "#/$defs/actor"
+              },
+              {
+                "properties": {
+                  "action": {
+                    "const": "ENABLE"
+                  }
+                },
+                "type": "object"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "enum": [
+              "POLICY_UPDATED",
+              "ACKNOWLEDGED",
+              "SNOOZED",
+              "POLICY_DISABLED",
+              "POLICY_ENABLED"
+            ]
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "actor": {
+            "const": null
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "alarmState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "condition",
+        "attention",
+        "condition_since",
+        "attention_since",
+        "snoozed_until"
+      ],
+      "properties": {
+        "condition": {
+          "enum": [
+            "NORMAL",
+            "PENDING_TRIGGER",
+            "ACTIVE",
+            "PENDING_CLEAR",
+            "DATA_LOSS",
+            "DISABLED",
+            "ERROR"
+          ]
+        },
+        "attention": {
+          "enum": [
+            "NONE",
+            "UNACKNOWLEDGED",
+            "ACKNOWLEDGED",
+            "SNOOZED"
+          ]
+        },
+        "condition_since": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "attention_since": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "snoozed_until": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "estimate_status",
+        "method",
+        "value_m",
+        "confidence",
+        "lower_95_m",
+        "upper_95_m",
+        "observed_at",
+        "age_ms",
+        "source_ids",
+        "measurement_ids",
+        "calibration_id",
+        "quality_flags"
+      ],
+      "properties": {
+        "estimate_status": {
+          "enum": [
+            "VALID",
+            "LOW_CONFIDENCE",
+            "STALE",
+            "UNOBSERVABLE",
+            "UNSUPPORTED",
+            "INVALID"
+          ]
+        },
+        "method": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 80
+        },
+        "value_m": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "confidence": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "lower_95_m": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "upper_95_m": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "observed_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "age_ms": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "source_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "maxItems": 32,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          }
+        },
+        "measurement_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "maxItems": 128,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "calibration_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 160
+        },
+        "quality_flags": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          }
+        }
+      }
+    },
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "actor_id",
+        "session_id",
+        "action"
+      ],
+      "properties": {
+        "actor_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "action": {
+          "enum": [
+            "ACKNOWLEDGE",
+            "SNOOZE",
+            "DISABLE",
+            "ENABLE",
+            "UPDATE"
+          ]
+        }
+      }
+    },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "verified"
+      ],
+      "properties": {
+        "verified": {
+          "type": "boolean"
+        },
+        "algorithm": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 40
+        },
+        "key_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 160
+        }
+      }
+    }
+  }
+}
