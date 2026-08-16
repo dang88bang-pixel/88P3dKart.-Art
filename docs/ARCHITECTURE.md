@@ -33,6 +33,8 @@ REST/WebSocket und MQTT kommunizieren.
 | **13. Offline-Gerätedatenbank** | Edge-Agent | Python (`device_db.py`, `device_db_builder.py`) | OUI/GATT/Tracker-Erkennung, SIG-Company-IDs, DeviceDatabase-Kern + Seed (Thread/Matter, LoRaWAN, wM-Bus, ISM 433, Medizin-BLE), Konsolidierungs-Builder (Z2M/Bluetooth-Numbers/MAC-Vendor), REST-Lookups |
 | | Android-App | Kotlin (`devicedb/DeviceDatabase.kt`) | Identische Semantik; Room-Persistenz als Roadmap |
 
+| **14. Mehrwert & Synergien** (docs/MEHRWERT_SYNERGIE.md) | Alle Schichten | CT45P Hardware (IMU-Set, NFC, Kameras, Wi-Fi 6, GPS) + Fusion | Detaillierte Bewertung der 5 Kernkomponenten (3D-Kartierung, Akustik, UWB, IMU, BLE-Mesh). Starke Synergie-Effekte (z.B. IMU + UWB für driftfreie cm-Genauigkeit; IMU → Tactical Health Monitoring). CT45P als ideale Plattform für multimodale Sensorfusion. |
+
 ---
 
 ## v2.0.0 — Datenpipeline

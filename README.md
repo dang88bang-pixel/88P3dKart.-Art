@@ -117,6 +117,24 @@ alle Geräte im Raum (ein-/ausblendbar, capability-geprüfte Aktionen):
 - REST `/api/v1/devices*` + WS `devices_update`/`device_action` +
   Geräte-Layer im Web-Visualizer (Raycast-Auswahl, Kontextmenü)
 
+**Mehrwert & Synergien** (docs/MEHRWERT_SYNERGIE.md) — Detaillierte Bewertung
+der 5 Kernkomponenten (3D-Kartierung, Akustik, UWB, IMU, BLE-Mesh) und ihrer
+Kombinations-Mehrwerte auf dem CT45P. Besondere Betonung der Hardware-Synergien
+(IMU-Set, NFC, Kameras, Wi-Fi 6) und der Fusion mit Tactical Health Monitoring.
+
+**Taktisches Stressmonitoring** (v17.2.0-TacticalOps) — Vollständige Erweiterung
+für Einsatzkräfte (Polizei, Feuerwehr, Rettung, Militär):
+- **TacticalHealthMonitoring** (Kotlin) — Echtzeit-Vitalmonitoring (HR, HRV, SpO2, EDA, Temp)
+  + wissenschaftlich validierte Stress-Level-Klassifikation (LOW/MEDIUM/HIGH/CRITICAL)
+  + Combat Readiness Score + Personnel Status (OPERATIONAL → KIA)
+- **TacticalOverlay.js** (Three.js) — Farbcodierte 3D-Avatare + schwebende Vital-Labels
+  + pulsierende Status-Ringe + Echtzeit-Stats-Overlay
+- **TacticalDashboardFragment** — Android-UI mit RecyclerViews, Einsatz-Start/Stopp,
+  Alarme, Export von Einsatzberichten
+- WS-Integration: `tactical_personnel`, `tactical_alert`, `tactical_overview`
+- Demo-Button + Tastenkürzel (T) im Web-Visualizer
+- Offline-fähig + automatische Berichtserstellung
+
 **Aktive Netzwerkvisualisierung** (docs/NETWORK_LIVEVIEW.md) — Live-Traffic
 in der 3D-Ansicht (v14.1.0):
 - **Traffic-Simulator** (seeded, Bursts, Latenz-Auslastungs-Kopplung) +

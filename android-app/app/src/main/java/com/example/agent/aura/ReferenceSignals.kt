@@ -51,7 +51,6 @@ object ReferenceSignals {
     }
 
     /**
-     * Erzeugt ein verzögertes Empfangssignal für Tests/Simulation:
      * rx[n] = ref[n − delaySamples] (+ optionales Rauschen), sonst 0.
      */
     fun delayedCopy(

@@ -273,6 +273,57 @@ class AgentWebSocketClient(
         )
     }
 
+    
+    // Sendet Echtzeit-Personal-Status, Alarme und Overview an Edge-Agent + Web-Visualizer.
+    // Wird von MainActivity ausgelöst (Personnel-Collector, Alert-Collector, IMU-Update).
+
+    fun sendTacticalPersonnel(
+        deviceId: String,
+        personnel: List<com.example.agent.tactical.TacticalHealthMonitoring.TacticalPersonnel>
+    ) {
+        if (personnel.isEmpty()) return
+        val payload = personnel.map { p ->
+            mapOf(
+                "id" to p.id,
+                "name" to p.name,
+                "callSign" to p.callSign,
+                "role" to p.role.name,
+                "heartRate" to p.heartRate,
+                "hrv" to p.hrv,
+                "eda" to p.eda,
+                "spo2" to p.spo2,
+                "temperature" to p.temperature,
+                "stressLevel" to p.stressLevel.name,
+                "combatReadiness" to p.combatReadiness,
+                "status" to p.status.name,
+                "position" to p.position?.let { mapOf("x" to it.x, "y" to it.y, "z" to it.z) },
+                "lastUpdate" to p.lastUpdate,
+                "fatigueScore" to p.fatigueScore
+            )
+        }
+        send("tactical_personnel", mapOf("device_id" to deviceId, "personnel" to payload))
+    }
+
+    fun sendTacticalAlert(
+        deviceId: String,
+        alert: com.example.agent.tactical.TacticalHealthMonitoring.TacticalAlert
+    ) {
+        val payload = mapOf(
+            "id" to alert.id,
+            "type" to alert.type.name,
+            "severity" to alert.severity.name,
+            "personnelId" to alert.personnelId,
+            "message" to alert.message,
+            "timestamp" to alert.timestamp,
+            "acknowledged" to alert.acknowledged
+        )
+        send("tactical_alert", mapOf("device_id" to deviceId, "alert" to payload))
+    }
+
+    fun sendTacticalOverview(deviceId: String, overview: Map<String, Any>) {
+        send("tactical_overview", mapOf("device_id" to deviceId, "overview" to overview))
+    }
+
     fun disconnect() {
         reconnectJob?.cancel()
         reconnectJob = null

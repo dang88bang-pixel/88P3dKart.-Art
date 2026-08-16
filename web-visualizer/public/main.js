@@ -1,6 +1,92 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+import { TacticalOverlay } from './tactical/TacticalOverlay.js';
+
+// Tactical Stress Monitoring – ALLES AKTIV (v17.2.0 + Synergie)
+// docs/MEHRWERT_SYNERGIE.md + TacticalOverlay + live WS
+let tacticalOverlay = null;
+let tacticalPersonnel = [];
+let tacticalVisible = true;
+
+function initTacticalOverlay() {
+    if (!tacticalOverlay) {
+        tacticalOverlay = new TacticalOverlay(scene, camera, renderer);
+        tacticalOverlay.onPersonnelClick = (person) => {
+            console.log('Tactical personnel clicked:', person);
+            const statusEl = document.getElementById('device-status');
+            if (statusEl) statusEl.textContent = `🛡️ ${person.callSign || person.name} • ${person.stressLevel} • ${Math.round(person.combatReadiness*100)}%`;
+        };
+    }
+}
+
+// Force tactical overlay visible immediately. NO auto demo data.
+// Real data will come via WebSocket (tactical_personnel etc.)
+function activateTacticalOverlay() {
+    tacticalVisible = true;
+    if (tacticalOverlay) {
+        tacticalOverlay.personnelMarkers.forEach(g => { g.visible = true; });
+    }
+    const btn = document.getElementById('btn-tactical-stress');
+    if (btn) btn.classList.add('active');
+}
+
+// === Tactical Live - REAL DATA ONLY ===
+// The visualizer updates EXCLUSIVELY from real WebSocket messages:
+//   tactical_personnel, tactical_alert, tactical_overview
+// No simulation, no auto demo data, no random mutation.
+
+function startTacticalLiveFallback() {
+    console.log("[Tactical] Real-data-only mode. No simulation running.");
+}
+
+// === BOOT: ALLES AKTIV – Tactical is forced fully live on startup ===
+setTimeout(() => {
+    initTacticalOverlay();
+    activateTacticalOverlay();
+    startTacticalLiveFallback();
+
+    // Make absolutely sure the overlay and simulation are running
+    setTimeout(() => {
+        if (!tacticalOverlay) initTacticalOverlay();
+        if (tacticalPersonnel.length < 3) console.log("[Tactical] Awaiting real WS tactical_personnel data");
+        if (tacticalVisible) {
+            tacticalOverlay?.personnelMarkers.forEach(g => g.visible = true);
+        }
+    }, 1400);
+}, 650);
+
+// Global hook so external WS data also marks system as fully active
+const origUpdateTactical = window.updateTacticalOverlay || function(d){};
+window.updateTacticalOverlay = function(data) {
+    origUpdateTactical(data);
+    const status = document.getElementById('device-status');
+    if (status) {
+        status.textContent = `🛡️ ALLES AKTIV – Tactical Live (${(data?.length || tacticalPersonnel.length)})`;
+        status.style.color = '#44ff88';
+    }
+};
+
+function updateTacticalOverlay(data) {
+    if (!tacticalOverlay || !tacticalVisible) return;
+    tacticalPersonnel = Array.isArray(data) ? data : [];
+    tacticalOverlay.updatePersonnel(tacticalPersonnel);
+}
+
+function toggleTacticalOverlay() {
+    tacticalVisible = !tacticalVisible;
+    if (tacticalOverlay) {
+        // Simple visibility toggle by hiding/showing markers
+        tacticalOverlay.personnelMarkers.forEach((group) => {
+            group.visible = tacticalVisible;
+        });
+    }
+    const btn = document.getElementById('btn-tactical');
+    if (btn) btn.classList.toggle('active', tacticalVisible);
+}
+
+// NO demo data injection. Tactical data comes exclusively via WS: tactical_personnel / tactical_alert / tactical_overview
+// This stub was removed to enforce real-data-only.
 
 // ─── Szene ──────────────────────────────────────────────────────
 const scene = new THREE.Scene();
@@ -902,6 +988,32 @@ function connect() {
                         `🛰️ Aktion ${msg.payload.action}: ${msg.payload.success ? '✅' : '❌'} ${msg.payload.message}`
                     );
                 }
+
+                // === TACTICAL STRESS MONITORING – ALLES AKTIV ===
+                else if (msg.type === 'tactical_personnel' && msg.payload) {
+                    const personnel = msg.payload.personnel || msg.payload;
+                    updateTacticalOverlay(personnel);
+                    // Optional: also feed into device layer as special category
+                    if (tacticalVisible) {
+                        console.log('[Tactical] Personnel updated:', personnel.length);
+                    }
+                }
+                else if (msg.type === 'tactical_alert' && msg.payload) {
+                    const alert = msg.payload.alert || msg.payload;
+                    const statusEl = document.getElementById('device-status');
+                    if (statusEl) {
+                        statusEl.textContent = `🚨 ${alert.severity || ''} ${alert.message || ''}`;
+                        statusEl.style.color = (alert.severity === 'CRITICAL' || alert.severity === 'EMERGENCY') ? '#ff3333' : '#ffaa00';
+                    }
+                    console.log('[Tactical Alert]', alert);
+                }
+                else if (msg.type === 'tactical_overview' && msg.payload) {
+                    const overview = msg.payload.overview || msg.payload;
+                    const statusEl = document.getElementById('scenario-status');
+                    if (statusEl) {
+                        statusEl.textContent = `🛡️ Tactical: ${overview.operational || 0} ops / ${overview.total || 0} total • Readiness ${(overview.avg_readiness || 1).toFixed(2)}`;
+                    }
+                }
             } catch (_) { /* ignore */ }
         }
     };
@@ -1076,4 +1188,76 @@ window.addEventListener('resize', () => {
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
     labelRenderer.setSize(window.innerWidth, window.innerHeight);
+    if (tacticalOverlay) tacticalOverlay.resize(window.innerWidth, window.innerHeight);
 });
+
+// ─── Tactical Stress Monitoring Integration ────────────────────
+initTacticalOverlay();
+
+// Button wiring for Tactical Stress Overlay
+const btnTacticalStress = document.getElementById('btn-tactical-stress');
+if (btnTacticalStress) {
+    btnTacticalStress.addEventListener('click', () => {
+        toggleTacticalOverlay();
+        // Auto-inject demo data the first time it is toggled on
+        if (tacticalVisible && tacticalPersonnel.length === 0) {
+            console.log("[Tactical] Waiting for real WS tactical_personnel data (no demo)");
+        }
+    });
+}
+
+// Tactical scenario button — REAL only (no stress_simulation)
+const btnTactical = document.getElementById('btn-tactical');
+if (btnTactical) {
+    btnTactical.addEventListener('click', () => {
+        send('scenario_start', { scenario: 'tactical_stress', units: 3 });
+        // Also show tactical overlay
+        if (!tacticalVisible) toggleTacticalOverlay();
+        console.log("[Tactical] Real tactical scenario requested (no sim)");
+    });
+}
+
+// Extend WS message handler to support tactical data
+const originalOnMessage = socket ? socket.onmessage : null;
+
+// Patch the socket handler (after connect) to handle tactical messages
+function patchTacticalWSHandler() {
+    if (!socket) return;
+    const prev = socket.onmessage;
+    socket.onmessage = (event) => {
+        if (prev) prev(event); // call original
+
+        if (event.data instanceof ArrayBuffer) return;
+
+        try {
+            const msg = JSON.parse(event.data);
+            if (msg.type === 'tactical_personnel' && msg.payload) {
+                updateTacticalOverlay(msg.payload.personnel || msg.payload);
+            } else if (msg.type === 'tactical_alert' && msg.payload) {
+                console.log('Tactical Alert:', msg.payload);
+                const statusEl = document.getElementById('device-status');
+                if (statusEl) statusEl.textContent = `🚨 ${msg.payload.message || 'Alert'}`;
+            } else if (msg.type === 'tactical_overview') {
+                console.log('Tactical Overview:', msg.payload);
+            }
+        } catch (_) {}
+    };
+}
+
+// Call after socket is created
+setTimeout(patchTacticalWSHandler, 800);
+
+// Keyboard shortcut for tactical overlay toggle (T key) — no demo data
+document.addEventListener('keydown', (e) => {
+    if (e.key.toLowerCase() === 't' && document.activeElement.tagName === 'BODY') {
+        if (!tacticalVisible) toggleTacticalOverlay();
+        console.log("[Tactical] Overlay toggled (real data only)");
+    }
+});
+
+// NO initial demo injection — purely real WS data
+setTimeout(() => {
+    if (tacticalVisible && tacticalPersonnel.length === 0) {
+        console.log("[Tactical] No demo; waiting for WS tactical_personnel / tactical_overview");
+    }
+}, 2200);

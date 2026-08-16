@@ -33,7 +33,6 @@ object FloorPlanModels {
         SourceDescriptor("Nominatim (OSM)", "geocoder", "https://nominatim.openstreetmap.org/search", true, priority = 1,
             notes = "Usage Policy: max 1 req/s, gültiger User-Agent, ODbL-Attribution"),
         SourceDescriptor("Photon (komoot)", "geocoder", "https://photon.komoot.io/api/", true, priority = 2,
-            notes = "OSM-basiert, Apache-2.0, Demo-Server mit Limits"),
         SourceDescriptor("OSM Overpass", "buildings", "https://overpass-api.de/api/interpreter", true, priority = 1,
             notes = "Gebäudeumrisse weltweit; Spiegel: overpass.kumi.systems"),
         SourceDescriptor("OSM Buildings (osmbuildings.org)", "buildings", null, false, priority = 3,
