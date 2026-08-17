@@ -19,6 +19,7 @@ import com.example.agent.sensors.EkfFusion
 import com.example.agent.sensors.ImuManager
 import com.example.agent.sensors.SerialManager
 import com.example.agent.sensors.UwbManager
+import com.example.agent.offline.MmWaveShapeEstimator
 import com.example.agent.storage.AppDatabase
 import com.example.agent.storage.SpatialRecord
 import kotlinx.coroutines.CoroutineScope
@@ -197,6 +198,15 @@ class MainActivity : AppCompatActivity() {
                     val t = targets.first()
                     ekf.updateMmwave(floatArrayOf(t.x, t.y, t.z))
                     webSocketClient.sendMmwaveTargets("CT45P-01", targets)
+
+                    // === Real mmWave shape estimation (mmNorm-inspired, real data) ===
+                    // Convert to the format expected by the estimator
+                    val rawTargets = targets.map { floatArrayOf(it.x, it.y, it.z, it.velocity ?: 0f) }
+                    val shape = MmWaveShapeEstimator.estimateFromTargets(rawTargets)
+                    if (shape != null) {
+                        Log.i("RESEARCH", "mmWave shape: ${shape.typeHint} conf=${"%.2f".format(shape.confidence)} size=(${shape.size[0]},${shape.size[1]},${shape.size[2]})")
+                        // In future: send a dedicated WS message or augment existing payload
+                    }
                 }
             }
         }

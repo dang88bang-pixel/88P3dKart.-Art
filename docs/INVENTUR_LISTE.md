@@ -96,3 +96,15 @@
 **Verification:** Sehr nützlich beim Test auf echtem CT45P. Critical paths now have 0 active simulation/mocks.
 
 **Inventur weitgehend abgeschlossen.** (Tests & HIL / Golden-Frames erweitert)
+
+### 13. Research Integration: Advanced Radar & Neural SLAM (2026-08-17)
+- [x] 13.1 Created full mapping document `docs/ADVANCED_RADAR_SLAM_INTEGRATION.md` (mmNorm, Rad-GS, MNE/MANG-SLAM, HoloRadar, Cognitive Radar, WiFi Vision → SwarmRadar)
+- [x] 13.2 Real on-device **CognitiveRadarPolicy.kt** (live IMU + context → EKF adaptation + sensor recommendation)
+- [x] 13.3 Wired Cognitive policy into real IMU path in `MainActivity.kt`
+- [x] 13.4 Extended `EkfFusion` with `applyCognitiveRScale()`
+- [x] 13.5 `NLOSGeometry.kt` — real UWB-phase based NLOS / ghost geometry estimation (HoloRadar-style)
+- [x] 13.6 `UwbManager.kt` now feeds real phases into `NLOSGeometry` and exposes `onNlosEstimate`
+- [x] 13.7 Updated `ROADMAP.md` with **CognitiveRadar 5.0** phase
+- [x] 13.8 Unit test for Cognitive policy
+
+**All research integrations use real sensor data only. No simulation in critical paths.**
