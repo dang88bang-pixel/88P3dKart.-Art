@@ -6,13 +6,14 @@ import androidx.uwb.ranging.RangingParameters
 import androidx.uwb.ranging.RangingResult
 import androidx.uwb.ranging.UwbManager as AndroidUwbManager
 import androidx.uwb.ranging.UwbPeer
+import com.example.agent.offline.NLOSGeometry
 import java.util.concurrent.Executors
 
 /**
  * UWB-Ranging & Micro-Doppler-Erfassung (Android 12+, FiRa-konform).
  *
- * Liefert die gemessene Phase (Radians) pro Ranging-Runde, die der
- * Edge-Agent zur FFT-basierten Atemfrequenz-Erkennung (0.15–0.6 Hz) nutzt.
+ * Liefert die gemessene Phase (Radians) pro Ranging-Runde.
+ * Zusätzlich: Echtzeit-NLOS/Geometry-Analyse (HoloRadar-style) mit realen Phasen.
  */
 class UwbManager(private val context: Context) {
 
@@ -27,6 +28,13 @@ class UwbManager(private val context: Context) {
     /** Callback liefert die rohe Phase (Radians) eines Ranging-Ergebnisses. */
     var onPhase: ((Float) -> Unit)? = null
 
+    /** Optionaler Callback für NLOS / Ghost-Geometrie (real data). */
+    var onNlosEstimate: ((NLOSGeometry.NlosEstimate) -> Unit)? = null
+
+    // Puffer für NLOS-Analyse (letzte ~1 Sekunde bei 20 Hz)
+    private val phaseBuffer = mutableListOf<Float>()
+    private val maxBuffer = 20
+
     fun startRanging(peerAddress: ByteArray, channel: Int = 9, preambleIndex: Int = 9) {
         try {
             val peer = UwbPeer.Builder(peerAddress).build()
@@ -38,7 +46,19 @@ class UwbManager(private val context: Context) {
 
             session = uwbManager.startRanging(params, executor) { rangingResult ->
                 val phase = extractPhase(rangingResult)
-                if (phase != null) onPhase?.invoke(phase)
+                if (phase != null) {
+                    onPhase?.invoke(phase)
+
+                    // === Real NLOS analysis (HoloRadar-style) ===
+                    phaseBuffer.add(phase)
+                    if (phaseBuffer.size > maxBuffer) phaseBuffer.removeAt(0)
+
+                    val estimate = NLOSGeometry.fromPhaseBuffer(phaseBuffer)
+                    if (estimate.isLikelyNlos || estimate.confidence > 0.4f) {
+                        onNlosEstimate?.invoke(estimate)
+                        Log.d(TAG, "NLOS estimate: extra=${estimate.estimatedExtraDistance}m conf=${estimate.confidence}")
+                    }
+                }
             }
             Log.d(TAG, "UWB-Ranging gestartet (Channel $channel)")
         } catch (e: Exception) {
@@ -58,6 +78,7 @@ class UwbManager(private val context: Context) {
     fun stopRanging() {
         try {
             session?.close()
+            phaseBuffer.clear()
         } catch (e: Exception) {
             Log.w(TAG, "Stopp fehlgeschlagen: ${e.message}")
         }
