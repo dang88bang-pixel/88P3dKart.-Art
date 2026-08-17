@@ -26,12 +26,12 @@ The project already has a strong foundation:
 
 | Research | Core Idea | Current Project Component | Proposed Enhancement | Execution Location |
 |----------|-----------|---------------------------|----------------------|--------------------|
-| **mmNorm (MIT)** | mmWave → detailed 3D surface geometry (96% accuracy) | `SemanticEngine`, `MotionDetector`, point cloud | `ShapeReconstructor` (Gaussian surface fitting from mmWave) | Edge (heavy) + lightweight CT45P preview |
-| **Rad-GS** | 4D Radar + 3D Gaussian Splatting + Doppler masking | 3D renderer + EKF | `GaussianSplattingRenderer` + Doppler-based dynamic masking | Web Visualizer + Edge (3DGS); CT45P receives compressed splats |
-| **MNE-SLAM / MANG-SLAM** | Distributed neural Submaps + P2P | Master/Slave + ICPMerger | `NeuralSubmapManager` + decentralized loop closure | Edge (MANG fusion) + CT45P local submaps |
-| **HoloRadar** | Physics-based NLOS reconstruction | Aura RTI + UWB Doppler | `NLOSPhysicsReconstructor` (mirror reflection modeling) | Edge (physics sim) + CT45P "Ghost Geometry" layer |
-| **Cognitive Radar** | Self-adapting sensor parameters | `adaptToEnvironment()` in EKF + `FusionPolicy` | `CognitiveRadarPolicy` (context-aware band/frequency/mode switching) | **On-device** (real, lightweight) |
-| **WiFi Vision** | Smartphone WiFi as radar | Existing BLE/WiFi RTT + Triangulation | `WifiVisionAdapter` (RSSI fluctuation + CSI-lite) | CT45P (zero extra hardware) |
+| **mmNorm (MIT)** | mmWave → detailed 3D surface geometry (96% accuracy) | `SemanticEngine`, `MotionDetector`, point cloud | `MmWaveShapeEstimator` (real crude 3D bounding box + type hint from mmWave targets) | **On-device (real)** + full on Edge |
+| **Rad-GS** | 4D Radar + 3D Gaussian Splatting + Doppler masking | 3D renderer + EKF | `GaussianSplattingRenderer` + Doppler-based dynamic masking (approximated via Cognitive + MotionDetector) | Web Visualizer + Edge (3DGS) |
+| **MNE-SLAM / MANG-SLAM** | Distributed neural Submaps + P2P | Master/Slave + ICPMerger | Decentralized submap + neural alignment (documented) | Edge (MANG fusion) + CT45P local submaps |
+| **HoloRadar** | Physics-based NLOS reconstruction | Aura RTI + UWB Doppler | `NLOSGeometry` (real UWB phase variance → ghost geometry estimate) | **On-device (real)** + full physics on Edge |
+| **Cognitive Radar** | Self-adapting sensor parameters | `adaptToEnvironment()` in EKF + `FusionPolicy` | `CognitiveRadarPolicy` (real on-device: IMU + thermal + battery + UWB phase + Doppler → EKF + sensor recommendation) | **On-device (real, lightweight)** |
+| **WiFi Vision** | Smartphone WiFi as radar | Existing BLE/WiFi RTT + Triangulation | `WifiVisionAdapter` (real WifiManager RSSI variance for motion hints) | **On-device (real, zero extra hardware)** |
 
 ---
 
@@ -143,17 +143,19 @@ This research moves the project from "advanced measurement system" to **"Cogniti
 
 **Status (2026-08-17):** 
 
-**Implemented (real on-device, live sensor data only):**
-- Cognitive Radar → `CognitiveRadarPolicy.kt` (fully wired in `MainActivity` IMU path + EKF)
-- HoloRadar-style NLOS → `NLOSGeometry.kt` + `UwbManager.onNlosEstimate`
-- mmNorm-style shape → `MmWaveShapeEstimator.kt` (real `mmwaveTargets`)
-- WiFi Vision → `WifiVisionAdapter.kt` (real `WifiManager` RSSI variance)
+**Implemented — real on-device (live sensor data, zero simulation in critical paths):**
+- **Cognitive Radar** → `CognitiveRadarPolicy.kt` (real IMU accel + context → EKF noise + sensor recommendation). Fully wired in `MainActivity.imuUpdates`.
+- **HoloRadar-style NLOS** → `NLOSGeometry.kt` + `UwbManager` (real UWB phase buffer → `onNlosEstimate` with ghost distance).
+- **mmNorm-style shape** → `MmWaveShapeEstimator.kt` (real `serialManager.mmwaveTargets` → crude 3D box + type hint).
+- **WiFi Vision** → `WifiVisionAdapter.kt` (real `WifiManager` RSSI variance from periodic system scans).
 
-**Documented / Planned for Edge/Visualizer:**
-- Rad-GS (3D Gaussian Splatting)
-- MNE/MANG-SLAM (decentralized neural submaps)
-- Full mmNorm high-accuracy reconstruction
+**Documented / Planned (heavy computation on Edge/Visualizer):**
+- Rad-GS (full 3D Gaussian Splatting + Doppler masking)
+- MNE/MANG-SLAM (decentralized neural submaps + P2P fusion)
+- High-accuracy mmNorm surface reconstruction
 
-All on-device components strictly use real hardware data. Heavy computation stays on Edge per the hybrid model described below.
+**Hybrid principle strictly followed:**
+Lightweight real-time adaptation + physics hints run on CT45P using real Android sensor APIs.
+Heavy neural / splatting work stays on Edge/Master (as recommended in the research summary).
 
 See implementation commits on `arena/01a00b5e-88p3dkart-art`.

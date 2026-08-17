@@ -351,6 +351,24 @@ EKF-Messupdate `EkfFusion.updateAbsolutePosition(z, R = σ²)`.
 
 ## 26. Erweiterte Gerätedatenbank-Kategorien (docs/DEVICE_DATABASE.md v1.1)
 
+## 27. Advanced Radar & Neural SLAM Research Integration (2026-08-17)
+
+Integration of latest research (MIT mmNorm, Rad-GS, MNE/MANG-SLAM, HoloRadar, Cognitive Radar, WiFi Vision) while keeping **0 simulation in critical paths**.
+
+### Implemented (real on-device, live sensor data)
+- **Cognitive Radar** (`sensors/CognitiveRadarPolicy.kt`): Real-time adaptation from IMU, thermal, battery, UWB phase variance, mmWave Doppler. Directly scales EKF noise and recommends primary sensor.
+- **HoloRadar-style NLOS** (`offline/NLOSGeometry.kt` + `UwbManager`): Real UWB phase buffer → crude ghost geometry + extra path length.
+- **mmNorm-style Shape** (`offline/MmWaveShapeEstimator.kt`): Real mmWave targets → crude 3D bounding box + type hint (person/box).
+- **WiFi Vision** (`sensors/WifiVisionAdapter.kt`): Real `WifiManager` RSSI variance for low-power motion hints.
+
+### Documented / Edge-heavy
+- Rad-GS (3D Gaussian Splatting) — planned for visualizer.
+- MNE/MANG-SLAM — decentralized submaps documented in `ADVANCED_RADAR_SLAM_INTEGRATION.md`.
+
+See `docs/ADVANCED_RADAR_SLAM_INTEGRATION.md` for full mapping and hybrid architecture (light on CT45P, heavy on Edge).
+
+All components use only real hardware data (SensorManager, WifiManager, UWB ranging results, mmWave serial targets).
+
 **Company-ID-Normalisierung & -Lookup** (`normalize_company_id`/
 `lookup_company`): Eingaben `76`, `"76"`, `"0x004C"`, `"004c"` →
 `0x004C`; Regeln: `0x`-Präfix → Hex; nur Ziffern → dezimal; sonst
