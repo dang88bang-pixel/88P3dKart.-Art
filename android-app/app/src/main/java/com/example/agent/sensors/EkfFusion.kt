@@ -30,6 +30,16 @@ class EkfFusion(private val dt: Float = 0.05f) {
         R_lidar = 0.1f * scatteringScale * thermalFactor
     }
 
+    /**
+     * Cognitive / external scaling of measurement noise.
+     * Used by CognitiveRadarPolicy for real-time adaptation.
+     */
+    fun applyCognitiveRScale(scale: Float) {
+        val clamped = scale.coerceIn(0.2f, 30f)
+        R_lidar *= clamped
+        R_mmwave *= clamped
+    }
+
     fun predict() {
         // F = [[I, dt*I], [0, I]] → x' = F * x
         x[0] += x[3] * dt

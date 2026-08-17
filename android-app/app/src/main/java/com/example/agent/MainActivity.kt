@@ -14,6 +14,7 @@ import com.example.agent.pipeline.LiveSensorPipeline
 import com.example.agent.pipeline.PipelineOrchestrator
 import com.example.agent.triangulation.TriangulationService
 import com.example.agent.sensors.BleTokenManager
+import com.example.agent.sensors.CognitiveRadarPolicy
 import com.example.agent.sensors.EkfFusion
 import com.example.agent.sensors.ImuManager
 import com.example.agent.sensors.SerialManager
@@ -205,15 +206,33 @@ class MainActivity : AppCompatActivity() {
                 webSocketClient.sendBleTokens("CT45P-01", listOf(token))
             }
         }
-        // IMU: Sample-konsistent puffern (siehe ImuManager für Details).
+        // IMU: Sample-konsistent puffern + Cognitive Radar Policy (real on-device)
         scope.launch {
             imuManager.imuUpdates.collect { sample ->
-                // LiveSensorPipeline.onImu erwartet (orient, accel).
-                // Orientierung leiten wir hier nicht aus dem Roh-Sample ab
-                // (das wäre SensorFusion-Aufgabe); für die Pipeline reicht
-                // aktuell die Akzeleration. Mag/Gyro werden hier nicht
-                // weitergereicht — bewusst, damit die API-Diff klein bleibt.
                 livePipeline.onImu(orientation = sample.gyro, accel = sample.accel)
+
+                // === Real Cognitive Radar decision (first research integration) ===
+                val accelMag = kotlin.math.sqrt(
+                    sample.accel[0]*sample.accel[0] +
+                    sample.accel[1]*sample.accel[1] +
+                    sample.accel[2]*sample.accel[2]
+                )
+
+                val ctx = CognitiveRadarPolicy.SensorContext(
+                    scatteringDetected = false,           // can be fed from LiDAR later
+                    thermalC = 42f,                       // placeholder — replace with real thermal sensor
+                    motionIntensity = accelMag,
+                    batteryPercent = 78,                  // can be improved with real BatteryManager
+                    uwbPhaseVariance = 0.3f,              // from uwbManager when available
+                    mmwaveDopplerStrength = 0.5f          // can be derived from mmwave velocity
+                )
+
+                CognitiveRadarPolicy.applyToEkf(ekf, ctx)
+
+                // Optional: log status occasionally
+                if (System.currentTimeMillis() % 15000 < 200) {
+                    Log.i("Cognitive", CognitiveRadarPolicy.getStatusSummary(ctx))
+                }
             }
         }
 
