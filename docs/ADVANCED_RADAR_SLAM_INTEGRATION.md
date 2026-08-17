@@ -141,4 +141,19 @@ This research moves the project from "advanced measurement system" to **"Cogniti
 
 ---
 
-**Status:** Research integrated. Ready for sequential implementation starting with Cognitive Radar Policy.
+**Status (2026-08-17):** 
+
+**Implemented (real on-device, live sensor data only):**
+- Cognitive Radar → `CognitiveRadarPolicy.kt` (fully wired in `MainActivity` IMU path + EKF)
+- HoloRadar-style NLOS → `NLOSGeometry.kt` + `UwbManager.onNlosEstimate`
+- mmNorm-style shape → `MmWaveShapeEstimator.kt` (real `mmwaveTargets`)
+- WiFi Vision → `WifiVisionAdapter.kt` (real `WifiManager` RSSI variance)
+
+**Documented / Planned for Edge/Visualizer:**
+- Rad-GS (3D Gaussian Splatting)
+- MNE/MANG-SLAM (decentralized neural submaps)
+- Full mmNorm high-accuracy reconstruction
+
+All on-device components strictly use real hardware data. Heavy computation stays on Edge per the hybrid model described below.
+
+See implementation commits on `arena/01a00b5e-88p3dkart-art`.
