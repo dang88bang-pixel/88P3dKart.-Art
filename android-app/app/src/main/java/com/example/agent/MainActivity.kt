@@ -19,6 +19,7 @@ import com.example.agent.sensors.EkfFusion
 import com.example.agent.sensors.ImuManager
 import com.example.agent.sensors.SerialManager
 import com.example.agent.sensors.UwbManager
+import com.example.agent.sensors.WifiVisionAdapter
 import com.example.agent.offline.MmWaveShapeEstimator
 import com.example.agent.storage.AppDatabase
 import com.example.agent.storage.SpatialRecord
@@ -35,6 +36,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var bleManager: BleTokenManager
     private lateinit var imuManager: ImuManager
     private lateinit var uwbManager: UwbManager
+    private lateinit var wifiVision: WifiVisionAdapter
     private lateinit var ekf: EkfFusion
     private lateinit var db: AppDatabase
     private lateinit var pipeline: PipelineOrchestrator
@@ -128,6 +130,31 @@ class MainActivity : AppCompatActivity() {
 
         // BLE-Token — prüft ACCESS_FINE_LOCATION intern (siehe BleTokenManager).
         bleManager = BleTokenManager(this).also { it.startScan() }
+
+        // WiFi Vision Adapter (real, zero extra hardware) — research integration
+        wifiVision = WifiVisionAdapter(this)
+        scope.launch {
+            wifiVision.detections.collect { det ->
+                if (det.motionScore > 0.35f) {
+                    Log.i("WiFiVision", "Motion hint via WiFi: ${det.bssid} score=${"%.2f".format(det.motionScore)}")
+                    // Can feed into EKF or tactical layer as low-cost presence
+                }
+            }
+        }
+
+        // Example: feed periodic WiFi scan results into vision adapter (real API)
+        // In production you would register a BroadcastReceiver for SCAN_RESULTS.
+        // Here we do a lightweight periodic push using the existing BLE manager's context as proxy.
+        scope.launch {
+            while (true) {
+                delay(8000)
+                try {
+                    val wifiManager = getSystemService(android.content.Context.WIFI_SERVICE) as? android.net.wifi.WifiManager
+                    val results = wifiManager?.scanResults ?: emptyList()
+                    if (results.isNotEmpty()) wifiVision.processScanResults(results)
+                } catch (_: Exception) {}
+            }
+        }
 
         // IMU — kein Runtime-Permission; SensorManager wirft nicht, wenn
         // ein Sensor fehlt (Register wird null), darum sichere Callbacks.
