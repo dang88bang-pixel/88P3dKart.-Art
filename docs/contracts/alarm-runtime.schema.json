@@ -1,0 +1,240 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://3dxagent.local/schemas/alarm-runtime/1.0.0",
+  "title": "3dxAgent AlarmRuntime",
+  "description": "Latest revisioned alarm projection. Authority is explicit so a CT45P fallback can never masquerade as the gateway state.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "authority",
+    "authority_id",
+    "boot_id",
+    "state_revision",
+    "policy_id",
+    "policy_revision",
+    "policy_snapshot_hash",
+    "asset_id",
+    "severity",
+    "condition",
+    "attention",
+    "condition_since",
+    "attention_since",
+    "snoozed_until",
+    "trigger_deadline_at",
+    "clear_deadline_at",
+    "data_loss_deadline_at",
+    "recovery_deadline_at",
+    "last_evaluated_at",
+    "next_evaluation_at",
+    "last_evidence",
+    "last_event_id",
+    "active_correlation_id"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "authority": {
+      "enum": ["GATEWAY_AUTHORITATIVE", "CT45P_LOCAL_DEGRADED"]
+    },
+    "authority_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "boot_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "state_revision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "policy_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "policy_revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "policy_snapshot_hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "asset_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "pattern": "^[A-Za-z0-9._:/-]+$"
+    },
+    "severity": {
+      "enum": ["INFO", "WARNING", "CRITICAL"]
+    },
+    "condition": {
+      "$ref": "#/$defs/condition"
+    },
+    "attention": {
+      "$ref": "#/$defs/attention"
+    },
+    "condition_since": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "attention_since": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "snoozed_until": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    },
+    "trigger_deadline_at": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    },
+    "clear_deadline_at": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    },
+    "data_loss_deadline_at": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    },
+    "recovery_deadline_at": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    },
+    "last_evaluated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "next_evaluation_at": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    },
+    "last_evidence": {
+      "oneOf": [
+        {"type": "null"},
+        {"$ref": "#/$defs/evidence"}
+      ]
+    },
+    "last_event_id": {
+      "type": ["string", "null"],
+      "format": "uuid"
+    },
+    "active_correlation_id": {
+      "type": ["string", "null"],
+      "format": "uuid"
+    }
+  },
+  "$defs": {
+    "condition": {
+      "enum": [
+        "NORMAL",
+        "PENDING_TRIGGER",
+        "ACTIVE",
+        "PENDING_CLEAR",
+        "DATA_LOSS",
+        "DISABLED",
+        "ERROR"
+      ]
+    },
+    "attention": {
+      "enum": ["NONE", "UNACKNOWLEDGED", "ACKNOWLEDGED", "SNOOZED"]
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "estimate_status",
+        "method",
+        "value_m",
+        "confidence",
+        "lower_95_m",
+        "upper_95_m",
+        "observed_at",
+        "age_ms",
+        "source_ids",
+        "measurement_ids",
+        "calibration_id",
+        "quality_flags"
+      ],
+      "properties": {
+        "estimate_status": {
+          "enum": [
+            "VALID",
+            "LOW_CONFIDENCE",
+            "STALE",
+            "UNOBSERVABLE",
+            "UNSUPPORTED",
+            "INVALID"
+          ]
+        },
+        "method": {
+          "type": ["string", "null"],
+          "maxLength": 80
+        },
+        "value_m": {
+          "type": ["number", "null"],
+          "minimum": 0
+        },
+        "confidence": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "lower_95_m": {
+          "type": ["number", "null"],
+          "minimum": 0
+        },
+        "upper_95_m": {
+          "type": ["number", "null"],
+          "minimum": 0
+        },
+        "observed_at": {
+          "type": ["string", "null"],
+          "format": "date-time"
+        },
+        "age_ms": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "source_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "maxItems": 32,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          }
+        },
+        "measurement_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "maxItems": 128,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "calibration_id": {
+          "type": ["string", "null"],
+          "maxLength": 160
+        },
+        "quality_flags": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          }
+        }
+      }
+    }
+  }
+}

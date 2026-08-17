@@ -1,0 +1,209 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://3dxagent.local/schemas/sensor-envelope/1.0.0",
+  "title": "3dxAgent SensorEnvelope",
+  "description": "Transport-neutral, versioned sensor observation used between UHAL, fusion, storage, and edge services.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "event_id",
+    "logical_stream_id",
+    "kind",
+    "sequence",
+    "observed_monotonic_ns",
+    "observed_at",
+    "frame_id",
+    "source",
+    "quality",
+    "payload",
+    "integrity"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "event_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "logical_stream_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "pattern": "^[A-Za-z0-9._:/-]+$"
+    },
+    "kind": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80,
+      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"
+    },
+    "boot_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "observed_monotonic_ns": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "clock_epoch": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 0
+    },
+    "clock_uncertainty_ns": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "frame_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "pattern": "^[A-Za-z][A-Za-z0-9_.:/-]*$"
+    },
+    "calibration_id": {
+      "type": ["string", "null"],
+      "maxLength": 160
+    },
+    "source": {
+      "$ref": "#/$defs/source"
+    },
+    "quality": {
+      "$ref": "#/$defs/quality"
+    },
+    "payload": {
+      "type": "object"
+    },
+    "integrity": {
+      "$ref": "#/$defs/integrity"
+    },
+    "trace": {
+      "$ref": "#/$defs/trace"
+    }
+  },
+  "$defs": {
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["master_id", "endpoint_id", "adapter_id", "transport"],
+      "properties": {
+        "master_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "endpoint_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "adapter_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "transport": {
+          "enum": ["BLE", "USB", "WIFI", "ETHERNET", "NFC", "INTERNAL", "FILE", "SIMULATED"]
+        },
+        "protocol_version": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "firmware_version": {
+          "type": ["string", "null"],
+          "maxLength": 80
+        }
+      }
+    },
+    "quality": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["confidence", "latency_ms", "flags"],
+      "properties": {
+        "confidence": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0
+        },
+        "latency_ms": {
+          "type": "number",
+          "minimum": 0.0
+        },
+        "covariance_diagonal": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 0.0
+          },
+          "maxItems": 36
+        },
+        "flags": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "STALE",
+              "OUT_OF_ORDER",
+              "NLOS_POSSIBLE",
+              "UNCALIBRATED",
+              "CLOCK_UNCERTAIN",
+              "SATURATED",
+              "INTERPOLATED",
+              "SIMULATED",
+              "DEGRADED_SOURCE"
+            ]
+          }
+        },
+        "residual": {
+          "type": ["number", "null"],
+          "minimum": 0.0
+        }
+      }
+    },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["verified"],
+      "properties": {
+        "verified": {
+          "type": "boolean"
+        },
+        "algorithm": {
+          "type": ["string", "null"],
+          "maxLength": 40
+        },
+        "key_id": {
+          "type": ["string", "null"],
+          "maxLength": 160
+        },
+        "verification_error": {
+          "type": ["string", "null"],
+          "maxLength": 100
+        }
+      }
+    },
+    "trace": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "correlation_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "causation_id": {
+          "type": ["string", "null"],
+          "format": "uuid"
+        }
+      }
+    }
+  }
+}
