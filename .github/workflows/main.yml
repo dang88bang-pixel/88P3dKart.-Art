@@ -1,0 +1,23 @@
+**Bitte signierte REAL-CT45P .apk bauen und bereitstellen**
+
+Branch: `arena/01a00b5e-88p3dkart-art`
+
+**Workflow triggern:**
+1. https://github.com/dingeldangbang/88P3dKart.-Art/actions/workflows/build-apk.yml
+2. Rechts oben auf **"Run workflow"** klicken
+3. Folgende Werte wählen:
+   - **Branch:** `arena/01a00b5e-88p3dkart-art`
+   - **build_type:** `release`
+   - **sign_release:** `true`
+
+**Erforderliche Secrets (für signierte APK):**
+- `RELEASE_STORE_BASE64`
+- `RELEASE_STORE_PASSWORD`
+- `RELEASE_KEY_ALIAS` = `ct45p-release`
+- `RELEASE_KEY_PASSWORD`
+
+Die App ist vollständig real (alle P1–P8 + HoneywellMasterBridge abgeschlossen, 0 Simulation in kritischen Pfaden).
+
+Nach dem Build:
+- APK unter Artifacts verfügbar
+- Bei erfolgreichem signed Build auch als GitHub Release
