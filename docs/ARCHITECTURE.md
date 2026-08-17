@@ -1,6 +1,13 @@
 # 🏗️ Systemarchitektur
 
-Die Plattform ist in drei logische Schichten unterteilt, die nahtlos über
+> Die verifizierte Hardwarebasis, UHAL-, Token-, Ortungs-, Security- und
+> Sensorfusionsarchitektur ist ausführlich in der
+> [CT45P-Master-Detailarchitektur](CT45P_MASTER_ARCHITECTURE.md) beschrieben.
+> Dort werden Herstellermerkmale, Projektziele und noch offene Hardware-Gates
+> getrennt ausgewiesen. Die verbindliche praktische Zielverteilung ist
+> [Option C: CT45P Control Plane plus Linux-Gateway Data Plane](ALTERNATIVE_IMPLEMENTATIONS.md#5-option-c--geteilte-control-data-plane).
+
+Die Plattform ist in drei logische Schichten unterteilt, die über
 REST/WebSocket und MQTT kommunizieren.
 
 | Schicht | Komponente | Technologie / Hardware | Funktion |
@@ -33,6 +40,8 @@ REST/WebSocket und MQTT kommunizieren.
 | **13. Offline-Gerätedatenbank** | Edge-Agent | Python (`device_db.py`, `device_db_builder.py`) | OUI/GATT/Tracker-Erkennung, SIG-Company-IDs, DeviceDatabase-Kern + Seed (Thread/Matter, LoRaWAN, wM-Bus, ISM 433, Medizin-BLE), Konsolidierungs-Builder (Z2M/Bluetooth-Numbers/MAC-Vendor), REST-Lookups |
 | | Android-App | Kotlin (`devicedb/DeviceDatabase.kt`) | Identische Semantik; Room-Persistenz als Roadmap |
 
+| **14. Mehrwert & Synergien** (docs/MEHRWERT_SYNERGIE.md) | Alle Schichten | CT45P Hardware (IMU-Set, NFC, Kameras, Wi-Fi 6, GPS) + Fusion | Detaillierte Bewertung der 5 Kernkomponenten (3D-Kartierung, Akustik, UWB, IMU, BLE-Mesh). Starke Synergie-Effekte (z.B. IMU + UWB für driftfreie cm-Genauigkeit; IMU → Tactical Health Monitoring). CT45P als ideale Plattform für multimodale Sensorfusion. |
+
 ---
 
 ## v2.0.0 — Datenpipeline
@@ -59,8 +68,9 @@ Sensor-/Netzwerkdaten → Analyse → Mesh → 3D-Umgebung → Exakte Abbildung 
 
 - **Adaptiver 6-DOF EKF** — Zustand [x,y,z,vx,vy,vz]; bei LiDAR-Streuung
   (Rauch/Staub) wird `R` um Faktor 1000 erhöht → mmWave übernimmt.
-- **UWB Micro-Doppler** — FFT auf Phasen-Ringbuffer (20 Hz, 5 s Fenster),
-  Peak 0.15–0.6 Hz, Konfidenz > 30 %.
+- **UWB Micro-Doppler (experimentell)** — FFT auf extern geliefertem
+  Rohphasen-Ringbuffer (20 Hz, 5 s Fenster), Peak 0.15–0.6 Hz. Benötigt ein
+  geeignetes externes UWB-Modul und eine eigene Validierung.
 - **ICP-Map-Merging** — Kabsch-Umeyama (SVD), Toleranz 1e-6, max. 50 Iterationen.
 - **Binary WebSocket** — `uint32 N + N*3 float32`, > 80 % Overhead-Reduktion.
 - **Aura RTI** — Voxel-Modell + Ellipsen-Gewichtung, Tikhonov-Regularisierung

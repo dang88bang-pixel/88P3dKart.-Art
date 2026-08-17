@@ -2,23 +2,19 @@ package com.example.agent.device
 
 import com.example.agent.device.DeviceModels.CapabilityType
 import com.example.agent.device.DeviceModels.Device
-import com.example.agent.service.ServiceTechnicianRepository
-import kotlinx.coroutines.runBlocking
 
 /**
- * Geräte-Aktions-Engine (docs/DEVICE_INTERACTION.md) — REAL.
+ * Geräte-Aktions-Engine (docs/DEVICE_INTERACTION.md) — Portierung der
+ * v13.0.0-Kernlogik (DeviceActionEngine) mit Konsolidierung: die Spec
+ * duplizierte die Aktionslogik in `DeviceInteractionManager` (hartkodierte
+ * when-Zweige) — hier ist die Engine die einzige Quelle für
+ * Capability-Prüfung und Aktionsausführung.
  *
- * Vollständig ausführbare Aktionsketten inklusive:
- * - Standard (read, locate, visibility, LED)
- * - Service / Techniker-Aktionen (real DB-backed)
- *
- * Verwendet echte Android APIs + Room (ServiceTechnicianRepository).
- * Keine Mocks in den Execute-Pfaden.
+ * Die tatsächliche Hardware-Ansteuerung (BLE-Kommando, Firmware-Update)
+ * läuft über Transport-Adapter; die Standard-Aktionen sind deterministische
+ * Registry-/Status-Operationen und damit vollständig JVM-testbar.
  */
-class DeviceActionEngine(
-    private val registry: DeviceRegistry,
-    private val serviceRepo: ServiceTechnicianRepository? = null
-) {
+class DeviceActionEngine(private val registry: DeviceRegistry) {
 
     data class ActionResult(
         val deviceId: String,
@@ -114,103 +110,6 @@ class DeviceActionEngine(
                     success = true,
                     message = if (state) "LED an" else "LED aus",
                     data = mapOf("state" to state.toString()),
-                )
-            },
-        )
-
-        // === REAL SERVICE / TECHNICIAN ACTIONS (A3 + A4 from audit) ===
-        register(
-            DeviceAction(
-                id = "start_repair_mode",
-                name = "Reparatur-Modus starten",
-                description = "Gerät für Techniker-Reparatur markieren (FRP/UART)",
-                capability = CapabilityType.EXECUTE_COMMAND,
-            ) { device, params ->
-                val techId = params["technician_id"] ?: "unknown"
-                val ticket = serviceRepo?.let {
-                    runBlocking {
-                        it.createServiceTicket(
-                            deviceId = device.id,
-                            title = "Reparatur: ${device.name}",
-                            description = params["reason"] ?: "Techniker-Reparatur angefordert",
-                            technicianId = techId
-                        )
-                    }
-                }
-                ActionResult(
-                    deviceId = device.id,
-                    action = "start_repair_mode",
-                    success = true,
-                    message = "Reparatur-Modus aktiv. Ticket: ${ticket?.id ?: "N/A"}",
-                    data = mapOf("ticket_id" to (ticket?.id ?: ""), "technician" to techId)
-                )
-            },
-        )
-
-        register(
-            DeviceAction(
-                id = "log_frp_bypass",
-                name = "FRP-Bypass protokollieren",
-                description = "FRP-Bypass über UART/BLE ausführen und loggen",
-                capability = CapabilityType.EXECUTE_COMMAND,
-            ) { device, params ->
-                val techId = params["technician_id"] ?: "unknown"
-                val success = true // in real: execute actual UART command via UartBleBridge
-                serviceRepo?.let {
-                    runBlocking {
-                        val openTickets = it.getOpenTickets()
-                        // simplified: use first open or create
-                        val ticketId = openTickets.firstOrNull()?.id ?: "no-ticket"
-                        it.logRepairAction(
-                            ticketId = ticketId,
-                            deviceId = device.id,
-                            technicianId = techId,
-                            action = "FRP_BYPASS",
-                            details = "FRP bypass executed via UART on CT45P",
-                            success = success,
-                            data = mapOf("method" to "UART", "command" to "AT+FRP=1")
-                        )
-                    }
-                }
-                ActionResult(
-                    deviceId = device.id,
-                    action = "log_frp_bypass",
-                    success = success,
-                    message = if (success) "FRP-Bypass erfolgreich protokolliert" else "FRP fehlgeschlagen",
-                    data = mapOf("technician" to techId, "method" to "real_uart")
-                )
-            },
-        )
-
-        register(
-            DeviceAction(
-                id = "log_uart_repair",
-                name = "UART-Repair protokollieren",
-                description = "Techniker-Repair via UART (eMMC, FRP, Diagnostics)",
-                capability = CapabilityType.EXECUTE_COMMAND,
-            ) { device, params ->
-                val command = params["command"] ?: "AT+DIAG"
-                val techId = params["technician_id"] ?: "unknown"
-                serviceRepo?.let {
-                    runBlocking {
-                        val ticketId = "repair-${device.id}"
-                        it.logRepairAction(
-                            ticketId = ticketId,
-                            deviceId = device.id,
-                            technicianId = techId,
-                            action = "UART_REPAIR",
-                            details = "Executed repair command: $command",
-                            success = true,
-                            data = mapOf("uart_command" to command)
-                        )
-                    }
-                }
-                ActionResult(
-                    deviceId = device.id,
-                    action = "log_uart_repair",
-                    success = true,
-                    message = "UART-Repair-Befehl ausgeführt: $command",
-                    data = mapOf("command" to command, "technician" to techId)
                 )
             },
         )

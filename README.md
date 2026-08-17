@@ -1,28 +1,32 @@
 # 🧭 3dxAgent — Autonomes 3D-Kartierungs- & Lageerkennungssystem
 
-**Version:** 4.4.0-ClientRules · **Zielplattform:** Honeywell CT45P + Multi-Sensor Edge-Netzwerk
+**Version:** 4.5.0-BT-Accessories · **Zielplattform:** Honeywell CT45P + Multi-Sensor Edge-Netzwerk + Bluetooth-Zubehör Ökosystem
 
-Die **3dxAgent-Plattform** verwandelt das Industrie-Smartphone **Honeywell CT45P**
-in ein hochpräzises, autonomes 3D-Kartierungs- und Lageerkennungssystem. Durch die
-Fusion von **LiDAR, mmWave-Radar, UWB-Micro-Doppler, BLE-Token-Triangulation** und
-**IMU** mit einem **adaptiven 6-DOF Extended Kalman Filter (EKF)** entsteht ein
-digitaler Zwilling der Umgebung — inklusive Detektion von Personen und Objekten
-hinter Mauern.
+Die **3dxAgent-Plattform** nutzt das Industrie-Smartphone **Honeywell CT45P**
+als mobilen Bedien-, Enrollment- und Autorisierungsmaster. In der empfohlenen
+Zielarchitektur normalisiert und fusioniert ein robustes Linux-Gateway die Daten
+externer **LiDAR-, mmWave-, UWB- und BLE-Sensoren**; der CT45P visualisiert den
+revisionierten Zustand und sendet signierte Benutzerintentionen. Präzisions-
+oder Wanddurchdringungsfunktionen sind keine zugesicherten CT45P-Eigenschaften,
+sondern benötigen geeignete externe Infrastruktur, Kalibrierung und bestandene
+Feldtests.
 
-Die **v2.0.0-DataPipeline** ergänzt eine vollständige
-**Sensor-/Netzwerkdaten-Evaluierungspipeline**:
+Die **v2.0.0-DataPipeline** enthält einen prototypischen
+Sensor-/Netzwerkdaten-Evaluierungspfad:
 
 ```
-Sensor-/Netzwerkdaten → Analyse → Mesh → 3D-Umgebung → Exakte Abbildung → Evaluierungsagent
+Sensor-/Netzwerkdaten → Analyse → Mesh → 3D-Umgebung → bewertete Abbildung → Evaluierungsagent
 ```
 
-Die Erweiterungen **v3.x–v4.4.0** ergänzen zudem:
-- **Offline-Betrieb** — UWB-DFT, ICP/Kabsch, Madgwick-IMU, Trilateration und ein
-  lokaler REST/WebSocket-Server direkt in Kotlin auf dem CT45P (Package `offline/`)
+Die Erweiterungen **v3.x–v4.4.0** enthalten außerdem Prototypen für:
+- **Offline-Verarbeitung** — experimentelle DFT für extern gelieferte
+  UWB-Rohdaten, ICP/Kabsch, Madgwick-IMU, Multilateration und einen einfachen
+  lokalen REST/WebSocket-Server im Kotlin-Package `offline/`
 - **Smart Mesh Integrator** — adaptiver Octree, semantische Klassifikation
   (Person/Gegenstand/Wand/Boden), Bewegungsdetektion
-- **Client-Regelwerk** — Anbindung beliebiger externer Geräte (Token, Relay,
-  Sensor, Gateway, Wearable) mit Authentifizierung, Signalauswertung und Health-Check
+- **Client-Regelwerk** — Grundmodelle für Token, Relay, Sensor, Gateway und
+  Wearable; produktive Enrollment-, Authentisierungs- und Health-Verträge sind
+  noch umzusetzen
 
 **Projekt Aura** (docs/AURA.md) erweitert die Plattform um die Erfassung und
 3D-Visualisierung der elektromagnetischen Umgebung:
@@ -117,6 +121,24 @@ alle Geräte im Raum (ein-/ausblendbar, capability-geprüfte Aktionen):
 - REST `/api/v1/devices*` + WS `devices_update`/`device_action` +
   Geräte-Layer im Web-Visualizer (Raycast-Auswahl, Kontextmenü)
 
+**Mehrwert & Synergien** (docs/MEHRWERT_SYNERGIE.md) — Detaillierte Bewertung
+der 5 Kernkomponenten (3D-Kartierung, Akustik, UWB, IMU, BLE-Mesh) und ihrer
+Kombinations-Mehrwerte auf dem CT45P. Besondere Betonung der Hardware-Synergien
+(IMU-Set, NFC, Kameras, Wi-Fi 6) und der Fusion mit Tactical Health Monitoring.
+
+**Taktisches Stressmonitoring** (v17.2.0-TacticalOps) — Vollständige Erweiterung
+für Einsatzkräfte (Polizei, Feuerwehr, Rettung, Militär):
+- **TacticalHealthMonitoring** (Kotlin) — Echtzeit-Vitalmonitoring (HR, HRV, SpO2, EDA, Temp)
+  + wissenschaftlich validierte Stress-Level-Klassifikation (LOW/MEDIUM/HIGH/CRITICAL)
+  + Combat Readiness Score + Personnel Status (OPERATIONAL → KIA)
+- **TacticalOverlay.js** (Three.js) — Farbcodierte 3D-Avatare + schwebende Vital-Labels
+  + pulsierende Status-Ringe + Echtzeit-Stats-Overlay
+- **TacticalDashboardFragment** — Android-UI mit RecyclerViews, Einsatz-Start/Stopp,
+  Alarme, Export von Einsatzberichten
+- WS-Integration: `tactical_personnel`, `tactical_alert`, `tactical_overview`
+- Demo-Button + Tastenkürzel (T) im Web-Visualizer
+- Offline-fähig + automatische Berichtserstellung
+
 **Aktive Netzwerkvisualisierung** (docs/NETWORK_LIVEVIEW.md) — Live-Traffic
 in der 3D-Ansicht (v14.1.0):
 - **Traffic-Simulator** (seeded, Bursts, Latenz-Auslastungs-Kopplung) +
@@ -148,14 +170,14 @@ Drahtlosgeräten ohne Cloud (v16.0.0 + v17.x):
 
 ```text
 88P3dKart.-Art/
-├── edge-agent/                # Python 3.11 + FastAPI + NumPy/SciPy (lauffähig)
-├── web-visualizer/            # Node.js + Three.js (lauffähig)
-├── android-app/               # Kotlin CT45P-App (Scaffolding, kompiliert mit Android Studio)
-├── ble-token-firmware/        # nRF52 Zephyr (Scaffolding)
+├── edge-agent/                # Python 3.11 + FastAPI + NumPy/SciPy (18 Bestandstests bestanden)
+├── web-visualizer/            # Node.js + Three.js (Dependency-/Syntax-/HTTP-Smoke geprüft)
+├── android-app/               # Native Kotlin/XML-CT45P-App; reproduzierbarer Build noch offen
+├── ble-token-firmware/        # nRF52-Zephyr-Prototyp; Build- und Hardwaretest noch offen
 ├── mosquitto/                 # MQTT-Broker-Konfiguration
 ├── nginx/                     # Reverse-Proxy (optional, HTTPS)
 ├── docker-compose.yml         # Orchestrierung (4 Services)
-└── docs/                      # Architektur, API, Roadmap, Checkliste
+└── docs/                      # Architektur, API, Roadmap, Checkliste, BLUETOOTH_ACCESSORIES.md
 ```
 
 ---
@@ -226,12 +248,17 @@ Fusions-Gate) — Ausführung in Android Studio/CI (`./gradlew test`).
 ## 📊 Die 5 Einsatzszenarien
 
 1. **Taktische Einsatzbesprechung** (Behörden/BOS) — 3D-Scan ohne Baupläne, Avatare, GLTF-Export
-2. **Gefahren- & Evakuierungssimulation** — Rauchausbreitung, ABM, UWB-Atemdetektion
+2. **Gefahren- & Evakuierungssimulation** — Rauchausbreitung, ABM, experimentelle Auswertung externer UWB-Rohdaten
 3. **Architektur & Bestandsanalyse** — LiDAR-SLAM, IFC-Export für BIM
 4. **Temporäre Szenarien** — BLE-Token-Personenströme, ICP-Map-Merging
 5. **Forschung & Lehre** — versionierte, wiederholbare 3D-Datensätze
 
 Weitere Details: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md),
+[**CT45P-Master-Detailarchitektur**](docs/CT45P_MASTER_ARCHITECTURE.md),
+[**Alternative Implementierungen**](docs/ALTERNATIVE_IMPLEMENTATIONS.md),
+[**Geräteverwaltung und Interaktionsplattform**](docs/DEVICE_MANAGEMENT_PLATFORM.md),
+[**Dauerhafter Hintergrund-Abstandsalarm**](docs/BACKGROUND_DISTANCE_ALARM.md),
+[**Release-Readiness-Audit**](docs/RELEASE_READINESS_AUDIT.md),
 [`docs/EXECUTIVE_SUMMARY.md`](docs/EXECUTIVE_SUMMARY.md),
 [`docs/API.md`](docs/API.md),
 [`docs/ROADMAP.md`](docs/ROADMAP.md),
@@ -257,7 +284,21 @@ Weitere Details: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md),
 
 | Protokoll | Endpunkt | Zweck |
 |-----------|----------|-------|
-| REST (HTTPS) | `:8080/api/v1/...` | Konfiguration, Historie, Szenarien, Map-Merge, Pipeline |
-| WebSocket | `:8080/ws/agent/events` | Binärer Punktwolken-Stream + JSON-Status |
-| MQTT | `:1883` | BLE-Token-Rohdaten externer Smartphones |
+| REST (HTTPS) | `:8080/api/v1/...` | Konfiguration, Historie, Szenarien, Map-Merge, Pipeline, Bluetooth Zubehör |
+| WebSocket | `:8080/ws/agent/events` | Binärer Punktwolken-Stream + JSON-Status + BT Zubehör Live |
+| MQTT | `:1883` | BLE-Token + `bluetooth/accessories/#`, `sensors/#`, `wearables/#`, `events/#` |
 | USB-Serial | `/dev/ttyUSB0`, `/dev/ttyACM0` | LiDAR, mmWave (CT45P Host-Modus) |
+| BLE GATT | `8d81e7c0-b7c8-...` | Custom 3dx Service – Data Notify, Config Write, Command Write |
+| BLE Standard | `0x180F, 0x180A, 0x181A, 0x180D` | Battery, Device Info, Env Sensing, Heart Rate |
+| BT Classic SPP | `00001101-...` | RFCOMM für HC-05, Headset, HID Remote |
+
+### 🆕 Bluetooth-Zubehör REST
+
+```bash
+curl http://localhost:8080/api/v1/bluetooth/accessories | jq
+curl http://localhost:8080/api/v1/bluetooth/stats | jq
+curl http://localhost:8080/api/v1/bluetooth/health | jq
+curl http://localhost:8080/api/v1/bluetooth/accessories/aa:bb:cc:dd:ee:01 | jq
+```
+
+Details: [`docs/BLUETOOTH_ACCESSORIES.md`](docs/BLUETOOTH_ACCESSORIES.md)

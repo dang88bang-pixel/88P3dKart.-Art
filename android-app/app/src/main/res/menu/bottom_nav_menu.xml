@@ -2,5 +2,5 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:id="@+id/navigation_live" android:title="3D" />
     <item android:id="@+id/navigation_map" android:title="Karte" />
-    <item android:id="@+id/navigation_scenario" android:title="Szenario" />
+    <item android:id="@+id/navigation_alarm" android:title="@string/nav_alarm" />
 </menu>

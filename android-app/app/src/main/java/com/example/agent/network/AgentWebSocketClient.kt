@@ -1,13 +1,16 @@
 package com.example.agent.network
 
 import android.util.Log
+import com.example.agent.network.models.AlarmEvent
 import com.example.agent.network.models.EkfState
 import com.example.agent.sensors.BleTokenManager
 import com.example.agent.sensors.SerialManager
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
@@ -35,7 +38,9 @@ import java.util.concurrent.atomic.AtomicBoolean
  *    `AtomicBoolean isConnecting` serialisiert, max. Backoff begrenzt.
  */
 class AgentWebSocketClient(
-    private val serverUrl: String = "ws://192.168.1.100:8080/ws/agent/events",
+    private val serverUrl: String?,
+    private val sessionProvider: suspend () -> GatewaySession?,
+    private val invalidateSession: () -> Unit,
 ) {
     companion object {
         private const val TAG = "AgentWS"
@@ -59,11 +64,21 @@ class AgentWebSocketClient(
         encodeDefaults = true
     }
 
+    private var webSocket: WebSocket? = null
+    @Volatile private var isConnected = false
+    @Volatile private var isConnecting = false
+    private var reconnectJob: Job? = null
+    private var renewalJob: Job? = null
+    private var connectionGeneration = 0L
+    @Volatile private var closed = false
+
     var onConnected: (() -> Unit)? = null
     var onDisconnected: (() -> Unit)? = null
     var onBinaryPointCloud: ((ByteArray) -> Unit)? = null
     var onEkfState: ((EkfState) -> Unit)? = null
+    var onAlarmEvent: ((AlarmEvent) -> Unit)? = null
 
+    @Synchronized
     fun connect() {
         // Schutz gegen parallele Verbindungsaufbauten: ist bereits eine
         // Verbindung aktiv oder wird gerade aufgebaut, nichts tun.
@@ -91,6 +106,7 @@ class AgentWebSocketClient(
             }
 
             override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
+                if (!isCurrent(generation)) return
                 scope.launch(Dispatchers.Main) { onBinaryPointCloud?.invoke(bytes.toByteArray()) }
             }
 
@@ -117,6 +133,50 @@ class AgentWebSocketClient(
     private fun scheduleReconnect() {
         // Vorherigen Reconnect-Job sauber beenden.
         reconnectJob?.cancel()
+        return true
+    }
+
+    @Synchronized
+    private fun markTerminated(generation: Long): Boolean {
+        if (generation != connectionGeneration) return false
+        connectionGeneration += 1
+        isConnecting = false
+        isConnected = false
+        webSocket = null
+        renewalJob?.cancel()
+        return !closed
+    }
+
+    @Synchronized
+    private fun isCurrent(generation: Long): Boolean =
+        !closed && generation == connectionGeneration
+
+    @Synchronized
+    private fun isCurrentConnectionAttempt(generation: Long): Boolean =
+        isConnecting && isCurrent(generation)
+
+    @Synchronized
+    private fun scheduleSessionRenewal(expiresAtEpochSeconds: Long, generation: Long) {
+        renewalJob?.cancel()
+        val now = System.currentTimeMillis() / 1000L
+        val delaySeconds = (expiresAtEpochSeconds - SESSION_RENEWAL_MARGIN_SECONDS - now)
+            .coerceAtLeast(0L)
+        renewalJob = scope.launch {
+            delay(delaySeconds * 1_000L)
+            renewSession(generation)
+        }
+    }
+
+    @Synchronized
+    private fun renewSession(generation: Long) {
+        if (!isConnected || !isCurrent(generation)) return
+        invalidateSession()
+        webSocket?.close(SESSION_RENEWAL_CLOSE_CODE, "Renewing gateway session")
+    }
+
+    @Synchronized
+    private fun scheduleReconnect() {
+        if (closed || reconnectJob?.isActive == true) return
         reconnectJob = scope.launch {
             var delayMs = INITIAL_RECONNECT_DELAY_MS
             while (!isConnected.get()) {
@@ -153,7 +213,6 @@ class AgentWebSocketClient(
                 scattering_detected = scattering,
             ),
         )
-    }
 
     fun sendMmwaveTargets(deviceId: String, targets: List<SerialManager.MmwaveTarget>) {
         if (targets.isEmpty()) return
@@ -178,6 +237,45 @@ class AgentWebSocketClient(
                     WsBleToken(it.mac, it.rssi, it.accelX, it.accelY, it.accelZ, it.battery)
                 },
             ),
+        )
+
+    /** Überladung für direktes Senden von Accessory Payload Maps (z.B. SOS, Button Events) */
+    fun sendBleTokens(deviceId: String, tokens: List<Map<String, Any?>>) {
+        sendPayload(
+            "ble",
+            mapOf(
+                "device_id" to deviceId,
+                "timestamp" to System.currentTimeMillis() / 1000.0,
+                "tokens" to tokens,
+            )
+        )
+    }
+
+    /** Vollständiges Bluetooth-Zubehör Paket an Edge-Agent senden */
+    fun sendBluetoothAccessories(deviceId: String, accessories: List<com.example.agent.bluetooth.BluetoothAccessory>) {
+        val list = accessories.map { it.toSignalPayload() }
+        sendPayload(
+            "bluetooth_accessories",
+            mapOf(
+                "device_id" to deviceId,
+                "timestamp" to System.currentTimeMillis() / 1000.0,
+                "accessories" to list,
+                "count" to list.size,
+            )
+        )
+    }
+
+    /** Einzelnes SOS / Button Event */
+    fun sendAccessoryEvent(deviceId: String, mac: String, eventType: String, payload: Map<String, Any?>) {
+        sendPayload(
+            "accessory_event",
+            mapOf(
+                "device_id" to deviceId,
+                "timestamp" to System.currentTimeMillis() / 1000.0,
+                "mac" to mac,
+                "event_type" to eventType,
+                "payload" to payload,
+            )
         )
     }
 
@@ -273,7 +371,61 @@ class AgentWebSocketClient(
         )
     }
 
+    
+    // Sendet Echtzeit-Personal-Status, Alarme und Overview an Edge-Agent + Web-Visualizer.
+    // Wird von MainActivity ausgelöst (Personnel-Collector, Alert-Collector, IMU-Update).
+
+    fun sendTacticalPersonnel(
+        deviceId: String,
+        personnel: List<com.example.agent.tactical.TacticalHealthMonitoring.TacticalPersonnel>
+    ) {
+        if (personnel.isEmpty()) return
+        val payload = personnel.map { p ->
+            mapOf(
+                "id" to p.id,
+                "name" to p.name,
+                "callSign" to p.callSign,
+                "role" to p.role.name,
+                "heartRate" to p.heartRate,
+                "hrv" to p.hrv,
+                "eda" to p.eda,
+                "spo2" to p.spo2,
+                "temperature" to p.temperature,
+                "stressLevel" to p.stressLevel.name,
+                "combatReadiness" to p.combatReadiness,
+                "status" to p.status.name,
+                "position" to p.position?.let { mapOf("x" to it.x, "y" to it.y, "z" to it.z) },
+                "lastUpdate" to p.lastUpdate,
+                "fatigueScore" to p.fatigueScore
+            )
+        }
+        send("tactical_personnel", mapOf("device_id" to deviceId, "personnel" to payload))
+    }
+
+    fun sendTacticalAlert(
+        deviceId: String,
+        alert: com.example.agent.tactical.TacticalHealthMonitoring.TacticalAlert
+    ) {
+        val payload = mapOf(
+            "id" to alert.id,
+            "type" to alert.type.name,
+            "severity" to alert.severity.name,
+            "personnelId" to alert.personnelId,
+            "message" to alert.message,
+            "timestamp" to alert.timestamp,
+            "acknowledged" to alert.acknowledged
+        )
+        send("tactical_alert", mapOf("device_id" to deviceId, "alert" to payload))
+    }
+
+    fun sendTacticalOverview(deviceId: String, overview: Map<String, Any>) {
+        send("tactical_overview", mapOf("device_id" to deviceId, "overview" to overview))
+    }
+
     fun disconnect() {
+        if (closed) return
+        closed = true
+        connectionGeneration += 1
         reconnectJob?.cancel()
         reconnectJob = null
         try {

@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#111122"
+    android:padding="12dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="start">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="📡 Bluetooth-Zubehör"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="#88ff88"
+            android:layout_marginBottom="8dp"/>
+
+        <TextView
+            android:id="@+id/bt_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Scanne..."
+            android:textColor="#aaccff"
+            android:textSize="13sp"
+            android:background="#1a2a3a"
+            android:padding="10dp"
+            android:layout_marginBottom="8dp"/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btn_scan_low"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="🔋 Low"
+                android:textSize="11sp"/>
+
+            <Button
+                android:id="@+id/btn_scan_balanced"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="⚖️ Bal"
+                android:textSize="11sp"
+                android:layout_marginStart="4dp"/>
+
+            <Button
+                android:id="@+id/btn_scan_high_accuracy"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="🎯 High"
+                android:textSize="11sp"
+                android:layout_marginStart="4dp"/>
+
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/bt_health"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Health: --"
+            android:textSize="12sp"
+            android:textColor="#ffdd88"
+            android:background="#2a2a1a"
+            android:padding="8dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="8dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Erkannte Geräte:"
+            android:textColor="#88aaff"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="4dp"/>
+
+        <TextView
+            android:id="@+id/bt_list"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Suche Bluetooth-Zubehör..."
+            android:textSize="12sp"
+            android:textColor="#cccccc"
+            android:fontFamily="monospace"
+            android:background="#1e1e2e"
+            android:padding="10dp"/>
+
+    </LinearLayout>
+</ScrollView>

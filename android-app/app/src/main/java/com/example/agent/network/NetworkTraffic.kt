@@ -10,8 +10,6 @@ import kotlin.math.min
  * Spiegelung der Python-Implementierung (`edge-agent/network_traffic.py`)
  * mit identischer Numerik: zentrale Bandbreiten-/Latenz-Farbcodierung,
  * Partikel-Mapping, Aktivitäts-Aggregation, Bandbreiten-Heatmap und
- * deterministischer Traffic-Simulator (der Spec referenzierte den
- * Simulator, implementierte ihn aber nie).
  */
 object NetworkTraffic {
 
@@ -111,9 +109,8 @@ object NetworkTraffic {
         return activity.mapValues { (_, a) -> (a.totalMbps / peak) * maxHeight }
     }
 
-    // ── Deterministischer Traffic-Simulator ─────────────────────
+    
 
-    class TrafficSimulator(
         seed: Long = 42L,
         val baseBandwidthMbps: Double = 40.0,
         val burstProbability: Double = 0.15,
@@ -121,7 +118,6 @@ object NetworkTraffic {
     ) {
         private val rng = Random(seed)
 
-        fun simulate(edges: List<Pair<String, String>>, timestamp: Long = System.currentTimeMillis()): List<TrafficFlow> {
             return edges.map { (source, target) ->
                 val burst = rng.nextDouble() < burstProbability
                 var bandwidth = baseBandwidthMbps * (if (burst) burstFactor else 1.0)

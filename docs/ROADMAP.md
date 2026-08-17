@@ -40,7 +40,6 @@
 | DeviceDB 1.2 | Snapshot-Build | Builder-Lauf mit Netzwerkzugang → data/device_db.json (volle Company-IDs, Z2M, OUI) ins Repo/Asset | ⏳ |
 | DeviceDB 1.3 | TTN/CSA-Import | LoRaWAN-Device-Repository (YAML-Snapshot) + CSA/Thread-Zertifizierungs-Dump | ⏳ |
 | DeviceDB 1.4 | App-Integration | Erkennung in DeviceSourceMapper/DeviceRegistry, Room-Persistenz, UI-Suche (UI_UX_PLAN) | ⏳ |
-| **CognitiveRadar 5.0** | **Cognitive & Neural Radar Integration** | Cognitive policy (on-device), NLOS physics (HoloRadar-style), Neural Submaps (MANG), Gaussian Splatting export, mmNorm shape reconstruction, WiFi Vision adapter. See `docs/ADVANCED_RADAR_SLAM_INTEGRATION.md` | 📋 planned |
 | Aura 0.2 | SDR-USB-Treiber | RTL-SDR-v5 via USB Host (libusb-Portierung), `IqSource`-Anbindung | ⏳ |
 | Aura 0.3 | VPN-Einbindung | `com.wireguard.android:tunnel` im Flavour `aura-vpn` (VpnService) | ⏳ |
 | Aura 0.4 | Maps 3D Preview | Google Maps 3D SDK (Experimental): extrudierte Heatmap, RTI-Voxel, „Röntgenblick"-Kamera | ⏳ |

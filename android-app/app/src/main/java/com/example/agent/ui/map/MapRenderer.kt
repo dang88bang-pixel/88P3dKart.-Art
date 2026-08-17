@@ -4,16 +4,12 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import com.example.agent.sensors.BleTokenManager
-import kotlin.math.cos
-import kotlin.math.pow
-import kotlin.math.sin
 
-/** 2D-Kartenansicht (Top-Down): BLE-Token, mmWave-Targets, eigene Position. */
+/** Top-down map for measurements that actually provide spatial coordinates. */
 class MapRenderer {
-
-    private val paintToken = Paint().apply { color = Color.GREEN; style = Paint.Style.FILL }
     private val paintTarget = Paint().apply { color = Color.RED; style = Paint.Style.FILL }
     private val paintUser = Paint().apply { color = Color.BLUE; style = Paint.Style.FILL }
+    private val paintGrid = Paint().apply { color = Color.GRAY; strokeWidth = 1f }
     private val paintText = Paint().apply { color = Color.WHITE; textSize = 20f }
 
     private var tokens: List<BleTokenManager.TokenData> = emptyList()
@@ -34,35 +30,53 @@ class MapRenderer {
 
     fun draw(canvas: Canvas, width: Int, height: Int) {
         canvas.drawColor(Color.BLACK)
-        val cx = width / 2f
-        val cy = height / 2f
-        val scale = 20f // Pixel pro Meter
+        val centerX = width / 2f
+        val centerY = height / 2f
+        val scale = 20f
 
-        // Gitter
-        paintText.color = Color.GRAY
-        for (i in -10..10 step 2) {
-            canvas.drawLine(cx + i * scale, 0f, cx + i * scale, height.toFloat(), paintText)
-            canvas.drawLine(0f, cy + i * scale, width.toFloat(), cy + i * scale, paintText)
+        for (meter in -10..10 step 2) {
+            canvas.drawLine(
+                centerX + meter * scale,
+                0f,
+                centerX + meter * scale,
+                height.toFloat(),
+                paintGrid,
+            )
+            canvas.drawLine(
+                0f,
+                centerY + meter * scale,
+                width.toFloat(),
+                centerY + meter * scale,
+                paintGrid,
+            )
         }
 
-        // Benutzer
-        canvas.drawCircle(cx + userX * scale, cy + userY * scale, 12f, paintUser)
-        paintText.color = Color.WHITE
-        canvas.drawText("Ich", cx + userX * scale + 16, cy + userY * scale + 8, paintText)
+        canvas.drawCircle(centerX + userX * scale, centerY + userY * scale, 12f, paintUser)
+        canvas.drawText(
+            "Device",
+            centerX + userX * scale + 16,
+            centerY + userY * scale + 8,
+            paintText,
+        )
 
-        // BLE-Token (RSSI → Distanz, Richtung via Triangulation)
-        tokens.forEach { token ->
-            val dist = 10f.pow((-60 - token.rssi) / 20f)
-            val angle = token.mac.hashCode() % 360
-            val tx = userX + dist * cos(Math.toRadians(angle.toDouble())).toFloat()
-            val ty = userY + dist * sin(Math.toRadians(angle.toDouble())).toFloat()
-            canvas.drawCircle(cx + tx * scale, cy + ty * scale, 10f, paintToken)
-            canvas.drawText("${token.rssi}dBm", cx + tx * scale + 16, cy + ty * scale + 8, paintText)
-        }
-
-        // mmWave-Targets
         targets.forEach { (x, y, _) ->
-            canvas.drawCircle(cx + x * scale, cy + y * scale, 8f, paintTarget)
+            canvas.drawCircle(centerX + x * scale, centerY + y * scale, 8f, paintTarget)
         }
+
+        // One RSSI observation cannot determine range or bearing. Keep tokens in
+        // an explicit unlocated list instead of inventing map coordinates.
+        tokens.take(MAX_UNLOCATED_TOKENS).forEachIndexed { index, token ->
+            val battery = token.battery?.let { "$it%" } ?: "unknown battery"
+            canvas.drawText(
+                "Unlocated ${token.mac}: ${token.rssi} dBm, $battery",
+                16f,
+                30f + index * 24f,
+                paintText,
+            )
+        }
+    }
+
+    companion object {
+        private const val MAX_UNLOCATED_TOKENS = 8
     }
 }

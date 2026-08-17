@@ -11,10 +11,28 @@ android {
 
     defaultConfig {
         applicationId = "com.example.agent"
-        minSdk = 31 // Android 12+ für UWB
+        minSdk = 31 // Android 12+ für UWB + BLE 5.0
         targetSdk = 34
-        versionCode = 1
-        versionName = "2.0.0"
+        versionCode = 5
+        versionName = "4.5.0-BT-Accessories"
+    }
+
+    signingConfigs {
+        create("release") {
+            // Credentials werden in ~/.gradle/gradle.properties
+            // (lokal) bzw. in den GitHub-Actions-Secrets (CI)
+            // hinterlegt. Siehe .github/workflows/build-apk.yml.
+            val ksFile = providers.gradleProperty("RELEASE_STORE_FILE")
+            val ksPass = providers.gradleProperty("RELEASE_STORE_PASSWORD")
+            val ksAlias = providers.gradleProperty("RELEASE_KEY_ALIAS")
+            val keyPass = providers.gradleProperty("RELEASE_KEY_PASSWORD")
+            if (ksFile.isPresent && ksPass.isPresent && ksAlias.isPresent && keyPass.isPresent) {
+                storeFile = rootProject.file(ksFile.get())
+                storePassword = ksPass.get()
+                keyAlias = ksAlias.get()
+                keyPassword = keyPass.get()
+            }
+        }
     }
 
     signingConfigs {
@@ -93,9 +111,6 @@ dependencies {
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
-
-    // UWB (Android 12+)
-    implementation("androidx.uwb:uwb:1.0.0-alpha05")
 
     // Serialisierung
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")

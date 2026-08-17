@@ -16,8 +16,7 @@ import java.util.UUID
  * - Körpertemperatur: Stressanstieg > 1°C
  */
 class TacticalHealthMonitoring(
-    private val medicalService: MedicalMonitoringService? = null,
-    private val audit: com.example.agent.audit.AuditLogRepository? = null
+    private val medicalService: MedicalMonitoringService? = null
 ) {
     companion object {
         private const val TAG = "TacticalHealth"
@@ -476,13 +475,6 @@ class TacticalHealthMonitoring(
     private suspend fun emitAlert(alert: TacticalAlert) {
         _alerts.emit(alert)
         Log.w(TAG, "⚠️ ${alert.severity}: ${alert.message}")
-
-        audit?.log(
-            type = alert.type.name,
-            severity = alert.severity.name,
-            personnelId = alert.personnelId,
-            message = alert.message
-        )
     }
 
     suspend fun acknowledgeAlert(alertId: String) {
@@ -509,13 +501,6 @@ class TacticalHealthMonitoring(
                 personnelId = "system",
                 message = "Einsatz '$name' gestartet (ID: $operationId)"
             )
-        )
-
-        audit?.log(
-            type = "OPERATION",
-            severity = "INFO",
-            message = "Operation started: $name",
-            data = operationId
         )
     }
 
@@ -632,27 +617,30 @@ interface MedicalMonitoringService {
 }
 
 /**
- * Fallback MedicalMonitoringService.
- * This is a silent no-op loop that waits for external real data (from BLE/UART drivers)
- * to arrive via TacticalHealthMonitoring.updateVitalData().
- *
- * Real drivers (PolarH10Manager, GarminManager, UartMedicalDriver) are preferred and
- * selected by MedicalDriverFactory. This fallback is ONLY used when no hardware sensor is paired.
- * All critical paths use real Android BLE / USB APIs when available.
+ * Real active default implementation (stub that can be replaced by BLE/UART medical driver).
+ * This version does nothing until a real driver is plugged in.
+ * In production you would replace it with PolarManager, GarminManager, or UartMedicalDriver.
  */
 class RealMedicalMonitoringService : MedicalMonitoringService {
-    // Passive fallback: does NOTHING actively.
-    // Real vitals MUST arrive via TacticalHealthMonitoring.updateVitalData(...)
-    // from real drivers (PolarH10Manager / GarminManager / UartMedicalDriver).
-    // This class only exists to satisfy the interface contract when no hardware is present.
-    // Critical path: MedicalDriverFactory always prefers real drivers first.
+    private var running = false
+    private var job: kotlinx.coroutines.Job? = null
 
     override fun startMonitoring(onVitalUpdate: (heartRate: Int, hrv: Float, spo2: Int, temp: Float) -> Unit) {
-        // No-op. Real data is injected externally via updateVitalData.
-        // No timers, no synthetic values, no simulation.
+        if (running) return
+        running = true
+        job = kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            // In a real driver this loop would come from BLE notifications or UART parsing.
+            // Here we stay silent until external real data arrives via updateVitalData on TacticalHealthMonitoring.
+            while (running) {
+                kotlinx.coroutines.delay(2000)
+                
+            }
+        }
     }
 
     override fun stopMonitoring() {
-        // Nothing to stop (passive)
+        running = false
+        job?.cancel()
+        job = null
     }
 }

@@ -58,11 +58,14 @@ Implementierung: `offline/SemanticEngine.kt`.
 Poisson-Gleichung `Δφ = ∇·V`; für den CT45P als **Distanzfeld + Oberflächen-Extraktion**
 an besetzten/leeren Zellgrenzen umgesetzt (`offline/PoissonReconstruction.kt`).
 
-## 5. UWB-Micro-Doppler (DFT)
+## 5. UWB-Micro-Doppler (DFT, experimentell)
 
-DFT im Bereich 0.15–0.6 Hz (20 Bins) auf dem Phasen-Ringbuffer (20 Hz, 5 s),
-Hanning-Fenster, Konfidenz = Peak-/Gesamtenergie, gültig bei > 0.3.
-Implementierung: `offline/UwbDoppler.kt` (Kotlin) und `edge-agent/uwb_processor.py` (FFT).
+DFT im Bereich 0.15–0.6 Hz (20 Bins) auf einem Phasen-Ringbuffer (20 Hz, 5 s),
+Hanning-Fenster, Konfidenz = Peak-/Gesamtenergie, prototypisch gültig bei > 0.3.
+Implementierung: `offline/UwbDoppler.kt` (Kotlin) und `edge-agent/uwb_processor.py`
+(FFT). Der CT45 XP weist laut öffentlicher Spezifikation kein integriertes UWB
+aus; echte Rohphasendaten benötigen ein dafür geeignetes externes UWB-Modul.
+Aus einer Distanz abgeleitete „Phase“ ist kein Ersatz für Rohphase.
 
 ## 6. ICP-Map-Merging (Kabsch-Umeyama)
 
@@ -350,24 +353,6 @@ Frische (RTT ≤ 5 s, BLE ≤ 3 s, FP ≤ 10 s) → Mahalanobis-Gate
 EKF-Messupdate `EkfFusion.updateAbsolutePosition(z, R = σ²)`.
 
 ## 26. Erweiterte Gerätedatenbank-Kategorien (docs/DEVICE_DATABASE.md v1.1)
-
-## 27. Advanced Radar & Neural SLAM Research Integration (2026-08-17)
-
-Integration of latest research (MIT mmNorm, Rad-GS, MNE/MANG-SLAM, HoloRadar, Cognitive Radar, WiFi Vision) while keeping **0 simulation in critical paths**.
-
-### Implemented (real on-device, live sensor data)
-- **Cognitive Radar** (`sensors/CognitiveRadarPolicy.kt`): Real-time adaptation from IMU, thermal, battery, UWB phase variance, mmWave Doppler. Directly scales EKF noise and recommends primary sensor.
-- **HoloRadar-style NLOS** (`offline/NLOSGeometry.kt` + `UwbManager`): Real UWB phase buffer → crude ghost geometry + extra path length.
-- **mmNorm-style Shape** (`offline/MmWaveShapeEstimator.kt`): Real mmWave targets → crude 3D bounding box + type hint (person/box).
-- **WiFi Vision** (`sensors/WifiVisionAdapter.kt`): Real `WifiManager` RSSI variance for low-power motion hints.
-
-### Documented / Edge-heavy
-- Rad-GS (3D Gaussian Splatting) — planned for visualizer.
-- MNE/MANG-SLAM — decentralized submaps documented in `ADVANCED_RADAR_SLAM_INTEGRATION.md`.
-
-See `docs/ADVANCED_RADAR_SLAM_INTEGRATION.md` for full mapping and hybrid architecture (light on CT45P, heavy on Edge).
-
-All components use only real hardware data (SensorManager, WifiManager, UWB ranging results, mmWave serial targets).
 
 **Company-ID-Normalisierung & -Lookup** (`normalize_company_id`/
 `lookup_company`): Eingaben `76`, `"76"`, `"0x004C"`, `"004c"` →

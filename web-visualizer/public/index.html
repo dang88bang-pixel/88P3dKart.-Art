@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3dxAgent — Web Visualizer</title>
+    <title>3dxAgent — Web Visualizer + Bluetooth Zubehör</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -18,6 +18,26 @@
         <div id="device-status">🛰️ Geräte: —</div>
     </div>
     <div class="badge">🔒 Lokal</div>
+    <div id="attribution"></div>
+
+    <div id="bt-panel">
+        <h3>📡 Bluetooth-Zubehör</h3>
+        <div id="bt-filters">
+            <button data-filter="all" class="active">Alle</button>
+            <button data-filter="TOKEN_PRO">Tokens</button>
+            <button data-filter="SENSOR_TAG">Sensoren</button>
+            <button data-filter="WEARABLE">Wearables</button>
+            <button data-filter="ASSET_TAG">Assets</button>
+            <button data-filter="REMOTE_CONTROLLER">Remote</button>
+        </div>
+        <div id="bt-list">Keine Geräte erkannt</div>
+        <div id="bt-health">
+            <div>🟢 Healthy: <span id="bt-healthy">0</span></div>
+            <div>🟡 Degraded: <span id="bt-degraded">0</span></div>
+            <div>🔴 Critical: <span id="bt-critical">0</span></div>
+            <div>⚪ Lost: <span id="bt-lost">0</span></div>
+        </div>
+    </div>
 
     <div id="controls">
         <button id="btn-evacuation">🚨 Evakuierung</button>
@@ -28,7 +48,10 @@
         <button id="btn-floorplan" class="active">🌆 Grundriss</button>
         <button id="btn-devices" class="active">🛰️ Geräte</button>
         <button id="btn-devicedb">🗃️ Geräte-DB</button>
+        <button id="btn-tactical">🎯 Szenario</button>
+        <button id="btn-tactical-stress" class="active">🛡️ Stress <span style="font-size:9px">(ALLES AKTIV)</span></button>
         <button id="btn-stop" class="stop">⏹️ Stopp</button>
+        <button id="btn-bt-scan">📡 BT Scan</button>
     </div>
 
     <div id="devicedb-panel" class="panel hidden">

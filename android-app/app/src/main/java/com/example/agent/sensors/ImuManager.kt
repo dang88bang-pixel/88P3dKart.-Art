@@ -138,3 +138,15 @@ class ImuManager(context: Context) : SensorEventListener {
         Log.d("ImuManager", "Accuracy: $accuracy")
     }
 }
+
+/**
+ * Synergie-Hinweis (docs/MEHRWERT_SYNERGIE.md):
+ * Die IMU ist der "Brückenbauer" zwischen 3D-Kartierung, UWB und Tactical Health Monitoring.
+ * CT45P liefert ein vollständiges 6+ Sensor-Set (Accel, Gyro, Mag, eCompass, Hall, Gravity).
+ * Die hier emittierten ImuSample-Daten fließen direkt in:
+ *   - EKF (Position/Orientierung)
+ *   - TacticalHealthMonitoring.updateMotionData (Stress-/Readiness-Anpassung bei Bewegung)
+ *   - Akustische Klassifikation (Bewegungsmuster)
+ *
+ * Dies ist ein zentraler Synergie-Effekt der Plattform auf dem CT45P.
+ */

@@ -7,9 +7,11 @@ mmWave-Radar, UWB-Micro-Doppler, BLE-Token-Triangulation** und **IMU** mit einem
 **adaptiven 6-DOF EKF** entsteht ein digitaler Zwilling der Umgebung — inklusive
 Detektion von Personen und Objekten hinter Mauern.
 
-Die **v2.0.0-DataPipeline** erweitert die Plattform um eine vollständige
+Die **v2.0.0-DataPipeline** enthält quellseitige Prototypen einer
 **Sensor-/Netzwerkdaten-Evaluierungspipeline** (Erfassung → Analyse → Mesh →
-3D-Umgebung → Exakte Abbildung → Evaluierungsagent).
+3D-Umgebung → Exakte Abbildung → Evaluierungsagent). Die Klassen sind noch nicht
+als vollständig gebauter, hardwarevalidierter Ende-zu-Ende-Pfad nachgewiesen; siehe
+[Release-Readiness-Audit](RELEASE_READINESS_AUDIT.md).
 
 ## Projekt Aura — elektromagnetische Umgebung in 3D
 
@@ -51,7 +53,7 @@ Details: [`UI_UX_PLAN.md`](UI_UX_PLAN.md)
 ## Die 5 Einsatzszenarien
 
 1. **Taktische Einsatzbesprechung** — 3D-Scan ohne Baupläne, Avatare, GLTF-Export.
-2. **Gefahren- & Evakuierungssimulation** — Rauch, ABM, UWB-Atemdetektion (0.15–0.6 Hz).
+2. **Gefahren- & Evakuierungssimulation** — Rauch, ABM und experimentelle Auswertung extern gelieferter UWB-Rohdaten.
 3. **Architektur & Bestandsanalyse** — LiDAR-SLAM, IFC-Export für BIM.
 4. **Temporäre Szenarien** — BLE-Token-Personenströme, ICP-Map-Merging.
 5. **Forschung & Lehre** — versionierte, wiederholbare 3D-Datensätze.

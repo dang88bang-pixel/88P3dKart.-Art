@@ -54,6 +54,7 @@ local.properties
 .env.*
 !.env.example
 ssl/
+secrets/
 *.pem
 *.key
 *.crt
@@ -61,3 +62,9 @@ ssl/
 # OS
 .DS_Store
 Thumbs.db
+
+# Offline-Geodatenbestände (per scripts/fetch_geo_data.py erzeugt, gross,
+# eigene Lizenzbedingungen — siehe docs/LICENSES.md)
+*.sqlite
+*.mmdb
+opencellid*.csv*
