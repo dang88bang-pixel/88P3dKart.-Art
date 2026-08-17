@@ -233,6 +233,13 @@ class MainActivity : AppCompatActivity() {
                 db.spatialDao().deleteOlderThan(cutoff)
             }
         }
+
+        // === REAL Service / Techniker DB (from full audit) ===
+        val serviceRepo = com.example.agent.service.ServiceTechnicianRepository(this)
+        scope.launch {
+            serviceRepo.registerTechnician("CT45P-Feldtechniker", "TECH-CT45P-01", "Honeywell CT45P Service")
+            Log.i("MainActivity", "Techniker-DB + Service-Repository initialisiert (real)")
+        }
     }
 
     private suspend fun saveCurrentState() {
