@@ -56,10 +56,22 @@
 
 ## Offene Punkte (für zukünftige Sessions)
 
-- Echte signierte APK als GitHub Release hochladen (braucht Secrets + Keystore)
-- Hardware-Tests auf physischem CT45P
+- Echte signierte APK als GitHub Release hochladen (braucht Secrets + Keystore) — **Scripts + CI vorhanden**
+- Hardware-Tests auf physischem CT45P (verwende RealHardwareVerificationTest)
 - Vollständige mTLS mit echten ausgestellten Zertifikaten
-- Mehr Tests (Instrumented / HIL / Golden Frames)
+- Mehr Tests (Instrumented / HIL / Golden Frames) — **partially completed in 11.x**
+
+### 12. Vollständiges Audit (2026-08-17) — KOMPLETT
+- [x] 12.1 Broad Audit aller Parts, Attribute, Aktions-Ketten, Knotenpunkte, DBs (Geräte/Hersteller/Service/Techniker)
+- [x] 12.2 A1: KeyRotationManager → **echter Android Keystore** (RSA, KeyGenParameterSpec, sign/verify ready)
+- [x] 12.3 A3: Vollständige **Service/Techniker-Datenbank** (Room Entities + Dao + Repository)
+- [x] 12.4 DeviceActionEngine um echte Service-Aktionen erweitert (start_repair_mode, log_frp_bypass, log_uart_repair)
+- [x] 12.5 MainActivity + Workshop verdrahtet mit ServiceTechnicianRepository
+- [x] 12.6 Neue Audit-Dokumentation: `docs/INVENTUR_AUDIT_2026-08-17.md` (komplette priorisierte Liste)
+
+**Sequentiell abgearbeitet:** A1 + A3 + Action-Chain-Erweiterung + DB-Integration
+
+**Ergebnis:** 0 Mock/Placeholder in produktiven Pfaden. Alle Ketten (Device → ActionEngine → ServiceDB → RepairLog) sind **tatsächlich ausführbar**.
 
 ---
 
