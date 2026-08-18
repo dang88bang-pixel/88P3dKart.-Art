@@ -8,9 +8,13 @@
 //   - WebSocket (/ws): wird von Service Workern NICHT abgefangen —
 //     Live-Daten laufen unverändert direkt zum Edge-Agent.
 //
-// Hinweis: periodische Hintergrundarbeit im Service Worker ist nicht
-// zuverlässig (Terminierung durch den Browser) — die Plattform setzt dafür
-// auf Android WorkManager/Coroutines (native App) bzw. den Edge-Agent.
+// Periodische Hintergrundarbeit: Best-Effort — die Plattform setzt primär
+// auf Android WorkManager (native App) und den Edge-Agent. Der SW registriert
+// 'periodicsync' (falls der Browser es unterstützt) und reicht fällige
+// Beobachtungen über die Sync-Queue des Edge-Agents nach:
+//   POST /api/v1/sync/queue   {device_id, kind, payload}
+// Ein Device-Session-Token kann über die Query der Registrierung übergeben
+// werden (serverseitig durch den Visualizer-Proxy ersetzt, siehe server.js).
 
 const VERSION = '3dxagent-shell-v1';
 const STATIC_CACHE = `${VERSION}-static`;
@@ -25,6 +29,51 @@ const APP_SHELL = [
 ];
 
 // ─── Install: App-Shell vorladen ─────────────────────────────────
+// ─── Periodic Background Sync (Best-Effort) ──────────────────
+// Sammelt zwischengespeicherte Beobachtungen und stellt sie in die
+// Sync-Queue des Edge-Agents ein. Geräte-ID & Token liefert der Client
+// beim Registrieren über URL-Parameter (device_id=…).
+self.addEventListener('periodicsync', (event) => {
+  if (event.tag === 'mesh-observation-sync') {
+    event.waitUntil(syncPendingObservations());
+  }
+});
+
+self.addEventListener('sync', (event) => {
+  if (event.tag === 'mesh-observation-sync') {
+    event.waitUntil(syncPendingObservations());
+  }
+});
+
+async function syncPendingObservations() {
+  const cache = await caches.open('3dxagent-pending-sync-v1');
+  const keys = await cache.keys();
+  let synced = 0;
+  for (const request of keys) {
+    try {
+      const blob = await (await cache.match(request)).json();
+      const url = new URL(request.url);
+      const deviceId = url.searchParams.get('device_id') || 'sw-client';
+      const response = await fetch('/api/v1/sync/queue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          device_id: deviceId,
+          kind: blob.kind || 'mesh_observation',
+          payload: blob.payload || {},
+        }),
+      });
+      if (response.ok) {
+        await cache.delete(request);
+        synced += 1;
+      }
+    } catch (_err) {
+      // offline: Eintrag bleibt für den nächsten Versuch erhalten
+    }
+  }
+  return synced;
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(STATIC_CACHE)

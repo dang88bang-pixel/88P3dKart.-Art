@@ -38,6 +38,11 @@
     #actions { border-top: 1px solid var(--border); padding: 10px 14px; }
     #actions h2 { font-size: 12px; margin-bottom: 8px; }
     #actions .row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+    #config-panel { font-size: 11px; }
+    .acc { padding: 8px 10px; background: #0d1526; border: 1px solid var(--border);
+      border-radius: 8px; font-weight: 600; }
+    .chip { background: #12233d; border: 1px solid var(--accent); color: var(--text);
+      border-radius: 999px; padding: 2px 8px; font-size: 10px; font-family: monospace; }
     button { background: #16233b; color: var(--text); border: 1px solid var(--border);
       border-radius: 6px; padding: 6px 10px; font-size: 11px; cursor: pointer; font-family: inherit; }
     button:hover:not(:disabled) { border-color: var(--accent); }
@@ -80,6 +85,7 @@
     <div id="actions">
       <h2 id="actions-title">Aktionen — nichts ausgewählt</h2>
       <div class="row" id="action-buttons"></div>
+      <div id="config-panel"></div>
     </div>
     <div id="nearby">
       <h2>📡 Plug &amp; Play — in der Nähe</h2>

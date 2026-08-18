@@ -70,8 +70,8 @@ class FleetVehicle:
     owner: str = ""                              # Gerät, das den Eintrag pflegt
     last_seen: float = field(default_factory=time.time)
 
-    def to_dict(self) -> Dict[str, Any]:
-        return {
+    def to_dict(self, group: Optional[str] = None) -> Dict[str, Any]:
+        d = {
             "id": self.id,
             "name": self.name,
             "kind": self.kind,
@@ -92,7 +92,9 @@ class FleetVehicle:
             "source": self.source,
             "owner": self.owner,
             "last_seen": self.last_seen,
+            "group": group,
         }
+        return d
 
 
 class FleetRegistry:
@@ -102,6 +104,40 @@ class FleetRegistry:
         self._vehicles: Dict[str, FleetVehicle] = {}
         self._on_action: Optional[Any] = None  # Broadcast-Callback (agent.py)
         self._kalman: Dict[str, KalmanRssiFilter] = {}  # pro Fahrzeug-ID
+        self._groups: Dict[str, Dict[str, Any]] = {}    # group_id → {name, members}
+
+    # ─── Gruppen (Multi-Device-Organisation) ──────────────────
+    def upsert_group(self, group_id: str, name: str, vehicle_ids: List[str]) -> Dict[str, Any]:
+        """Legt eine Gruppe an bzw. aktualisiert sie; Mitglieder müssen
+        existierende Flotten-Geräte sein."""
+        members = []
+        for vid in vehicle_ids:
+            if vid not in self._vehicles:
+                raise KeyError(f"Fahrzeug {vid} nicht in der Flotte")
+            members.append(vid)
+        self._groups[group_id] = {"id": group_id, "name": name, "members": members}
+        return self._groups[group_id]
+
+    def remove_group(self, group_id: str) -> bool:
+        return self._groups.pop(group_id, None) is not None
+
+    def list_groups(self) -> List[Dict[str, Any]]:
+        out = []
+        for gid, group in self._groups.items():
+            entry = dict(group)
+            members = entry.pop("members")
+            entry["vehicles"] = [
+                self._vehicles[v].to_dict(group=gid) if v in self._vehicles else {"id": v, "group": gid}
+                for v in members
+            ]
+            out.append(entry)
+        return out
+
+    def group_of(self, vehicle_id: str) -> Optional[str]:
+        for gid, group in self._groups.items():
+            if vehicle_id in group["members"]:
+                return gid
+        return None
 
     # ─── Mutationen ────────────────────────────────────────────
     def upsert(self, vehicle: FleetVehicle) -> FleetVehicle:

@@ -4,6 +4,17 @@
 (function () {
   'use strict';
 
+  const KIND_CAPABILITIES = {
+    ebike: ['Status', 'Ortung', 'LED', 'Sichtbarkeit', 'Sperren/Entsperren'],
+    escooter: ['Status', 'Ortung', 'LED', 'Sichtbarkeit', 'Sperren/Entsperren'],
+    eroller: ['Status', 'Ortung', 'LED', 'Sichtbarkeit', 'Sperren/Entsperren'],
+    vehicle: ['Status', 'Ortung', 'LED', 'Sichtbarkeit', 'Sperren/Entsperren'],
+    phone: ['Status', 'Ortung', 'LED', 'Sichtbarkeit'],
+    tool: ['Status', 'Ortung', 'LED', 'Sichtbarkeit'],
+    ble_token: ['Status', 'Ortung', 'LED', 'Sichtbarkeit'],
+    other: ['Status', 'Ortung'],
+  };
+
   const KIND_ICONS = {
     ebike: '🚲', escooter: '🛴', eroller: '🛵', vehicle: '🚗',
     phone: '📱', tool: '🔧', ble_token: '📡', ble_accessory: '🧷', other: '🏷️',
@@ -147,9 +158,11 @@
   function renderActions(v) {
     const title = $('actions-title');
     const box = $('action-buttons');
+    const cfg = $('config-panel');
     if (!v) {
       title.textContent = 'Aktionen — nichts ausgewählt';
       box.innerHTML = '';
+      cfg.innerHTML = '';
       return;
     }
     title.textContent = `Aktionen — ${v.name}`;
@@ -185,6 +198,61 @@
         btn.disabled = false;
       }
     }));
+
+    // ─── Interaktionsfeld: Konfiguration & Historie (Accordion) ───
+    const caps = KIND_CAPABILITIES[v.kind] || KIND_CAPABILITIES.other;
+    cfg.innerHTML = `
+      <div class="acc" id="acc-header" style="cursor:pointer">
+        ⚙️ Konfiguration &amp; Historie <span id="acc-arrow">▸</span>
+      </div>
+      <div id="acc-body" style="display:none">
+        <div style="margin:6px 0">
+          <span style="color:#64748b;font-size:10px">Fähigkeiten (${v.kind_label || v.kind}):</span>
+          <div class="row">${caps.map(c => `<span class="chip">${c}</span>`).join('')}</div>
+        </div>
+        <div style="margin:6px 0;font-family:monospace;font-size:10px;color:#64748b">
+          Gruppe: ${v.group ? v.group : '—'} · Quelle: ${v.source} · Akku: ${v.battery !== null && v.battery !== undefined ? v.battery + '%' : '—'}
+        </div>
+        <div class="row">
+          <button id="hist-btn">🕘 Positionshistorie laden</button>
+          <button id="hide-btn">👁 Sichtbarkeit umschalten</button>
+        </div>
+        <div id="hist-list" style="max-height:120px;overflow-y:auto;font-family:monospace;font-size:10px;color:#94a3b8"></div>
+      </div>`;
+    $('acc-header').addEventListener('click', () => {
+      const body = $('acc-body');
+      const open = body.style.display !== 'none';
+      body.style.display = open ? 'none' : 'block';
+      $('acc-arrow').textContent = open ? '▸' : '▾';
+    });
+    $('hist-btn').addEventListener('click', async () => {
+      const list = $('hist-list');
+      list.textContent = 'Lade…';
+      try {
+        const r = await fetch(`/api/v1/fleet/${encodeURIComponent(v.id)}/history?limit=10`);
+        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || `HTTP ${r.status}`);
+        const body = await r.json();
+        list.innerHTML = body.records.length
+          ? body.records.map(rec => `<div>${new Date(rec.timestamp * 1000).toLocaleTimeString()} → (${Number(rec.pos_x).toFixed(2)}, ${Number(rec.pos_y).toFixed(2)}, ${Number(rec.pos_z).toFixed(2)})</div>`).join('')
+          : '<div>Keine Positionshistorie vorhanden.</div>';
+      } catch (err) {
+        list.textContent = `Fehler: ${err.message}`;
+      }
+    });
+    $('hide-btn').addEventListener('click', async () => {
+      try {
+        const r = await fetch(`/api/v1/fleet/${encodeURIComponent(v.id)}/action`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'set_visible', params: { visible: false } }),
+        });
+        const body = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(body.detail || `HTTP ${r.status}`);
+        toast(body.message || 'Sichtbarkeit umgeschaltet');
+      } catch (err) {
+        toast(`Fehler: ${err.message}`, false);
+      }
+    });
   }
 
   // ─── Daten laden (REST, Fallback) ─────────────────────────
@@ -267,8 +335,33 @@
     }
   });
 
+  // ─── Background Sync (Best-Effort, Service Worker) ─────────
+  window.queueMeshObservation = async function (kind, payload) {
+    try {
+      const cache = await caches.open('3dxagent-pending-sync-v1');
+      const url = new URL('/pending-observation', window.location.origin);
+      await cache.put(url, new Response(JSON.stringify({ kind, payload })));
+      return true;
+    } catch (_e) {
+      return false;
+    }
+  };
+
+  async function registerBackgroundSync() {
+    if (!('serviceWorker' in navigator)) return;
+    const reg = await navigator.serviceWorker.ready.catch(() => null);
+    if (!reg) return;
+    try {
+      await reg.periodicSync.register('mesh-observation-sync', { minInterval: 5 * 60 * 1000 });
+    } catch (_e) {
+      // Periodicsync nicht verfügbar — Fallback: einmaliger 'sync' beim nächsten Connect
+      try { await reg.sync.register('mesh-observation-sync'); } catch (_e2) { /* optional */ }
+    }
+  }
+
   // ─── Start ────────────────────────────────────────────────
   connectWs();
   loadFleet();
+  registerBackgroundSync();
   setInterval(() => { if (!state.ws || state.ws.readyState !== WebSocket.OPEN) loadFleet(); }, 10000);
 })();

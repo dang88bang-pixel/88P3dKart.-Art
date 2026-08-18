@@ -60,7 +60,9 @@ from export_formats import (
     points_to_geojson,
 )
 from fleet import FleetRegistry
+from edm import EdmRegistry
 from mesh_sync import sync_to_tolerance
+from premises_security import PremisesSecurity, SensorReport
 from positioning import FingerprintDB, estimate_position
 from wall_person_classifier import WallPersonClassifier
 from privacy import PersistenceFilter, strip_metadata
@@ -75,6 +77,11 @@ from external.manager import ExternalEntityManager
 from geo.resolver import GeoResolver
 from models import (
     AlarmEvidenceRequest,
+    EdmDeviceUpsertRequest,
+    EdmStateRequest,
+    FleetGroupRequest,
+    PremisesSensorReportRequest,
+    SyncQueueRequest,
     FleetQrBindRequest,
     SemanticClassifyRequest,
     CheckpointCreateRequest,
@@ -146,6 +153,9 @@ db = LocalVectorStore()
 ekf = AdaptiveEKF(dt=1.0 / CONFIG.LOOP_HZ)
 uwb_processor = UwbDopplerProcessor(fs=CONFIG.UWB_FS, buffer_secs=CONFIG.UWB_BUFFER_SECS)
 pipeline = DataPipeline()
+premises_security = PremisesSecurity()   # passive Fremdgeräte-Erkennung (eigenes Gelände)
+edm_registry = EdmRegistry()             # EDM-Lebenszyklus eigener Geräte
+_sync_outbox: dict[str, list[dict]] = {}  # Offline-Sync-Queue pro Gerät
 wall_person_classifier = WallPersonClassifier()  # geometrische Wand-/Dynamik-Klassifikation
 persistence_filter = PersistenceFilter()   # erzwingt: Personen/Tiere nie persistiert
 fingerprint_db = FingerprintDB()           # RSSI-Fingerprinting (eigene Räume)
@@ -342,6 +352,8 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="3dxAgent Edge-Agent", version="2.0.0", lifespan=lifespan)
 app.state.scenarios = {}
 app.state.fleet = fleet_registry
+app.state.edm = edm_registry
+app.state.premises = premises_security
 app.state.fingerprints = fingerprint_db
 app.state.security = GatewaySecurity(
     CredentialStore(CONFIG.AUTH_DB_PATH),
@@ -870,7 +882,31 @@ async def health(request: Request):
 async def bluetooth_accessories_update(request: BluetoothAccessoryUpdateRequest):
     """Batch-Ingest eigener Zubehörgeräte (Tokens, Sensor-Tags, Wearables)."""
     updated = global_accessory_registry.update_batch(request.accessories)
-    return {"updated": len(updated)}
+    own_ids = {v.id for v in fleet_registry.get_all()}
+    infra_ids = {a.mac for a in global_accessory_registry.get_all() if a.is_bonded}
+    new_unknown = []
+    for acc in updated:
+        vendor = None
+        try:
+            normalized = normalize_mac(acc.mac)
+            vendor = device_oui_db.lookup(normalized)
+        except Exception:
+            pass
+        entry = premises_security.observe(
+            acc.mac, kind="accessory", name=acc.name or acc.mac,
+            vendor=vendor, rssi=acc.rssi, own_ids=own_ids, infra_ids=infra_ids,
+        )
+        if entry.status == "unknown":
+            new_unknown.append(entry)
+    if new_unknown:
+        await manager.broadcast_json(
+            {"type": "premises_alert", "payload": {
+                "kind": "unknown_device",
+                "devices": [d.to_dict() for d in new_unknown],
+            }},
+            request.device_id,
+        )
+    return {"updated": len(updated), "unknown_detected": len(new_unknown)}
 
 
 @app.get("/api/v1/bluetooth/accessories")
@@ -1067,10 +1103,18 @@ async def fleet_upsert(
             payload.model_dump(exclude_none=True), owner=request.device_id, anchor=anchor_obj
         )
         updated.append(vehicle.to_dict())
+    for vehicle in fleet_registry.get_all():
+        premises_security.register_own(vehicle.id)
+    own_count = len(fleet_registry.get_all())
+    drop_alert = premises_security.check_own_device_drop(own_count)
     await manager.broadcast_json(
         {"type": "fleet_update", "payload": {"vehicles": updated}},
         request.device_id,
     )
+    if drop_alert:
+        await manager.broadcast_json(
+            {"type": "premises_alert", "payload": drop_alert}, request.device_id
+        )
     return {"updated": len(updated), "vehicles": updated}
 
 
@@ -1264,6 +1308,206 @@ async def semantic_classify(
     }
 
 
+@app.post("/api/v1/premises/sensor-report")
+async def premises_sensor_report(
+    request: PremisesSensorReportRequest,
+    principal: Principal = Depends(authenticated_principal),
+):
+    """Passiver Sensorbericht (Stufe 2) eines EIGENEN Geräts (Magnet/IR/RF)."""
+    _require_device_scope(principal, request.device_id)
+    report = premises_security.add_sensor_report(
+        SensorReport(
+            device_id=request.device_id,
+            kind=request.kind,
+            value=request.value,
+            unit=request.unit,
+        )
+    )
+    return {"status": "ok", "report": report.to_dict()}
+
+
+@app.get("/api/v1/premises/overview")
+async def premises_overview(_principal: Principal = Depends(authenticated_principal)):
+    """Überblick: beobachtete Geräte, Unbekannte, Sensorberichte, Alerts."""
+    own_ids = {v.id for v in fleet_registry.get_all()}
+    return premises_security.overview() | {"own_registered": len(own_ids)}
+
+
+@app.get("/api/v1/premises/unknown")
+async def premises_unknown(_principal: Principal = Depends(authenticated_principal)):
+    """Unbekannte (nicht registrierte) Geräte auf dem Gelände."""
+    return {"count": len(premises_security.unknown_devices()),
+            "devices": [d.to_dict() for d in premises_security.unknown_devices()]}
+
+
+@app.post("/api/v1/edm/devices")
+async def edm_upsert(
+    request: EdmDeviceUpsertRequest,
+    principal: Principal = Depends(admin_principal),
+):
+    """Eigenes EDM-Gerät registrieren/aktualisieren (nur Administration)."""
+    device = edm_registry.upsert(
+        request.device_id,
+        actor=principal.subject,
+        serial=request.serial,
+        model=request.model,
+        assigned_to=request.assigned_to,
+        location=request.location,
+    )
+    return {"status": "ok", "device": device.to_dict()}
+
+
+@app.get("/api/v1/edm/devices")
+async def edm_list(_principal: Principal = Depends(authenticated_principal)):
+    """Alle eigenen, EDM-verwalteten Geräte mit Zustand."""
+    return {
+        "count": len(edm_registry.list_devices()),
+        "stats": edm_registry.stats(),
+        "devices": [d.to_dict() for d in edm_registry.list_devices()],
+    }
+
+
+@app.post("/api/v1/edm/devices/{device_id}/state")
+async def edm_set_state(
+    device_id: str,
+    request: EdmStateRequest,
+    principal: Principal = Depends(admin_principal),
+):
+    """Zustandswechsel (auditiert). Reset nur über RESET_PENDING → RESET
+    (Honeywell Provisioning Mode / OEMConfig — legitimer EDM-Weg)."""
+    try:
+        device = edm_registry.set_state(
+            device_id, request.state, actor=principal.subject, reason=request.reason
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"status": "ok", "device": device.to_dict()}
+
+
+@app.post("/api/v1/edm/devices/{device_id}/reset")
+async def edm_request_reset(
+    device_id: str,
+    request: EdmStateRequest,
+    principal: Principal = Depends(admin_principal),
+):
+    """Legitimer Reset-Auftrag für ein EIGENES Gerät (auditiert).
+
+    Erzeugt RESET_PENDING; die Durchführung erfolgt durch die EDM-
+    Administration über den Honeywell Provisioning Mode — KEIN
+    FRP-Bypass für Fremdgeräte.
+    """
+    try:
+        device = edm_registry.request_reset(device_id, principal.subject, request.reason)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"status": "ok", "device": device.to_dict()}
+
+
+@app.get("/api/v1/edm/audit")
+async def edm_audit(_principal: Principal = Depends(authenticated_principal)):
+    """Audit-Log aller EDM-Aktionen (wer, wann, Zustandswechsel, Grund)."""
+    return {"entries": [e.to_dict() for e in edm_registry.list_audit(limit=200)]}
+
+
+@app.post("/api/v1/sync/queue")
+async def sync_queue_push(
+    request: SyncQueueRequest,
+    principal: Principal = Depends(authenticated_principal),
+):
+    """Offline-Payload eines Geräts in die Sync-Queue legen (Service Worker)."""
+    _require_device_scope(principal, request.device_id)
+    item = {
+        "id": f"sync-{int(time.time() * 1000)}-{len(_sync_outbox.get(request.device_id, []))}",
+        "kind": request.kind,
+        "payload": request.payload,
+        "created_at": time.time(),
+    }
+    queue = _sync_outbox.setdefault(request.device_id, [])
+    queue.append(item)
+    if len(queue) > 200:
+        del queue[:-200]
+    return {"status": "queued", "item_id": item["id"]}
+
+
+@app.get("/api/v1/sync/next")
+async def sync_queue_next(
+    device_id: str,
+    principal: Principal = Depends(authenticated_principal),
+):
+    """Nächste ausstehende Sync-Einträge eines Geräts (Peek, kein Löschen)."""
+    _require_device_scope(principal, device_id)
+    return {"items": _sync_outbox.get(device_id, [])[-20:]}
+
+
+@app.post("/api/v1/sync/{item_id}/ack")
+async def sync_queue_ack(
+    item_id: str,
+    request: SyncQueueRequest,
+    principal: Principal = Depends(authenticated_principal),
+):
+    """Sync-Eintrag bestätigen und entfernen."""
+    _require_device_scope(principal, request.device_id)
+    queue = _sync_outbox.get(request.device_id, [])
+    before = len(queue)
+    _sync_outbox[request.device_id] = [i for i in queue if i["id"] != item_id]
+    return {"acknowledged": before - len(_sync_outbox[request.device_id])}
+
+
+@app.post("/api/v1/fleet/groups")
+async def fleet_group_upsert(
+    request: FleetGroupRequest,
+    _principal: Principal = Depends(admin_principal),
+):
+    """Flotten-Gruppe anlegen/aktualisieren (Multi-Device-Organisation)."""
+    group_id = f"grp-{hash(request.name) & 0xffff:04x}-{len(fleet_registry._groups) + 1:03d}"
+    try:
+        group = fleet_registry.upsert_group(group_id, request.name, request.vehicle_ids)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"status": "ok", "group": group}
+
+
+@app.get("/api/v1/fleet/groups")
+async def fleet_group_list(_principal: Principal = Depends(authenticated_principal)):
+    """Alle Flotten-Gruppen mit Mitgliedern."""
+    return {"groups": fleet_registry.list_groups()}
+
+
+@app.delete("/api/v1/fleet/groups/{group_id}")
+async def fleet_group_delete(
+    group_id: str,
+    _principal: Principal = Depends(admin_principal),
+):
+    if not fleet_registry.remove_group(group_id):
+        raise HTTPException(status_code=404, detail="Gruppe nicht gefunden")
+    return {"removed": group_id}
+
+
+@app.get("/api/v1/fleet/{vehicle_id}/history")
+async def fleet_history(
+    vehicle_id: str,
+    limit: int = 20,
+    principal: Principal = Depends(authenticated_principal),
+):
+    """Positionshistorie eines eigenen Flotten-Geräts (aus spatial_memory)."""
+    vehicle = fleet_registry.get(vehicle_id)
+    if vehicle is None:
+        raise HTTPException(status_code=404, detail="Fahrzeug nicht gefunden")
+    if principal.role != "admin" and vehicle.owner and vehicle.owner != principal.subject:
+        raise HTTPException(status_code=403, detail="device scope denied")
+    if not 1 <= limit <= 100:
+        raise HTTPException(status_code=422, detail="limit between 1 and 100")
+    return {"vehicle_id": vehicle_id, "records": db.get_latest(vehicle_id, limit)}
+
+
 @app.get("/api/v1/agent/mesh")
 async def get_mesh(
     device_id: str,
@@ -1450,6 +1694,12 @@ async def metrics():
         "# HELP 3dxagent_fleet_qr_tokens Per QR gebundene Akku-Tokens",
         "# TYPE 3dxagent_fleet_qr_tokens gauge",
         f"3dxagent_fleet_qr_tokens {sum(1 for v in fleet_registry.get_all() if v.source == 'qr_bound')}",
+        "# HELP 3dxagent_premises_unknown Unbekannte Geräte auf dem Gelände",
+        "# TYPE 3dxagent_premises_unknown gauge",
+        f"3dxagent_premises_unknown {len(premises_security.unknown_devices())}",
+        "# HELP 3dxagent_edm_devices EDM-verwaltete eigene Geräte",
+        "# TYPE 3dxagent_edm_devices gauge",
+        f"3dxagent_edm_devices {len(edm_registry.list_devices())}",
         "# HELP 3dxagent_fingerprints Gespeicherte RSSI-Fingerprints",
         "# TYPE 3dxagent_fingerprints gauge",
         f"3dxagent_fingerprints {len(fingerprint_db._fingerprints)}",

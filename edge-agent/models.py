@@ -595,3 +595,42 @@ class SemanticClassifyRequest(BaseModel):
         if len(value) % 3:
             raise ValueError("points must contain complete x/y/z tuples")
         return value
+
+
+# ─── Betriebsgelände-Sicherheit & EDM (docs/PREMISES_EDM.md) ────
+
+class PremisesSensorReportRequest(BaseModel):
+    """Passiver Sensorbericht (Stufe 2) eines EIGENEN Geräts."""
+
+    device_id: str = Field(pattern=DEVICE_ID_PATTERN)
+    kind: Literal["magnetometer", "ir", "rf_power"]
+    value: float
+    unit: str = Field(default="", max_length=16)
+
+
+class EdmDeviceUpsertRequest(BaseModel):
+    device_id: str = Field(pattern=DEVICE_ID_PATTERN)
+    serial: Optional[str] = Field(default=None, max_length=64)
+    model: Optional[str] = Field(default=None, max_length=64)
+    assigned_to: Optional[str] = Field(default=None, max_length=64)
+    location: Optional[str] = Field(default=None, max_length=64)
+
+
+class EdmStateRequest(BaseModel):
+    state: Literal["ENROLLED", "PROVISIONED", "QUARANTINED", "RESET_PENDING", "RESET"]
+    reason: str = Field(min_length=3, max_length=500)
+
+
+class SyncQueueRequest(BaseModel):
+    """Offline-Sync-Payload (Service Worker / App) an das Gateway."""
+
+    device_id: str = Field(pattern=DEVICE_ID_PATTERN)
+    kind: str = Field(min_length=1, max_length=64)
+    payload: Dict[str, Any] = Field(default_factory=dict)
+
+
+class FleetGroupRequest(BaseModel):
+    """Flotten-Gruppe (Multi-Device-Organisation)."""
+
+    name: str = Field(min_length=1, max_length=64)
+    vehicle_ids: List[str] = Field(default_factory=list, max_length=200)
