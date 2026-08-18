@@ -509,3 +509,61 @@ class FleetAnchorRequest(BaseModel):
     altitude_m: Optional[float] = None
     heading_deg: float = Field(default=0.0, ge=0, le=360)
     local_origin: List[float] = Field(default_factory=lambda: [0.0, 0.0, 0.0], max_length=3)
+
+
+# ─── Algorithmen-Endpunkte (docs/SIGNAL_POSITIONING.md) ─────────
+
+class PositioningAnchor(BaseModel):
+    """Anker mit bekannter Position + gemessener Distanz."""
+
+    id: str = Field(min_length=1, max_length=64)
+    x: float
+    y: float
+    z: float = 0.0
+    distance: float = Field(gt=0)
+    sigma: Optional[float] = Field(default=None, gt=0)
+
+
+class PositioningEstimateRequest(BaseModel):
+    anchors: List[PositioningAnchor] = Field(default_factory=list, max_length=64)
+    use_z: bool = False
+
+
+class SignalSmoothRequest(BaseModel):
+    """Batch-Glättung von RSSI-Werten (Kalman | median | hampel)."""
+
+    values: List[float] = Field(default_factory=list, max_length=4096)
+    method: Literal["kalman", "median", "hampel"] = "kalman"
+
+
+class MeshSyncRequest(BaseModel):
+    """Konsens-Synchronisation über Knotenzeiten."""
+
+    times: List[float] = Field(default_factory=list, min_length=2, max_length=256)
+    tolerance: float = Field(default=0.001, gt=0)
+    alpha: float = Field(default=0.3, gt=0, le=1)
+    max_rounds: int = Field(default=500, ge=1, le=10000)
+
+
+class FingerprintAddRequest(BaseModel):
+    lat: float = Field(ge=-90, le=90)
+    lon: float = Field(ge=-180, le=180)
+    rssi_map: Dict[str, int] = Field(default_factory=dict, max_length=64)
+
+
+class FingerprintLocateRequest(BaseModel):
+    rssi_map: Dict[str, int] = Field(default_factory=dict, max_length=64)
+    k: int = Field(default=3, ge=1, le=10)
+    weighted: bool = True
+
+
+class PrivacyFilterRequest(BaseModel):
+    """Erzwingender Filter vor Persistenz/Export (docs/FARBKODIERUNG.md)."""
+
+    objects: List[Dict[str, Any]] = Field(default_factory=list, max_length=4096)
+    devices: List[Dict[str, Any]] = Field(default_factory=list, max_length=1024)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class CheckpointCreateRequest(BaseModel):
+    metadata: Dict[str, Any] = Field(default_factory=dict)

@@ -100,6 +100,23 @@ class LocalVectorStore:
                 "CREATE INDEX IF NOT EXISTS idx_geo_time ON geo_fixes(timestamp DESC)"
             )
 
+            # --- Checkpoints für Crash-Recovery (docs/SIGNAL_POSITIONING.md §5) ---
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS checkpoints (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp REAL NOT NULL,
+                    point_count INTEGER NOT NULL,
+                    last_record_id TEXT,
+                    checksum TEXT NOT NULL,
+                    metadata TEXT NOT NULL DEFAULT '{}'
+                )
+                """
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_checkpoints_time ON checkpoints(timestamp DESC)"
+            )
+
     def save_transform(
         self,
         device_id: str,
@@ -126,6 +143,96 @@ class LocalVectorStore:
                     json.dumps(metadata),
                 ),
             )
+
+    # ─── Checkpointing & Integrität ───────────────────────────────
+
+    def create_checkpoint(self, metadata: dict | None = None) -> dict:
+        """Erstellt einen Checkpoint: Zählerstand + SHA-256 über einen
+        konsistenten DB-Snapshot (sqlite3-Backup-API, WAL-sicher)."""
+        import json as _json
+
+        with self._get_conn() as conn:
+            count = conn.execute("SELECT COUNT(*) FROM spatial_memory").fetchone()[0]
+            last = conn.execute(
+                "SELECT id FROM spatial_memory ORDER BY timestamp DESC LIMIT 1"
+            ).fetchone()
+            checksum = self._db_checksum()
+            timestamp = time.time()
+            conn.execute(
+                """INSERT INTO checkpoints (timestamp, point_count, last_record_id, checksum, metadata)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (timestamp, count, last["id"] if last else None, checksum, _json.dumps(metadata or {})),
+            )
+            conn.execute(
+                "DELETE FROM checkpoints WHERE id NOT IN "
+                "(SELECT id FROM checkpoints ORDER BY timestamp DESC LIMIT 10)"
+            )
+        return {
+            "timestamp": timestamp,
+            "point_count": count,
+            "last_record_id": last["id"] if last else None,
+            "checksum": checksum,
+        }
+
+    def latest_checkpoint(self) -> dict | None:
+        with self._get_conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM checkpoints ORDER BY timestamp DESC LIMIT 1"
+            ).fetchone()
+        if row is None:
+            return None
+        return {
+            "id": row["id"],
+            "timestamp": row["timestamp"],
+            "point_count": row["point_count"],
+            "last_record_id": row["last_record_id"],
+            "checksum": row["checksum"],
+            "metadata": row["metadata"],
+        }
+
+    def list_checkpoints(self, limit: int = 10) -> list:
+        with self._get_conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM checkpoints ORDER BY timestamp DESC LIMIT ?", (limit,)
+            ).fetchall()
+        return [
+            {
+                "id": r["id"],
+                "timestamp": r["timestamp"],
+                "point_count": r["point_count"],
+                "last_record_id": r["last_record_id"],
+                "checksum": r["checksum"],
+            }
+            for r in rows
+        ]
+
+    def verify_integrity(self) -> dict:
+        """PRAGMA integrity_check + Vergleich mit dem letzten Checkpoint."""
+        with self._get_conn() as conn:
+            row = conn.execute("PRAGMA integrity_check").fetchone()
+        ok = row is not None and row[0] == "ok"
+        latest = self.latest_checkpoint()
+        current = self._db_checksum()
+        return {
+            "integrity_ok": ok,
+            "latest_checkpoint": latest["timestamp"] if latest else None,
+            "checksum": current,
+            "matches_checkpoint": bool(latest and latest["checksum"] == current),
+        }
+
+    def _db_checksum(self) -> str:
+        """SHA-256 über die Datentabellen (ohne checkpoints — der Checkpoint
+        speichert seine eigene Checksumme und darf sie nicht verändern)."""
+        import hashlib
+
+        tables = ("spatial_memory", "merged_maps", "geo_fixes")
+        digest = hashlib.sha256()
+        with self._get_conn() as conn:
+            for table in tables:
+                for row in conn.execute(f"SELECT * FROM {table} ORDER BY rowid"):
+                    digest.update(table.encode("utf-8"))
+                    digest.update(repr(tuple(row)).encode("utf-8"))
+        return digest.hexdigest()
 
     def enforce_retention(self) -> int:
         with self._get_conn() as conn:

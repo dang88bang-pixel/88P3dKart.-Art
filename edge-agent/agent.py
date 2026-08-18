@@ -60,6 +60,10 @@ from export_formats import (
     points_to_geojson,
 )
 from fleet import FleetRegistry
+from mesh_sync import sync_to_tolerance
+from positioning import FingerprintDB, estimate_position
+from privacy import PersistenceFilter, strip_metadata
+from signal_processing import HampelFilter, KalmanRssiFilter, MedianMovingAverageFilter
 from floorplan import (
     SOURCES,
     fetch_osm_buildings,
@@ -70,6 +74,13 @@ from external.manager import ExternalEntityManager
 from geo.resolver import GeoResolver
 from models import (
     AlarmEvidenceRequest,
+    CheckpointCreateRequest,
+    FingerprintAddRequest,
+    FingerprintLocateRequest,
+    MeshSyncRequest,
+    PositioningEstimateRequest,
+    PrivacyFilterRequest,
+    SignalSmoothRequest,
     FleetActionRequest,
     FleetAnchorRequest,
     FleetUpsertRequest,
@@ -132,6 +143,8 @@ db = LocalVectorStore()
 ekf = AdaptiveEKF(dt=1.0 / CONFIG.LOOP_HZ)
 uwb_processor = UwbDopplerProcessor(fs=CONFIG.UWB_FS, buffer_secs=CONFIG.UWB_BUFFER_SECS)
 pipeline = DataPipeline()
+persistence_filter = PersistenceFilter()   # erzwingt: Personen/Tiere nie persistiert
+fingerprint_db = FingerprintDB()           # RSSI-Fingerprinting (eigene Räume)
 fleet_registry = FleetRegistry()        # eigene Flotte (E-Bike, Scooter, BLE-Token …)
 geo_resolver = GeoResolver(providers=[])  # GeoAnchor für lokale→GPS-Projektion
 _metrics_pipeline_runs = 0          # echter Zähler: POST /api/v1/pipeline/run
@@ -325,6 +338,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="3dxAgent Edge-Agent", version="2.0.0", lifespan=lifespan)
 app.state.scenarios = {}
 app.state.fleet = fleet_registry
+app.state.fingerprints = fingerprint_db
 app.state.security = GatewaySecurity(
     CredentialStore(CONFIG.AUTH_DB_PATH),
     CONFIG.AUTH_SIGNING_SECRET,
@@ -1095,6 +1109,116 @@ async def fleet_delete(
     return {"removed": vehicle_id}
 
 
+@app.post("/api/v1/positioning/estimate")
+async def positioning_estimate(
+    request: PositioningEstimateRequest,
+    _principal: Principal = Depends(authenticated_principal),
+):
+    """Positionsschätzung: ≥3 Anker → robuste Trilateration, sonst WCL."""
+    if not request.anchors:
+        raise HTTPException(status_code=422, detail="Mindestens ein Anker benötigt")
+    result = estimate_position(
+        [a.model_dump() for a in request.anchors], use_z=request.use_z
+    )
+    if result is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Keine Lösung möglich — Anker-Konfiguration prüfen",
+        )
+    return result
+
+
+@app.post("/api/v1/positioning/fingerprint")
+async def fingerprint_add(
+    request: FingerprintAddRequest,
+    _principal: Principal = Depends(authenticated_principal),
+):
+    """Fingerprint eines Referenzpunkts speichern (eigene Räume)."""
+    fingerprint_db.add(request.lat, request.lon, request.rssi_map)
+    return {"status": "ok"}
+
+
+@app.post("/api/v1/positioning/fingerprint/locate")
+async def fingerprint_locate(
+    request: FingerprintLocateRequest,
+    _principal: Principal = Depends(authenticated_principal),
+):
+    """k-NN / weighted k-NN über die gespeicherten Fingerprints."""
+    result = fingerprint_db.locate(request.rssi_map, k=request.k, weighted=request.weighted)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Keine Fingerprints gespeichert")
+    return result
+
+
+@app.post("/api/v1/signal/smooth")
+async def signal_smooth(
+    request: SignalSmoothRequest,
+    _principal: Principal = Depends(authenticated_principal),
+):
+    """RSSI-Rauschunterdrückung: Kalman (adaptiv), Median+MA oder Hampel."""
+    if request.method == "kalman":
+        kalman = KalmanRssiFilter(rssi0=request.values[0] if request.values else -70.0)
+        smoothed = [round(kalman.update(v), 2) for v in request.values]
+    elif request.method == "median":
+        smoothed = [round(v, 2) for v in MedianMovingAverageFilter().process_many(request.values)]
+    else:
+        smoothed = [round(v, 2) for v in HampelFilter().clean(request.values)]
+    return {"method": request.method, "values": smoothed}
+
+
+@app.post("/api/v1/mesh/sync")
+async def mesh_sync(
+    request: MeshSyncRequest,
+    _principal: Principal = Depends(authenticated_principal),
+):
+    """Random-Broadcast-Consensus für Mesh-Zeitsynchronisation."""
+    return sync_to_tolerance(
+        request.times,
+        tolerance=request.tolerance,
+        alpha=request.alpha,
+        max_rounds=request.max_rounds,
+    )
+
+
+@app.post("/api/v1/checkpoints")
+async def checkpoint_create(
+    request: CheckpointCreateRequest,
+    _principal: Principal = Depends(admin_principal),
+):
+    """Checkpoint anlegen (Punktzahl + SHA-256-Snapshot)."""
+    return db.create_checkpoint(metadata=request.metadata)
+
+
+@app.get("/api/v1/checkpoints")
+async def checkpoint_list(_principal: Principal = Depends(authenticated_principal)):
+    """Letzte Checkpoints (max. 10)."""
+    return {"checkpoints": db.list_checkpoints()}
+
+
+@app.post("/api/v1/checkpoints/verify")
+async def checkpoint_verify(_principal: Principal = Depends(authenticated_principal)):
+    """PRAGMA integrity_check + Abgleich mit dem letzten Checkpoint."""
+    return db.verify_integrity()
+
+
+@app.post("/api/v1/privacy/filter")
+async def privacy_filter(
+    request: PrivacyFilterRequest,
+    _principal: Principal = Depends(authenticated_principal),
+):
+    """Erzwingender Persistenzfilter: Personen/Tiere entfernen, Geräte anonymisieren."""
+    kept_objects, removed = persistence_filter.filter_objects(request.objects)
+    anonymized_devices = [persistence_filter.filter_device(d) for d in request.devices]
+    audit = persistence_filter.audit(request.objects)
+    audit["live_only_removed"] = removed
+    return {
+        "objects": kept_objects,
+        "devices": anonymized_devices,
+        "metadata": strip_metadata(request.metadata),
+        "audit": audit,
+    }
+
+
 @app.get("/api/v1/agent/mesh")
 async def get_mesh(
     device_id: str,
@@ -1278,6 +1402,9 @@ async def metrics():
         "# HELP 3dxagent_active_scenarios Laufende Szenarien",
         "# TYPE 3dxagent_active_scenarios gauge",
         f"3dxagent_active_scenarios {active_scenarios}",
+        "# HELP 3dxagent_fingerprints Gespeicherte RSSI-Fingerprints",
+        "# TYPE 3dxagent_fingerprints gauge",
+        f"3dxagent_fingerprints {len(fingerprint_db._fingerprints)}",
         "# HELP 3dxagent_fleet_vehicles Eigene Flotten-Geräte (Fahrzeuge, Tokens)",
         "# TYPE 3dxagent_fleet_vehicles gauge",
         f"3dxagent_fleet_vehicles {len(fleet_registry.get_all())}",

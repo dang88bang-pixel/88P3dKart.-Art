@@ -54,6 +54,25 @@ Positionsbestimmung:
 - Kotlin-Paket `triangulation/` + Python-Port `edge-agent/trilateration.py`,
   REST `/api/v1/triangulation/solve`
 
+**Signalverarbeitung, Positionierung & Datenschutz-Schicht**
+(docs/SIGNAL_POSITIONING.md) — mathematische Kerne der Spezifikation, aktiv:
+
+- **Signalverarbeitung** (`edge-agent/signal_processing.py`): Kalman-RSSI
+  (adaptives R, ~69 % Rausch-Reduktion), Median+MA, Hampel-Filter;
+  Flotten-BLE-Distanz nutzt Kalman-geglätteten RSSI
+- **Positionierung** (`edge-agent/positioning.py`): Pfadverlust (A=-61.92, n=1.64),
+  robuste Trilateration → WCL-Fallback, Fingerprinting (k-NN/wk-NN);
+  Endpunkte `/api/v1/positioning/*`, `/api/v1/signal/smooth`
+- **Mesh-Sync** (`edge-agent/mesh_sync.py`): Random-Broadcast-Consensus
+  (mittelwert-erhaltend, konvergenz-getestet); `POST /api/v1/mesh/sync`
+- **Datenschutz-Schicht** (`edge-agent/privacy.py`): erzwingt die
+  Farbkodierungs-Regeln — Personen/Tiere NIE persistiert (Live-View-only),
+  Geräte anonymisiert (SHA-256), Positionen granularisiert; `POST /api/v1/privacy/filter`
+- **Checkpoints & Integrität** (`database.py`): SHA-256-Snapshots,
+  `PRAGMA integrity_check`, Endpunkte `/api/v1/checkpoints*`
+- **Farbkodierung** (`web-visualizer/public/colorcoding.js`): verbindliche
+  Palette Grau/Blau/Grün/Rot/Gelb, synchron zur Server-Erzwingung
+
 **Flotten-Live-Dashboard** (docs/FLEET.md) — eigene gebundene Geräte in
 Echtzeit auf OpenStreetMap mit Mesh-Aktionen (v18.1.0-Fleet):
 - **Flotten-Registry** (`edge-agent/fleet.py`) — E-Bike/E-Scooter/E-Roller/Fahrzeug,
