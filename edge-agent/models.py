@@ -467,3 +467,45 @@ class ScenarioStopRequest(BaseModel):
     """Stoppt ein laufendes Kartierungsszenario."""
 
     scenario_id: str = Field(min_length=1, max_length=64)
+
+
+class FleetVehiclePayload(BaseModel):
+    """Ein Flotten-Fahrzeug im Upsert-Payload (eigene Geräte)."""
+
+    id: str = Field(min_length=1, max_length=160)
+    name: Optional[str] = None
+    kind: str = Field(default="other", max_length=32)
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+    accuracy_m: Optional[float] = None
+    local: Optional[List[float]] = Field(default=None, max_length=3)
+    rssi: Optional[int] = None
+    tx_power: Optional[float] = None
+    battery: Optional[int] = Field(default=None, ge=0, le=100)
+    status: Optional[str] = None
+
+
+class FleetUpsertRequest(BaseModel):
+    """Batch-Upsert eigener Flotten-Geräte (GPS, Triangulation oder BLE)."""
+
+    device_id: str = Field(pattern=DEVICE_ID_PATTERN)
+    timestamp: float
+    vehicles: List[FleetVehiclePayload] = Field(default_factory=list, max_length=64)
+
+
+class FleetActionRequest(BaseModel):
+    """Capability-geprüfte Flotten-Aktion (Mesh)."""
+
+    action: str = Field(min_length=1, max_length=32)
+    params: Dict[str, Any] = Field(default_factory=dict)
+
+
+class FleetAnchorRequest(BaseModel):
+    """Setzt den GeoAnchor für lokale→GPS-Projektion (Admin)."""
+
+    lat: float = Field(ge=-90, le=90)
+    lon: float = Field(ge=-180, le=180)
+    accuracy_m: float = Field(default=5.0, ge=0)
+    altitude_m: Optional[float] = None
+    heading_deg: float = Field(default=0.0, ge=0, le=360)
+    local_origin: List[float] = Field(default_factory=lambda: [0.0, 0.0, 0.0], max_length=3)

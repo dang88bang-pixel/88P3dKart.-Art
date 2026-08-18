@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>3dxAgent — Flotten-Live-Dashboard (OSM)</title>
+  <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
+  <style>
+    :root {
+      --bg: #0a0f1c; --panel: #101828; --border: #1e293b;
+      --text: #e2e8f0; --muted: #64748b; --accent: #38bdf8;
+      --ok: #34d399; --warn: #fbbf24; --bad: #f87171;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: var(--bg); color: var(--text);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; overflow: hidden; }
+    #map { position: absolute; inset: 0 0 0 300px; background: #0a0f1c; }
+    #sidebar { position: absolute; inset: 0 auto 0 0; width: 300px; background: var(--panel);
+      border-right: 1px solid var(--border); display: flex; flex-direction: column; z-index: 1000; }
+    .head { padding: 14px; border-bottom: 1px solid var(--border); }
+    .head h1 { font-size: 16px; font-weight: 700; }
+    .head .sub { font-size: 11px; color: var(--muted); margin-top: 2px; font-family: monospace; }
+    .status { display: flex; gap: 8px; padding: 8px 14px; border-bottom: 1px solid var(--border);
+      font-size: 11px; font-family: monospace; align-items: center; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--bad); }
+    .dot.ok { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+    #fleet-list { flex: 1; overflow-y: auto; padding: 8px; }
+    .veh { display: flex; align-items: center; gap: 8px; padding: 8px; border: 1px solid var(--border);
+      border-radius: 8px; margin-bottom: 6px; cursor: pointer; transition: border-color .15s; background: #0d1526; }
+    .veh:hover { border-color: var(--accent); }
+    .veh.selected { border-color: var(--accent); background: #12233d; }
+    .veh .icon { font-size: 18px; width: 24px; text-align: center; }
+    .veh .meta { flex: 1; min-width: 0; }
+    .veh .name { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .veh .sub { font-size: 10px; color: var(--muted); font-family: monospace; }
+    .veh .bat { width: 34px; text-align: right; font-size: 10px; font-family: monospace; }
+    .bat.low { color: var(--warn); } .bat.empty { color: var(--bad); }
+    #actions { border-top: 1px solid var(--border); padding: 10px 14px; }
+    #actions h2 { font-size: 12px; margin-bottom: 8px; }
+    #actions .row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+    button { background: #16233b; color: var(--text); border: 1px solid var(--border);
+      border-radius: 6px; padding: 6px 10px; font-size: 11px; cursor: pointer; font-family: inherit; }
+    button:hover:not(:disabled) { border-color: var(--accent); }
+    button:disabled { opacity: .4; cursor: not-allowed; }
+    button.danger { border-color: #7f1d1d; }
+    button.danger:hover:not(:disabled) { border-color: var(--bad); }
+    #nearby { border-top: 1px solid var(--border); padding: 10px 14px; max-height: 180px; display: flex; flex-direction: column; }
+    #nearby h2 { font-size: 12px; margin-bottom: 6px; }
+    #nearby .ctl { display: flex; gap: 6px; margin-bottom: 6px; }
+    #nearby input { flex: 1; background: #0d1526; color: var(--text); border: 1px solid var(--border);
+      border-radius: 6px; padding: 6px 8px; font-size: 11px; }
+    #nearby-results { overflow-y: auto; font-size: 11px; }
+    .nb { display: flex; justify-content: space-between; padding: 4px 2px; border-bottom: 1px solid #1a2438;
+      font-family: monospace; cursor: pointer; }
+    .nb:hover { color: var(--accent); }
+    #toast { position: fixed; bottom: 18px; left: 320px; background: #101828; border: 1px solid var(--accent);
+      border-radius: 8px; padding: 10px 14px; font-size: 12px; z-index: 2000; display: none; max-width: 460px; }
+    .fleet-icon { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px;
+      border-radius: 50%; background: #101828; border: 2px solid var(--accent); font-size: 15px; }
+    .leaflet-popup-content-wrapper, .leaflet-popup-tip { background: #101828; color: var(--text); }
+    .leaflet-popup-content { font-family: monospace; font-size: 11px; }
+    @media (max-width: 720px) {
+      #map { inset: 0 0 0 0; }
+      #sidebar { width: 100%; height: 42%; inset: auto 0 0 0; border-right: none; border-top: 1px solid var(--border); }
+    }
+  </style>
+</head>
+<body>
+  <div id="sidebar">
+    <div class="head">
+      <h1>🗺️ Flotten-Live-Dashboard</h1>
+      <div class="sub">OpenStreetMap · Echtzeit-Positionen · Mesh-Aktionen</div>
+    </div>
+    <div class="status">
+      <span class="dot" id="ws-dot"></span>
+      <span id="ws-label">Verbinde…</span>
+      <span style="margin-left:auto" id="count-label">0 Geräte</span>
+    </div>
+    <div id="fleet-list"></div>
+    <div id="actions">
+      <h2 id="actions-title">Aktionen — nichts ausgewählt</h2>
+      <div class="row" id="action-buttons"></div>
+    </div>
+    <div id="nearby">
+      <h2>📡 Plug &amp; Play — in der Nähe</h2>
+      <div class="ctl">
+        <input id="radius" type="number" value="2000" min="10" max="50000" title="Radius in Metern" />
+        <button id="nearby-btn">Suchen</button>
+      </div>
+      <div id="nearby-results"></div>
+    </div>
+  </div>
+  <div id="map"></div>
+  <div id="toast"></div>
+
+  <script src="/vendor/leaflet/leaflet.js"></script>
+  <script src="/fleet.js"></script>
+</body>
+</html>

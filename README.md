@@ -54,6 +54,20 @@ Positionsbestimmung:
 - Kotlin-Paket `triangulation/` + Python-Port `edge-agent/trilateration.py`,
   REST `/api/v1/triangulation/solve`
 
+**Flotten-Live-Dashboard** (docs/FLEET.md) — eigene gebundene Geräte in
+Echtzeit auf OpenStreetMap mit Mesh-Aktionen (v18.1.0-Fleet):
+- **Flotten-Registry** (`edge-agent/fleet.py`) — E-Bike/E-Scooter/E-Roller/Fahrzeug,
+  Handy, Werkzeug/BLE-Token; Positionen aus GPS, Triangulation (GeoAnchor-Projektion)
+  oder BLE-Sichtung (Distanzschätzung)
+- **REST** `/api/v1/fleet*` (upsert, Liste, Nearby, Aktionen, Anchor) +
+  WS `fleet_position` → `fleet_update`/`fleet_action_result`
+- **Aktionen capability-geprüft** (Status/Ortung/LED/Sichtbarkeit, Sperren/Entsperren
+  nur für Fahrzeug-Typen) — gezieltes Ansprechen über das Mesh
+- **Plug-and-play-Umkreissuche** `/api/v1/fleet/nearby`: eigene Flotte + BLE-Zubehör
+  in Reichweite, nach Distanz sortiert
+- **Live-Dashboard** `web-visualizer/public/fleet.html` (Leaflet lokal gebündelt,
+  OSM mit Namensnennung, Genauigkeitskreise, Aktionsleiste, Umkreissuche)
+
 **Betrieb & Wartung** (docs/SERVICE_WORKER.md) ergänzt die Plattform um die
 Hintergrundverarbeitung nach WorkManager-/Workbox-Standards:
 - **AdaptiveThresholdMonitor** — Schwellwerte (richtungskorrekt), 3σ-Spikes,
