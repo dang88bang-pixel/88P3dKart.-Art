@@ -8,11 +8,20 @@ from typing import List
 
 import numpy as np
 import uvicorn
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from pydantic import ValidationError
+from security import (
+    AttemptLimitExceeded,
+    AuthenticationError,
+    AuthenticationUnavailable,
+    CredentialAttemptControls,
+    CredentialStore,
+    GatewaySecurity,
+    Principal,
+)
 
 from alarm_repository import AlarmRepository
 from alarm_service import (
@@ -55,13 +64,21 @@ from icp_merger import ICPMerger
 from external.manager import ExternalEntityManager
 from geo.resolver import GeoResolver
 from models import (
+    AlarmEvidenceRequest,
+    AlarmPolicyRequest,
+    AlarmSnoozeRequest,
+    ASSET_ID_PATTERN,
+    POLICY_ID_PATTERN,
     AuraHeatmapRequest,
     AuraRtiRequest,
     BleTokenUpdate,
+    BluetoothAccessoryUpdateRequest,
     DeviceActionRequest,
     DeviceLayerRequest,
     DeviceUpsertRequest,
     EkfState,
+    EnrollmentClaimRequest,
+    EnrollmentCodeRequest,
     ExportRequest,
     FloorPlanBuildingsRequest,
     FloorPlanGeocodeRequest,
@@ -71,6 +88,7 @@ from models import (
     NetworkTrafficRequest,
     PipelineRequest,
     ScenarioConfig,
+    SessionRequest,
     SimulationRequest,
     TopologyRequest,
     TriangulationRequest,
@@ -85,7 +103,12 @@ from pointcloud_compressor import PointCloudCompressor
 from rti_solver import Link, RfSample, RtiSolver, build_heatmap
 from trilateration import solve_trilateration
 from uwb_processor import UwbDopplerProcessor
-from bluetooth_accessories import global_accessory_registry, BluetoothAccessory
+from bluetooth_accessories import (
+    BluetoothAccessory,
+    BluetoothAccessoryType,
+    global_accessory_registry,
+)
+from dataclasses import asdict
 
 logging.basicConfig(
     level=logging.INFO,
@@ -789,7 +812,69 @@ async def health(request: Request):
     return {
         "status": "ok" if authentication_ready else "degraded",
         "authentication": "ready" if authentication_ready else "unconfigured",
+        "bluetooth": global_accessory_registry.stats(),
     }
+
+
+# ─── Bluetooth-Zubehör (docs/BT_ACCESSORIES.md) ──────────────────
+
+
+@app.post("/api/v1/bluetooth/accessories/update")
+async def bluetooth_accessories_update(request: BluetoothAccessoryUpdateRequest):
+    """Batch-Ingest eigener Zubehörgeräte (Tokens, Sensor-Tags, Wearables)."""
+    updated = global_accessory_registry.update_batch(request.accessories)
+    return {"updated": len(updated)}
+
+
+@app.get("/api/v1/bluetooth/accessories")
+async def bluetooth_accessories_list(
+    type: str | None = Query(default=None, max_length=32),
+):
+    """Liste aller bekannten Zubehörgeräte (optional nach Typ gefiltert)."""
+    if type:
+        try:
+            type_enum = BluetoothAccessoryType(type.upper())
+        except ValueError:
+            raise HTTPException(status_code=400, detail="unbekannter Zubehörtyp")
+        accessories = global_accessory_registry.get_by_type(type_enum)
+    else:
+        accessories = global_accessory_registry.get_all()
+    return {
+        "count": len(accessories),
+        "accessories": [a.to_dict() for a in accessories],
+        "stats": global_accessory_registry.stats(),
+    }
+
+
+@app.get("/api/v1/bluetooth/accessories/{mac}")
+async def bluetooth_accessory_detail(mac: str):
+    accessory = global_accessory_registry.get(mac)
+    if accessory is None:
+        raise HTTPException(status_code=404, detail="Zubehörgerät nicht gefunden")
+    return {"accessory": accessory.to_dict()}
+
+
+@app.delete("/api/v1/bluetooth/accessories/{mac}")
+async def bluetooth_accessory_delete(mac: str):
+    removed = global_accessory_registry.remove(mac)
+    if not removed:
+        raise HTTPException(status_code=404, detail="Zubehörgerät nicht gefunden")
+    return {"removed": mac.lower()}
+
+
+@app.get("/api/v1/bluetooth/health")
+async def bluetooth_health():
+    """Health-Bewertung aller Zubehörgeräte."""
+    health = [asdict(h) for h in global_accessory_registry.evaluate_all_health()]
+    return {
+        "total": global_accessory_registry.count(),
+        "health": health,
+    }
+
+
+@app.get("/api/v1/bluetooth/stats")
+async def bluetooth_stats():
+    return global_accessory_registry.stats()
 
 
 # ─── Triangulation (CT45P) — docs/TRIANGULATION.md §8 ────────────
@@ -1199,7 +1284,13 @@ async def websocket_endpoint(websocket: WebSocket):
                 payload_device_id = payload.get("device_id")
                 if not isinstance(payload_device_id, str):
                     raise ValueError("device_id is required")
-                _require_device_scope(principal, payload_device_id)
+                try:
+                    _require_device_scope(principal, payload_device_id)
+                except HTTPException as exc:
+                    await websocket.close(
+                        code=4403, reason=f"device scope denied: {exc.detail}"
+                    )
+                    return
                 device_id = payload_device_id
 
                 if msg_type == "handshake":
@@ -1282,84 +1373,90 @@ async def websocket_endpoint(websocket: WebSocket):
                     else:
                         current_mode = "FULL"
 
+                elif msg_type == "aura_voxels":
+                    # RTI-Voxel der CT45P-App → an alle Visualizer-Clients weiterreichen
+                    await manager.broadcast_json(data)
+
+                elif msg_type == "aura_heatmap":
+                    await manager.broadcast_json(data)
+
+                elif msg_type == "position_update":
+                    # Fusionierte Triangulations-Position → Visualizer + Persistenz
+                    await manager.broadcast_json(data)
+                    x = float(payload.get("x", 0.0))
+                    y = float(payload.get("y", 0.0))
+                    z = float(payload.get("z", 0.0))
+                    accuracy = float(payload.get("accuracy_m", 1.0))
+                    db.save_transform(
+                        device_id,
+                        (x, y, z),
+                        (accuracy, accuracy),
+                        {
+                            "kind": "triangulation",
+                            "source": payload.get("source", "unknown"),
+                            "confidence": payload.get("confidence", 0.0),
+                        },
+                    )
+
+                elif msg_type == "triangulation_anchors":
+                    await manager.broadcast_json(data)
+
+                elif msg_type == "network_devices_update":
+                    # Scan-Zyklus der App → Change-/Anomalie-Erkennung + Broadcast
+                    changes = device_tracker.update(payload.get("devices", []))
+                    await manager.broadcast_json(
+                        {"type": "network_devices", "payload": changes}
+                    )
+
+                elif msg_type == "annotation_update":
+                    # Kollaborative Annotation (Live-Sync) → alle Teilnehmer
+                    await manager.broadcast_json(data)
+
+                elif msg_type == "devices_update":
+                    # Geräte-Ingest der App (DeviceSync) → Registry → Broadcast
+                    for dev_data in payload.get("devices", []):
+                        device_registry.upsert(Device.from_dict(dev_data))
+                    device_registry.mark_stale()
+                    await manager.broadcast_json(_devices_payload())
+
+                elif msg_type == "device_action":
+                    # Client → Agent: Geräteaktion ausführen + Ergebnis broadcasten
+                    result = device_action_engine.execute(
+                        payload.get("device_id"),
+                        payload.get("action"),
+                        payload.get("params") or {},
+                    )
+                    await manager.broadcast_json(
+                        {"type": "device_action_result", "payload": result.to_dict()}
+                    )
+
+                elif msg_type == "network_traffic":
+                    # Live-Traffic-Ingest (DeviceSync/Adapter) → Broadcast
+                    flows = [TrafficFlow.from_dict(f) for f in payload.get("flows", [])]
+                    if flows:
+                        await manager.broadcast_json(_traffic_broadcast(flows))
+
                 else:
                     raise ValueError("unsupported message type")
 
-            elif msg_type == "aura_voxels":
-                # RTI-Voxel der CT45P-App → an alle Visualizer-Clients weiterreichen
-                await manager.broadcast_json(data)
+                # Persistenz nach Positions-Updates
+                if msg_type in ("lidar", "mmwave"):
+                    state = ekf.get_state()
+                    db.save_transform(
+                        device_id,
+                        (state.x, state.y, state.z),
+                        (ekf.R_lidar[0, 0], ekf.R_mmwave[0, 0]),
+                        {
+                            "mode": current_mode,
+                            "scattering": scattering_detected,
+                            "thermal": sensor_thermal_celsius,
+                        },
+                    )
 
-            elif msg_type == "aura_heatmap":
-                await manager.broadcast_json(data)
-
-            elif msg_type == "position_update":
-                # Fusionierte Triangulations-Position → Visualizer + Persistenz
-                await manager.broadcast_json(data)
-                x = float(payload.get("x", 0.0))
-                y = float(payload.get("y", 0.0))
-                z = float(payload.get("z", 0.0))
-                accuracy = float(payload.get("accuracy_m", 1.0))
-                db.save_transform(
-                    device_id,
-                    (x, y, z),
-                    (accuracy, accuracy),
-                    {
-                        "kind": "triangulation",
-                        "source": payload.get("source", "unknown"),
-                        "confidence": payload.get("confidence", 0.0),
-                    },
-                )
-
-            elif msg_type == "triangulation_anchors":
-                await manager.broadcast_json(data)
-
-            elif msg_type == "network_devices_update":
-                # Scan-Zyklus der App → Change-/Anomalie-Erkennung + Broadcast
-                changes = device_tracker.update(payload.get("devices", []))
-                await manager.broadcast_json(
-                    {"type": "network_devices", "payload": changes}
-                )
-
-            elif msg_type == "annotation_update":
-                # Kollaborative Annotation (Live-Sync) → alle Teilnehmer
-                await manager.broadcast_json(data)
-
-            elif msg_type == "devices_update":
-                # Geräte-Ingest der App (DeviceSync) → Registry → Broadcast
-                for dev_data in payload.get("devices", []):
-                    device_registry.upsert(Device.from_dict(dev_data))
-                device_registry.mark_stale()
-                await manager.broadcast_json(_devices_payload())
-
-            elif msg_type == "device_action":
-                # Client → Agent: Geräteaktion ausführen + Ergebnis broadcasten
-                result = device_action_engine.execute(
-                    payload.get("device_id"),
-                    payload.get("action"),
-                    payload.get("params") or {},
-                )
-                await manager.broadcast_json(
-                    {"type": "device_action_result", "payload": result.to_dict()}
-                )
-
-            elif msg_type == "network_traffic":
-                # Live-Traffic-Ingest (DeviceSync/Adapter) → Broadcast
-                flows = [TrafficFlow.from_dict(f) for f in payload.get("flows", [])]
-                if flows:
-                    await manager.broadcast_json(_traffic_broadcast(flows))
-
-            # Persistenz nach Positions-Updates
-            if msg_type in ("lidar", "mmwave"):
-                state = ekf.get_state()
-                db.save_transform(
-                    device_id,
-                    (state.x, state.y, state.z),
-                    (ekf.R_lidar[0, 0], ekf.R_mmwave[0, 0]),
-                    {
-                        "mode": current_mode,
-                        "scattering": scattering_detected,
-                        "thermal": thermal_celsius,
-                    },
+            except ValueError as exc:
+                logger.warning("Ungültige WS-Nachricht: %s", exc)
+                await websocket.send_text(
+                    json.dumps({"type": "error", "code": "INVALID_MESSAGE"})
                 )
 
     except WebSocketDisconnect:

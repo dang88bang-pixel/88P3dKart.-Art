@@ -339,6 +339,14 @@ class BluetoothAccessoryRegistry:
         s = set(types)
         return [a for a in self._accessories.values() if a.type in s]
 
+    def remove(self, mac: str) -> bool:
+        """Entfernt ein einzelnes Zubehörgerät (z. B. manuelle Bereinigung)."""
+        key = mac.lower()
+        if key in self._accessories:
+            del self._accessories[key]
+            return True
+        return False
+
     def remove_expired(self, max_age_s: float = 60.0) -> List[str]:
         now = time.time()
         expired = [mac for mac, acc in self._accessories.items() if now - acc.last_seen > max_age_s]

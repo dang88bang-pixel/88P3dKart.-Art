@@ -229,13 +229,23 @@ class RtiSolver:
             )
             if self.smoothing > 0:
                 operator = operator + self.smoothing * self._laplacian()
-            phi, _info = sparse_cg(
-                operator,
-                b,
-                tol=self.CG_TOLERANCE,
-                atol=0,
-                maxiter=self.MAX_CG_ITERATIONS,
-            )
+            # scipy>=1.12 nutzt rtol (keyword-only), scipy<1.12 nutzt tol.
+            try:
+                phi, _info = sparse_cg(
+                    operator,
+                    b,
+                    rtol=self.CG_TOLERANCE,
+                    atol=0,
+                    maxiter=self.MAX_CG_ITERATIONS,
+                )
+            except TypeError:
+                phi, _info = sparse_cg(
+                    operator,
+                    b,
+                    tol=self.CG_TOLERANCE,
+                    atol=0,
+                    maxiter=self.MAX_CG_ITERATIONS,
+                )
         else:
             phi = self._conjugate_gradient_matrix_free(a, b)
 

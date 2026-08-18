@@ -98,7 +98,10 @@ def test_health_endpoint(authenticated_client):
     client, _headers = authenticated_client
     response = client.get("/api/v1/health")
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "authentication": "ready"}
+    body = response.json()
+    assert body["status"] == "ok"
+    assert body["authentication"] == "ready"
+    assert "bluetooth" in body  # Zubehör-Registry-Status seit BT-Accessories
 
 
 def test_pipeline_endpoint_is_device_scoped(authenticated_client):
