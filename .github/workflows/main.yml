@@ -1,23 +1,36 @@
-**Bitte signierte REAL-CT45P .apk bauen und bereitstellen**
+name: Edge-Agent CI
 
-Branch: `arena/01a00b5e-88p3dkart-art`
+on:
+  push:
+    branches: [main, master, "arena/**"]
+  pull_request:
 
-**Workflow triggern:**
-1. https://github.com/dingeldangbang/88P3dKart.-Art/actions/workflows/build-apk.yml
-2. Rechts oben auf **"Run workflow"** klicken
-3. Folgende Werte wählen:
-   - **Branch:** `arena/01a00b5e-88p3dkart-art`
-   - **build_type:** `release`
-   - **sign_release:** `true`
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: edge-agent
+    steps:
+      - uses: actions/checkout@v4
 
-**Erforderliche Secrets (für signierte APK):**
-- `RELEASE_STORE_BASE64`
-- `RELEASE_STORE_PASSWORD`
-- `RELEASE_KEY_ALIAS` = `ct45p-release`
-- `RELEASE_KEY_PASSWORD`
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: edge-agent/requirements.txt
 
-Die App ist vollständig real (alle P1–P8 + HoneywellMasterBridge abgeschlossen, 0 Simulation in kritischen Pfaden).
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pytest==7.4.3 pytest-asyncio==0.23.8
 
-Nach dem Build:
-- APK unter Artifacts verfügbar
-- Bei erfolgreichem signed Build auch als GitHub Release
+      - name: Tests (neutrale Suite)
+        run: >
+          python -m pytest tests/ -q
+          --ignore=tests/test_tactical.py
+          --ignore=tests/test_radar_processing.py
+          --ignore=tests/test_uwb.py
+
+      - name: Import-Selbsttest (App startfähig)
+        run: python -c "from agent import app; print('Routen:', len(app.routes))"

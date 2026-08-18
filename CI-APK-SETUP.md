@@ -105,3 +105,17 @@ cd android-app
   (Java-WebSocket, UsbSerial) Keep-Regeln brauchen. APK ist ~8–12 MB größer als nötig.
 - **Hardware-spezifische Permissions** (BLUETOOTH_SCAN, UWB_RANGING, NEARBY_WIFI_DEVICES)
   werden zur Laufzeit in `MainActivity` angefordert — der User muss sie akzeptieren.
+
+---
+
+## Workflow-Trigger (manuell)
+
+1. https://github.com/dingeldangbang/88P3dKart.-Art/actions/workflows/build-apk.yml
+2. Rechts oben auf **"Run workflow"** klicken
+3. Werte wählen: Branch, `build_type: release`, `sign_release: true`
+
+**Erforderliche Secrets (für signierte APK):**
+- `RELEASE_STORE_BASE64`
+- `RELEASE_STORE_PASSWORD`
+- `RELEASE_KEY_ALIAS` = `ct45p-release`
+- `RELEASE_KEY_PASSWORD`

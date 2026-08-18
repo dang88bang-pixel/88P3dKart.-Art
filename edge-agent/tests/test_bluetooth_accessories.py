@@ -81,7 +81,7 @@ def test_registry_expiry():
 
 
 def test_rest_endpoints():
-    client = TestClient(app)
+    client = TestClient(app, base_url="https://testserver")
     # Clean global registry for test isolation
     global_accessory_registry._accessories.clear()
 
@@ -135,7 +135,7 @@ def test_rest_endpoints():
 
 
 def test_health_endpoint_includes_bluetooth():
-    client = TestClient(app)
+    client = TestClient(app, base_url="https://testserver")
     r = client.get("/api/v1/health")
     assert r.status_code == 200
     body = r.json()

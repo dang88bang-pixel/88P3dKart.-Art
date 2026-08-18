@@ -100,7 +100,7 @@ class PipelineResult(BaseModel):
 
 
 class MergeRequest(BaseModel):
-    device_ids: List[str]
+    device_ids: List[str] = Field(min_length=2, max_length=64)
     reference: Optional[str] = None
 
 
@@ -225,3 +225,245 @@ class NetworkTrafficRequest(BaseModel):
     """Aktive Netzwerkvisualisierung: Live-Traffic-Ingest."""
 
     flows: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class AlarmPolicyRequest(BaseModel):
+    """Gateway-autoritative Alarmrichtlinie (docs/contracts/alarm-policy.schema.json)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["1.0.0"] = "1.0.0"
+    policy_id: str = Field(pattern=POLICY_ID_PATTERN)
+    asset_id: str = Field(pattern=ASSET_ID_PATTERN)
+    revision: int = Field(ge=1)
+    enabled: bool = True
+    metric: Literal[
+        "RANGE_FROM_CT45P",
+        "RANGE_FROM_ANCHOR",
+        "RANGE_FROM_ZONE",
+        "GEOFENCE_EXIT",
+        "CONNECTIVITY_LOSS",
+    ]
+    reference_id: Optional[str] = None
+    threshold_m: float = Field(gt=0)
+    trigger_direction: Literal["ABOVE", "BELOW", "OUTSIDE", "LOSS"]
+    decision_mode: Literal["POSSIBLE_BREACH", "CONFIRMED_BREACH"] = "CONFIRMED_BREACH"
+    minimum_confidence: float = Field(ge=0, le=1)
+    maximum_age_ms: int = Field(ge=0)
+    dwell_ms: int = Field(ge=0)
+    clear_dwell_ms: int = Field(ge=0)
+    data_loss_dwell_ms: int = Field(ge=0)
+    recovery_dwell_ms: int = Field(ge=0)
+    hysteresis_m: float = Field(ge=0)
+    cooldown_ms: int = Field(ge=0)
+    severity: Literal["INFO", "WARNING", "CRITICAL"] = "WARNING"
+    data_loss_behavior: Literal[
+        "SEPARATE_ALARM", "FAIL_CLOSED", "WARN_ONLY"
+    ] = "SEPARATE_ALARM"
+    delivery_profile_id: str = "operators"
+
+    @model_validator(mode="after")
+    def anchor_metrics_require_reference(self) -> "AlarmPolicyRequest":
+        if self.metric in ("RANGE_FROM_ANCHOR", "RANGE_FROM_ZONE") and not self.reference_id:
+            raise ValueError(f"metric {self.metric} requires reference_id")
+        return self
+
+
+class AlarmEvidenceRequest(BaseModel):
+    """Kalibrierte Fusions-Evidenz für Distanz-Alarme (authoritative Gateway)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    policy_id: str = Field(pattern=POLICY_ID_PATTERN)
+    asset_id: str = Field(pattern=ASSET_ID_PATTERN)
+    source_id: str = Field(min_length=1, max_length=160)
+    cursor: str = Field(min_length=1, max_length=160)
+    estimate_status: Literal["VALID", "UNOBSERVABLE"]
+    method: str = Field(min_length=1, max_length=160)
+    value_m: float
+    confidence: float = Field(ge=0, le=1)
+    lower_95_m: float
+    upper_95_m: float
+    observed_at: Optional[datetime] = None
+    source_ids: List[str] = Field(min_length=1, max_length=64)
+    measurement_ids: List[str] = Field(min_length=1, max_length=512)
+    calibration_id: Optional[str] = None
+    quality_flags: List[str] = Field(default_factory=list, max_length=64)
+
+
+# ─── Geolokalisierung (docs/GEOLOCATION_PROVIDERS.md) ────────────
+
+class WifiAccessPoint(BaseModel):
+    """WLAN-Zugangspunkt (Mozilla-Geolocate-Format)."""
+
+    macAddress: str
+    signalStrength: Optional[int] = None
+    age: Optional[int] = None
+    channel: Optional[int] = None
+    ssid: Optional[str] = None
+    signalToNoiseRatio: Optional[int] = None
+
+
+class BluetoothBeacon(BaseModel):
+    """Bluetooth-Beacon (Mozilla-Geolocate-Format)."""
+
+    macAddress: str
+    signalStrength: Optional[int] = None
+    age: Optional[int] = None
+    name: Optional[str] = None
+
+
+class CellTower(BaseModel):
+    """Funkzelle (Mozilla-Geolocate-Format)."""
+
+    mobileCountryCode: int
+    mobileNetworkCode: int
+    locationAreaCode: int
+    cellId: int
+    signalStrength: Optional[int] = None
+    radioType: Optional[str] = None
+    age: Optional[int] = None
+
+
+class GeolocateRequest(BaseModel):
+    """Scan-Signatur für die Geolokalisierungs-Kette (WLAN/Zelle/BLE)."""
+
+    wifiAccessPoints: List[WifiAccessPoint] = Field(default_factory=list, max_length=64)
+    cellTowers: List[CellTower] = Field(default_factory=list, max_length=32)
+    bluetoothBeacons: List[BluetoothBeacon] = Field(default_factory=list, max_length=64)
+
+    def is_empty(self) -> bool:
+        return not (self.wifiAccessPoints or self.cellTowers or self.bluetoothBeacons)
+
+
+def accuracy_to_quality(accuracy_m: float) -> float:
+    """Übersetzt Genauigkeit in Qualität [0, 1]: 1 m → 1.0, 10 km → 0.0."""
+    import math
+
+    bounded = max(float(accuracy_m), 0.01)
+    quality = 1.0 - math.log10(bounded) / 4.0
+    return max(0.0, min(1.0, quality))
+
+
+class GeoFix(BaseModel):
+    """Positionsbestimmung eines Geo-Providers."""
+
+    lat: float
+    lon: float
+    accuracy_m: float = Field(ge=0)
+    altitude_m: Optional[float] = None
+    source: str = "unknown"
+    license: str = "unknown"
+    attribution: Optional[str] = None
+    ttl_days: Optional[int] = None
+    timestamp: float
+    quality: float = Field(default=0.0, ge=0, le=1)
+
+
+class GeoAnchor(BaseModel):
+    """Referenzpunkt, auf den externe Entitäten projiziert werden."""
+
+    fix: GeoFix
+    local_origin: List[float] = Field(default_factory=lambda: [0.0, 0.0, 0.0], alias="local_local_origin")
+    heading_deg: float = 0.0
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+# ─── Externe Tracking-Quellen (docs/API_INTEGRATION_REVIEW.md) ───
+
+EntityType = Literal["unknown", "vehicle", "micromobility", "transit"]
+
+
+class ExternalEntity(BaseModel):
+    """Externe Entität (z. B. Fahrzeug aus GTFS-RT) mit Projektionsfeldern."""
+
+    source: str
+    entity_type: EntityType
+    entity_id: str
+    id_is_stable: bool = False
+    label: Optional[str] = None
+    lat: float
+    lon: float
+    altitude_m: Optional[float] = None
+    bearing_deg: Optional[float] = None
+    speed_mps: Optional[float] = None
+    timestamp: float
+    received_at: float
+    age_s: float = 0.0
+    license: str = "unknown"
+    attribution: Optional[str] = None
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    distance_m: Optional[float] = None
+    local: Optional[List[float]] = None
+    stale: bool = False
+    quality: float = 0.0
+
+
+class ExternalSourceStatus(BaseModel):
+    """Gesundheitszustand einer externen Quelle."""
+
+    name: str
+    enabled: bool
+    healthy: bool
+    entity_type: EntityType
+    license: str
+    attribution: Optional[str] = None
+    poll_interval_s: float
+    last_success: Optional[float] = None
+    last_error: Optional[str] = None
+    consecutive_errors: int
+    entity_count: int
+
+
+class ExternalEntitySnapshot(BaseModel):
+    """Aggregierter Stand aller externen Quellen (für API/MQTT/Visualizer)."""
+
+    generated_at: float
+    anchor_set: bool
+    sources: List[str]
+    count: int
+    entities: List[ExternalEntity]
+
+
+# ─── Enrollment & Sessions (docs/CT45P_MASTER_ARCHITECTURE.md) ───
+
+class EnrollmentCodeRequest(BaseModel):
+    """Admin-Anfrage: einmaligen Enrollment-Code für ein Gerät ausstellen."""
+
+    device_id: str = Field(pattern=DEVICE_ID_PATTERN)
+    ttl_seconds: int = Field(default=600, ge=60, le=86_400)
+
+
+class EnrollmentClaimRequest(BaseModel):
+    """Gerät beansprucht einen Enrollment-Code und erhält das Device-Secret."""
+
+    device_id: str = Field(pattern=DEVICE_ID_PATTERN)
+    code: str = Field(min_length=20, max_length=200)
+
+
+class SessionRequest(BaseModel):
+    """Gerät authentisiert sich mit dem Device-Secret und erhält ein JWT."""
+
+    device_id: str = Field(pattern=DEVICE_ID_PATTERN)
+    device_secret: str = Field(min_length=20, max_length=200)
+
+
+class AlarmSnoozeRequest(BaseModel):
+    """Alarm-Snooze: Dauer in Millisekunden (max. 24 h)."""
+
+    duration_ms: int = Field(ge=1, le=86_400_000)
+
+
+class BluetoothAccessoryUpdateRequest(BaseModel):
+    """Batch-Update eigener Bluetooth-Zubehörgeräte (CT45P → Gateway)."""
+
+    device_id: str = Field(pattern=DEVICE_ID_PATTERN)
+    timestamp: float
+    accessories: List[Dict[str, Any]] = Field(default_factory=list, max_length=64)
+
+
+class ScenarioStopRequest(BaseModel):
+    """Stoppt ein laufendes Kartierungsszenario."""
+
+    scenario_id: str = Field(min_length=1, max_length=64)

@@ -265,9 +265,31 @@ class DataPipeline:
             quality: float = 1.0, metadata: Dict[str, Any] | None = None) -> Dict[str, Any]:
         metadata = metadata or {}
 
-        # 1. Erfassung
+        # 1. Erfassung: Zustandslos pro Aufruf — der Buffer dient nur der
+        #    Telemetrie (acquisition.count), die Verarbeitung nutzt exakt die
+        #    übergebenen Punkte (kein geräteübergreifendes Vermischen).
+        arr = np.asarray(points, dtype=float).reshape(-1, 3)
+        if arr.size == 0:
+            self.acquisition.ingest([], source=source, quality=quality)
+            return {
+                "status": "empty",
+                "num_points": 0,
+                "num_mesh_vertices": 0,
+                "num_mesh_faces": 0,
+                "num_objects": 0,
+                "objects": [],
+                "confidence": 0.0,
+                "transform": None,
+                "evaluation": {
+                    "num_points": 0, "num_faces": 0, "num_objects": 0,
+                    "coverage": 0.0, "density_pts_per_m2": 0.0,
+                    "volume_m3": 0.0, "floor_area_m2": 0.0,
+                    "mapping_residual": 0.0, "confidence": 0.0,
+                    "status": "empty",
+                },
+                "metadata": metadata,
+            }
         self.acquisition.ingest(points, source=source, quality=quality)
-        arr = self.acquisition.to_array()
 
         # 2. Interpretation
         objects = self.interpreter.interpret(arr)

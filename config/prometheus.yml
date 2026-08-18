@@ -1,0 +1,14 @@
+# ─────────────────────────────────────────────────────────────
+# Prometheus für 88P3dKart.-Art (Dev-/Monitoring-Profil)
+# Edge-Agent stellt echte Metriken unter /api/v1/metrics bereit.
+# ─────────────────────────────────────────────────────────────
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'edge-agent'
+    static_configs:
+      - targets: ['edge-agent:8080']
+    metrics_path: '/api/v1/metrics'
+    scrape_interval: 5s

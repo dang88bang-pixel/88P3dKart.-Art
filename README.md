@@ -200,6 +200,25 @@ node server.js            # → http://localhost:3000
 docker compose up -d
 ```
 
+## 🚢 Deployment (vollständig ausführbar)
+
+```bash
+./scripts/generate-secrets.sh     # Secrets + TLS + MQTT-PKI (einmalig)
+cp .env.example .env              # Host, Gateway-ID, Geräte-GID setzen
+./scripts/deploy.sh production    # Backup → Build → Start → Health-Verify
+./scripts/deploy.sh staging       # Dev-Stack (docker-compose.dev.yml)
+./scripts/deploy.sh status        # Container-Status
+python3 scripts/smoke_test.py     # 40+ End-to-End-Checks gegen Live-Server
+```
+
+- **API-Referenz:** `docs/openapi.yaml` — automatisch aus dem Code generiert (49 Pfade), niemals von Hand gepflegt: `python3 scripts/generate_openapi.py`
+- **WebSocket-Protokoll:** `docs/websocket-api.md` (Ist-Stand, Envelope-Format)
+- **Security:** `docs/security-headers.md` (nginx-Header, Container-Härtung, JWT)
+- **Monitoring:** `config/prometheus.yml` + `config/alerts.yml` — der Agent liefert echte Metriken unter `GET /api/v1/metrics` (Prometheus-Textformat)
+- **CI:** `.github/workflows/main.yml` (Tests bei jedem Push) und `.github/workflows/build-apk.yml` (signierte APK, manueller Trigger)
+
+Datenbanken werden automatisch initialisiert (SQLite): `agent.db` (Positions-/Merge-/Geo-Daten), `credentials.db` (Enrollment/Sessions), `alarms.db` (autoritative Alarme + Outbox).
+
 ```bash
 # Status prüfen
 curl http://localhost:8080/api/v1/agent/state
