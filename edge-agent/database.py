@@ -239,6 +239,14 @@ class LocalVectorStore:
             )
             return [(r["pos_x"], r["pos_y"], r["pos_z"]) for r in cursor.fetchall()]
 
+    def known_devices(self) -> List[str]:
+        """Alle Geräte mit gespeicherten Positionsdaten."""
+        with self._get_conn() as conn:
+            rows = conn.execute(
+                "SELECT DISTINCT device_id FROM spatial_memory ORDER BY device_id"
+            ).fetchall()
+        return [r["device_id"] for r in rows]
+
     def save_merged_map(self, map_id: str, points: List[List[float]]) -> None:
         with self._get_conn() as conn:
             conn.execute(

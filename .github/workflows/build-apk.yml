@@ -1,0 +1,72 @@
+name: Build APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: "Build-Typ"
+        required: true
+        default: "release"
+        type: choice
+        options: [debug, release]
+      sign_release:
+        description: "Release signieren (Secrets erforderlich)"
+        required: true
+        default: "false"
+        type: choice
+        options: ["true", "false"]
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Keystore aus Secrets wiederherstellen (nur signierte Release-Builds)
+        if: inputs.sign_release == 'true' && inputs.build_type == 'release'
+        env:
+          RELEASE_STORE_BASE64: ${{ secrets.RELEASE_STORE_BASE64 }}
+        run: |
+          echo "$RELEASE_STORE_BASE64" | base64 -d > release-keystore.jks
+          echo "RELEASE_STORE_FILE=release-keystore.jks" >> $GITHUB_ENV
+
+      - name: Debug-APK bauen
+        if: inputs.build_type == 'debug'
+        working-directory: android-app
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Release-APK bauen (unsigned)
+        if: inputs.build_type == 'release' && inputs.sign_release == 'false'
+        working-directory: android-app
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Release-APK bauen (signiert)
+        if: inputs.build_type == 'release' && inputs.sign_release == 'true'
+        working-directory: android-app
+        env:
+          RELEASE_STORE_FILE: ${{ env.RELEASE_STORE_FILE }}
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          ./gradlew assembleRelease --no-daemon \
+            -Pandroid.injected.signing.store.file="$RELEASE_STORE_FILE" \
+            -Pandroid.injected.signing.store.password="$RELEASE_STORE_PASSWORD" \
+            -Pandroid.injected.signing.key.alias="$RELEASE_KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$RELEASE_KEY_PASSWORD"
+
+      - name: APKs hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: 3dxagent-apks
+          path: android-app/app/build/outputs/apk/**/*.apk
+          if-no-files-found: warn

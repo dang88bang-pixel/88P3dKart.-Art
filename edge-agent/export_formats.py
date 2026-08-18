@@ -113,3 +113,49 @@ def apply_retention(
         raise ValueError("retention_days muss > 0 sein")
     cutoff = (now_ms if now_ms is not None else int(time.time() * 1000)) - retention_days * 24 * 3600 * 1000
     return [item for item in items if item.get("timestamp_ms", 0) >= cutoff]
+
+
+# ─── Mesh-Exporte (reine Textformate, verlustfrei) ────────────────────────────
+
+def points_to_obj(points: List[List[float]], name: str = "3dxagent") -> str:
+    """Wavefront OBJ: Punktwolke als Vertex-Liste (keine Faces ohne Topologie)."""
+    lines = [f"# 3dxAgent point cloud export ({len(points)} points)", f"o {name}"]
+    for p in points:
+        lines.append(f"v {_fmt(p[0])} {_fmt(p[1])} {_fmt(p[2])}")
+    return "\n".join(lines) + "\n"
+
+
+def points_to_ply(points: List[List[float]]) -> str:
+    """Polygon File Format (ASCII): Standardformat für Punktwolken-Werkzeuge."""
+    header = (
+        "ply\nformat ascii 1.0\n"
+        f"element vertex {len(points)}\n"
+        "property float x\nproperty float y\nproperty float z\n"
+        "end_header\n"
+    )
+    body = "\n".join(f"{_fmt(p[0])} {_fmt(p[1])} {_fmt(p[2])}" for p in points)
+    return header + body + "\n"
+
+
+def points_to_stl(points: List[List[float]], name: str = "3dxagent") -> str:
+    """STL (ASCII): pro Punkt ein degeneriertes Dreieck — von STL-Viewern lesbar.
+
+    Hinweis: STL kennt keine nackten Punkte; degenerierte Facetten sind die
+    etablierte Konvention für reine Punktwolken-Exporte.
+    """
+    lines = [f"solid {name}"]
+    for p in points:
+        x, y, z = _fmt(p[0]), _fmt(p[1]), _fmt(p[2])
+        lines.append(
+            f"  facet normal 0 0 0\n    outer loop\n"
+            f"      vertex {x} {y} {z}\n"
+            f"      vertex {x} {y} {z}\n"
+            f"      vertex {x} {y} {z}\n"
+            f"    endloop\n  endfacet"
+        )
+    lines.append(f"endsolid {name}")
+    return "\n".join(lines) + "\n"
+
+
+def _fmt(value: float) -> str:
+    return f"{float(value):.6f}"

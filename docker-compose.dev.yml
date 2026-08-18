@@ -1,0 +1,63 @@
+# ─────────────────────────────────────────────────────────────
+# 88P3dKart.-Art — Entwicklungsumgebung (Hot-Reload-freundlich)
+# Nutzung:  docker compose -f docker-compose.dev.yml up -d
+# ─────────────────────────────────────────────────────────────
+
+services:
+  edge-agent:
+    build: ./edge-agent
+    container_name: 88p3dkart-edge-agent-dev
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./edge-agent:/app:ro          # Code-Mount (read-only, sauberer als rw)
+      - ./data:/data
+      - ./logs:/var/log/agent
+    environment:
+      AGENT_DB_PATH: /data/agent.db
+      AGENT_AUTH_DB_PATH: /data/credentials.db
+      AGENT_ALARM_DB_PATH: /data/alarms.db
+      AGENT_GATEWAY_ID: dev-gateway
+      AGENT_REQUIRE_TLS: "false"      # nginx fehlt im Dev-Profil
+      AGENT_AUTH_SIGNING_SECRET: "dev-signing-secret-0123456789abcdef"
+      AGENT_ADMIN_BOOTSTRAP_TOKEN: "dev-admin-token-0123456789abcdef0123456789"
+      AGENT_TRUSTED_HOSTS: "localhost,127.0.0.1,testserver"
+      AGENT_LOG_DIR: /var/log/agent
+      AGENT_LOOP_HZ: "20"
+      AGENT_MQTT_ENABLED: "false"
+    depends_on: []
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8080/api/v1/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: 88p3dkart-mosquitto-dev
+    profiles: ["mqtt"]
+    ports:
+      - "1883:1883"                    # Dev: Klartext lokal, kein TLS
+    volumes:
+      - ./mosquitto/config/mosquitto.dev.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: 88p3dkart-prometheus-dev
+    profiles: ["monitoring"]
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=24h"
+
+volumes:
+  prometheus-data:

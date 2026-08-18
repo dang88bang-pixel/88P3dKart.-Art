@@ -1,0 +1,32 @@
+# ─────────────────────────────────────────────────────────────
+# Alerting Rules (neutraler Kern; keine Personen-/Vital-Metriken)
+# ─────────────────────────────────────────────────────────────
+groups:
+  - name: 88p3dkart-core
+    rules:
+      - alert: EdgeAgentDown
+        expr: up{job="edge-agent"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Edge-Agent nicht erreichbar"
+          description: "Der Edge-Agent antwortet seit über 1 Minute nicht mehr."
+
+      - alert: NoRecentLidarFrames
+        expr: increase(3dxagent_lidar_frames_total[5m]) == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Keine Lidar-Daten"
+          description: "Seit 5 Minuten keine Lidar-Frames empfangen — Sensor-Kette prüfen."
+
+      - alert: BluetoothDeviceLost
+        expr: 3dxagent_bluetooth_sos > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "SOS am Bluetooth-Zubehör"
+          description: "Ein Zubehörgerät meldet aktiven SOS-Status."

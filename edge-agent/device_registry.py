@@ -133,7 +133,10 @@ class Device:
             category=str(data.get("category", "")),
             position=[float(position[0]), float(position[1]), float(position[2])],
             status=str(data.get("status", "UNKNOWN")),
-            capabilities=[DeviceCapability.from_dict(c) for c in data.get("capabilities", [])],
+            capabilities=[
+                DeviceCapability.from_dict(c if isinstance(c, dict) else {"type": c})
+                for c in data.get("capabilities", [])
+            ],
             metadata={str(k): str(v) for k, v in (data.get("metadata") or {}).items()},
             is_visible=bool(data.get("is_visible", True)),
             is_active=bool(data.get("is_active", True)),

@@ -1,0 +1,2033 @@
+openapi: 3.1.0
+info:
+  title: 88P3dKart.-Art Edge-Agent API
+  version: 2.0.0
+  description: Automatisch generiertes OpenAPI-Schema des Edge-Agents (Ist-Stand, inkl. Alarme, Bluetooth-Zubehör, Devicedb,
+    Floorplan, Netzwerk, Triangulation, Szenarien, Export und Metriken).
+paths:
+  /api/v1/admin/enrollment-codes:
+    post:
+      summary: Create Enrollment Code
+      operationId: create_enrollment_code_api_v1_admin_enrollment_codes_post
+      parameters:
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnrollmentCodeRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/enrollment/claim:
+    post:
+      summary: Claim Enrollment
+      operationId: claim_enrollment_api_v1_enrollment_claim_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnrollmentClaimRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/session:
+    post:
+      summary: Create Session
+      operationId: create_session_api_v1_session_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SessionRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/devices/{device_id}/disable:
+    post:
+      summary: Disable Device
+      operationId: disable_device_api_v1_admin_devices__device_id__disable_post
+      parameters:
+      - name: device_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Device Id
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/alarm/policies:
+    post:
+      summary: Store Alarm Policy
+      operationId: store_alarm_policy_api_v1_alarm_policies_post
+      parameters:
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlarmPolicyRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/alarm/evidence:
+    post:
+      summary: Ingest Alarm Evidence
+      operationId: ingest_alarm_evidence_api_v1_alarm_evidence_post
+      parameters:
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlarmEvidenceRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/alarm/runtime:
+    get:
+      summary: Get Alarm Runtime
+      operationId: get_alarm_runtime_api_v1_alarm_runtime_get
+      parameters:
+      - name: policy_id
+        in: query
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$
+          title: Policy Id
+      - name: asset_id
+        in: query
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:/-]{1,160}$
+          title: Asset Id
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/alarm/events:
+    get:
+      summary: Get Alarm Events
+      operationId: get_alarm_events_api_v1_alarm_events_get
+      parameters:
+      - name: policy_id
+        in: query
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$
+          title: Policy Id
+      - name: asset_id
+        in: query
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:/-]{1,160}$
+          title: Asset Id
+      - name: after_state_revision
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: After State Revision
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 500
+          minimum: 1
+          default: 100
+          title: Limit
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/alarm/acknowledge:
+    post:
+      summary: Acknowledge Alarm
+      operationId: acknowledge_alarm_api_v1_alarm_acknowledge_post
+      parameters:
+      - name: policy_id
+        in: query
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$
+          title: Policy Id
+      - name: asset_id
+        in: query
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:/-]{1,160}$
+          title: Asset Id
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/alarm/snooze:
+    post:
+      summary: Snooze Alarm
+      operationId: snooze_alarm_api_v1_alarm_snooze_post
+      parameters:
+      - name: policy_id
+        in: query
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$
+          title: Policy Id
+      - name: asset_id
+        in: query
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:/-]{1,160}$
+          title: Asset Id
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlarmSnoozeRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/agent/state:
+    get:
+      summary: Get State
+      operationId: get_state_api_v1_agent_state_get
+      parameters:
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EkfState'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/agent/config:
+    post:
+      summary: Update Config
+      operationId: update_config_api_v1_agent_config_post
+      parameters:
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScenarioConfig'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/agent/history:
+    get:
+      summary: Get History
+      operationId: get_history_api_v1_agent_history_get
+      parameters:
+      - name: device_id
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Device Id
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 100
+          title: Limit
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/agent/merge:
+    post:
+      summary: Merge Maps
+      operationId: merge_maps_api_v1_agent_merge_post
+      parameters:
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MergeRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/pipeline/run:
+    post:
+      summary: Run Pipeline
+      operationId: run_pipeline_api_v1_pipeline_run_post
+      parameters:
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PipelineRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/aura/rti:
+    post:
+      summary: Aura Rti
+      description: 'RTI-Rekonstruktion: Messlinien → Voxel-Dämpfungsfeld (Tikhonov/Backprojection).'
+      operationId: aura_rti_api_v1_aura_rti_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuraRtiRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/aura/heatmap:
+    post:
+      summary: Aura Heatmap
+      description: RF-Samples → extrudierte Heatmap-Zellen (Höhe ∝ Signalstärke).
+      operationId: aura_heatmap_api_v1_aura_heatmap_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuraHeatmapRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/health:
+    get:
+      summary: Health
+      operationId: health_api_v1_health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/v1/bluetooth/accessories/update:
+    post:
+      summary: Bluetooth Accessories Update
+      description: Batch-Ingest eigener Zubehörgeräte (Tokens, Sensor-Tags, Wearables).
+      operationId: bluetooth_accessories_update_api_v1_bluetooth_accessories_update_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BluetoothAccessoryUpdateRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/bluetooth/accessories:
+    get:
+      summary: Bluetooth Accessories List
+      description: Liste aller bekannten Zubehörgeräte (optional nach Typ gefiltert).
+      operationId: bluetooth_accessories_list_api_v1_bluetooth_accessories_get
+      parameters:
+      - name: type
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 32
+          - type: 'null'
+          title: Type
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/bluetooth/accessories/{mac}:
+    get:
+      summary: Bluetooth Accessory Detail
+      operationId: bluetooth_accessory_detail_api_v1_bluetooth_accessories__mac__get
+      parameters:
+      - name: mac
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Mac
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      summary: Bluetooth Accessory Delete
+      operationId: bluetooth_accessory_delete_api_v1_bluetooth_accessories__mac__delete
+      parameters:
+      - name: mac
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Mac
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/bluetooth/health:
+    get:
+      summary: Bluetooth Health
+      description: Health-Bewertung aller Zubehörgeräte.
+      operationId: bluetooth_health_api_v1_bluetooth_health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/v1/bluetooth/stats:
+    get:
+      summary: Bluetooth Stats
+      operationId: bluetooth_stats_api_v1_bluetooth_stats_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/v1/triangulation/solve:
+    post:
+      summary: Triangulation Solve
+      description: 'Trilateration: Anker + Distanzen → Position (REST-Fallback zur App).'
+      operationId: triangulation_solve_api_v1_triangulation_solve_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TriangulationRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/agent/mesh:
+    get:
+      summary: Get Mesh
+      description: 'Aktuelle 3D-Mesh-Punkte eines Geräts (Voxel-Rohdaten aus der DB).
+
+
+        format: json (Vollstruktur), obj, ply, stl (Textformate).
+
+        glb/gltf/ifc sind bewusst nicht implementiert (501) — siehe README.'
+      operationId: get_mesh_api_v1_agent_mesh_get
+      parameters:
+      - name: device_id
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Device Id
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 10000
+          title: Limit
+      - name: format
+        in: query
+        required: false
+        schema:
+          type: string
+          maxLength: 8
+          default: json
+          title: Format
+      - name: semantic_filter
+        in: query
+        required: false
+        schema:
+          type: string
+          maxLength: 16
+          default: all
+          title: Semantic Filter
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/agent/evaluation:
+    get:
+      summary: Get Evaluation
+      description: 'Evaluierungsbericht: echte Pipeline-Bewertung der gespeicherten Punkte.'
+      operationId: get_evaluation_api_v1_agent_evaluation_get
+      parameters:
+      - name: device_id
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Device Id
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/agent/scenario/start:
+    post:
+      summary: Scenario Start
+      description: Startet ein benanntes Kartierungsszenario (Zustand in app.state).
+      operationId: scenario_start_api_v1_agent_scenario_start_post
+      parameters:
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScenarioConfig'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/agent/scenario/stop:
+    post:
+      summary: Scenario Stop
+      description: Stoppt ein laufendes Szenario und liefert die Bilanz.
+      operationId: scenario_stop_api_v1_agent_scenario_stop_post
+      parameters:
+      - name: authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScenarioStopRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/metrics:
+    get:
+      summary: Metrics
+      description: Prometheus-Metriken (Textformat 0.0.4) — echte, laufende Zähler.
+      operationId: metrics_api_v1_metrics_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/v1/export:
+    post:
+      summary: Export Data
+      description: 'Datenexport: Annotationen/Punkte → GeoJSON/KML/JSON (Retention in der App).'
+      operationId: export_data_api_v1_export_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExportRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/network/topology:
+    get:
+      summary: Network Topology Get
+      description: Aktuelle Topologie (für Initial-Load und LOD-Refresh).
+      operationId: network_topology_get_api_v1_network_topology_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+    post:
+      summary: Network Topology Ingest
+      description: Ingestiert/aktualisiert die Live-Topologie (Upsert) und broadcastet sie.
+      operationId: network_topology_ingest_api_v1_network_topology_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TopologyRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/network/simulate:
+    post:
+      summary: Network Simulate
+      description: 'What-If: Failover-Simulation (Node-Ausfall → Betroffenheit → Rerouting).'
+      operationId: network_simulate_api_v1_network_simulate_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SimulationRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/network/history:
+    get:
+      summary: Network History
+      description: 'Time Machine: Snapshot-Replay der Topologie-Historie.'
+      operationId: network_history_api_v1_network_history_get
+      parameters:
+      - name: index
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Index
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 100
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/network/devices:
+    get:
+      summary: Network Devices
+      description: 'Live-Netzwerk: Geräte des Trackers (Change-/Anomalie-Erkennung).'
+      operationId: network_devices_api_v1_network_devices_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/v1/floorplan/sources:
+    get:
+      summary: Floorplan Sources
+      description: Verifizierter Quellen-Katalog (Verfügbarkeit, Auth, Priorität).
+      operationId: floorplan_sources_api_v1_floorplan_sources_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/v1/floorplan/geocode:
+    post:
+      summary: Floorplan Geocode Endpoint
+      description: 'Adresssuche: Nominatim (primär) mit Photon-Fallback — serverseitig,
+
+        damit die Nominatim-Usage-Policy zentral eingehalten wird (User-Agent,
+
+        Caching, ≤ 1 req/s).'
+      operationId: floorplan_geocode_endpoint_api_v1_floorplan_geocode_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FloorPlanGeocodeRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/floorplan/buildings:
+    post:
+      summary: Floorplan Buildings
+      description: 'Gebäudeumrisse via Overpass (mit Kumi-Spiegel-Fallback) → GeoJSON
+
+        + Broadcast an alle Visualizer (Typ `floorplan_buildings`).'
+      operationId: floorplan_buildings_api_v1_floorplan_buildings_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FloorPlanBuildingsRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/devices:
+    get:
+      summary: Devices Get
+      description: Alle Geräte + Layer-Konfiguration des Registers.
+      operationId: devices_get_api_v1_devices_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/v1/devices/upsert:
+    post:
+      summary: Devices Upsert
+      description: Gerät upserten (Merge-Semantik) + Broadcast an alle Visualizer.
+      operationId: devices_upsert_api_v1_devices_upsert_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceUpsertRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/devices/action:
+    post:
+      summary: Devices Action
+      description: Capability-geprüfte Geräteaktion ausführen + Ergebnis broadcasten.
+      operationId: devices_action_api_v1_devices_action_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceActionRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/devices/layers:
+    get:
+      summary: Devices Layers Get
+      operationId: devices_layers_get_api_v1_devices_layers_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+    post:
+      summary: Devices Layers Set
+      description: Layer-Sichtbarkeit setzen (propagiert auf die Kategorie).
+      operationId: devices_layers_set_api_v1_devices_layers_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceLayerRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/network/traffic:
+    post:
+      summary: Network Traffic Ingest
+      description: Live-Traffic-Ingest (SNMP/NetFlow-Adapter oder App) → Broadcast.
+      operationId: network_traffic_ingest_api_v1_network_traffic_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NetworkTrafficRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/network/traffic/simulate:
+    post:
+      summary: Network Traffic Simulate
+      description: Deterministische Flusssimulation auf den Topologie-Kanten (Demo).
+      operationId: network_traffic_simulate_api_v1_network_traffic_simulate_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/v1/devicedb/status:
+    get:
+      summary: Devicedb Status
+      description: 'Datenbank-Status: Quelle (gebaut/Seed), Größen, Kategorien, Technologien.'
+      operationId: devicedb_status_api_v1_devicedb_status_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/v1/devicedb/lookup/company/{company_id}:
+    get:
+      summary: Devicedb Lookup Company
+      description: Company-ID (0x…-Hex oder dezimal) → Bluetooth-SIG-Hersteller.
+      operationId: devicedb_lookup_company_api_v1_devicedb_lookup_company__company_id__get
+      parameters:
+      - name: company_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Company Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/devicedb/lookup/mac/{mac}:
+    get:
+      summary: Devicedb Lookup Mac
+      description: MAC-Adresse → OUI-Hersteller + passende Geräte-Records.
+      operationId: devicedb_lookup_mac_api_v1_devicedb_lookup_mac__mac__get
+      parameters:
+      - name: mac
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Mac
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/devicedb/lookup/service/{uuid}:
+    get:
+      summary: Devicedb Lookup Service
+      description: 16-Bit-/128-Bit-UUID → GATT-Service, Tracker-Profile, Geräte.
+      operationId: devicedb_lookup_service_api_v1_devicedb_lookup_service__uuid__get
+      parameters:
+      - name: uuid
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Uuid
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/devicedb/search:
+    get:
+      summary: Devicedb Search
+      description: Volltext-/Kategorie-/Technologie-Suche über die Gerätedatenbank.
+      operationId: devicedb_search_api_v1_devicedb_search_get
+      parameters:
+      - name: q
+        in: query
+        required: false
+        schema:
+          type: string
+          default: ''
+          title: Q
+      - name: category
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Category
+      - name: technology
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Technology
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 50
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/devicedb/categories:
+    get:
+      summary: Devicedb Categories
+      description: Kategorie-Statistik der Datenbank.
+      operationId: devicedb_categories_api_v1_devicedb_categories_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+components:
+  schemas:
+    AlarmEvidenceRequest:
+      properties:
+        policy_id:
+          type: string
+          pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$
+          title: Policy Id
+        asset_id:
+          type: string
+          pattern: ^[A-Za-z0-9._:/-]{1,160}$
+          title: Asset Id
+        source_id:
+          type: string
+          maxLength: 160
+          minLength: 1
+          title: Source Id
+        cursor:
+          type: string
+          maxLength: 160
+          minLength: 1
+          title: Cursor
+        estimate_status:
+          type: string
+          enum:
+          - VALID
+          - UNOBSERVABLE
+          title: Estimate Status
+        method:
+          type: string
+          maxLength: 160
+          minLength: 1
+          title: Method
+        value_m:
+          type: number
+          title: Value M
+        confidence:
+          type: number
+          maximum: 1.0
+          minimum: 0.0
+          title: Confidence
+        lower_95_m:
+          type: number
+          title: Lower 95 M
+        upper_95_m:
+          type: number
+          title: Upper 95 M
+        observed_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Observed At
+        source_ids:
+          items:
+            type: string
+          type: array
+          maxItems: 64
+          minItems: 1
+          title: Source Ids
+        measurement_ids:
+          items:
+            type: string
+          type: array
+          maxItems: 512
+          minItems: 1
+          title: Measurement Ids
+        calibration_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Calibration Id
+        quality_flags:
+          items:
+            type: string
+          type: array
+          maxItems: 64
+          title: Quality Flags
+      additionalProperties: false
+      type: object
+      required:
+      - policy_id
+      - asset_id
+      - source_id
+      - cursor
+      - estimate_status
+      - method
+      - value_m
+      - confidence
+      - lower_95_m
+      - upper_95_m
+      - source_ids
+      - measurement_ids
+      title: AlarmEvidenceRequest
+      description: Kalibrierte Fusions-Evidenz für Distanz-Alarme (authoritative Gateway).
+    AlarmPolicyRequest:
+      properties:
+        schema_version:
+          type: string
+          const: 1.0.0
+          title: Schema Version
+          default: 1.0.0
+        policy_id:
+          type: string
+          pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$
+          title: Policy Id
+        asset_id:
+          type: string
+          pattern: ^[A-Za-z0-9._:/-]{1,160}$
+          title: Asset Id
+        revision:
+          type: integer
+          minimum: 1.0
+          title: Revision
+        enabled:
+          type: boolean
+          title: Enabled
+          default: true
+        metric:
+          type: string
+          enum:
+          - RANGE_FROM_CT45P
+          - RANGE_FROM_ANCHOR
+          - RANGE_FROM_ZONE
+          - GEOFENCE_EXIT
+          - CONNECTIVITY_LOSS
+          title: Metric
+        reference_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reference Id
+        threshold_m:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Threshold M
+        trigger_direction:
+          type: string
+          enum:
+          - ABOVE
+          - BELOW
+          - OUTSIDE
+          - LOSS
+          title: Trigger Direction
+        decision_mode:
+          type: string
+          enum:
+          - POSSIBLE_BREACH
+          - CONFIRMED_BREACH
+          title: Decision Mode
+          default: CONFIRMED_BREACH
+        minimum_confidence:
+          type: number
+          maximum: 1.0
+          minimum: 0.0
+          title: Minimum Confidence
+        maximum_age_ms:
+          type: integer
+          minimum: 0.0
+          title: Maximum Age Ms
+        dwell_ms:
+          type: integer
+          minimum: 0.0
+          title: Dwell Ms
+        clear_dwell_ms:
+          type: integer
+          minimum: 0.0
+          title: Clear Dwell Ms
+        data_loss_dwell_ms:
+          type: integer
+          minimum: 0.0
+          title: Data Loss Dwell Ms
+        recovery_dwell_ms:
+          type: integer
+          minimum: 0.0
+          title: Recovery Dwell Ms
+        hysteresis_m:
+          type: number
+          minimum: 0.0
+          title: Hysteresis M
+        cooldown_ms:
+          type: integer
+          minimum: 0.0
+          title: Cooldown Ms
+        severity:
+          type: string
+          enum:
+          - INFO
+          - WARNING
+          - CRITICAL
+          title: Severity
+          default: WARNING
+        data_loss_behavior:
+          type: string
+          enum:
+          - SEPARATE_ALARM
+          - FAIL_CLOSED
+          - WARN_ONLY
+          title: Data Loss Behavior
+          default: SEPARATE_ALARM
+        delivery_profile_id:
+          type: string
+          title: Delivery Profile Id
+          default: operators
+      additionalProperties: false
+      type: object
+      required:
+      - policy_id
+      - asset_id
+      - revision
+      - metric
+      - threshold_m
+      - trigger_direction
+      - minimum_confidence
+      - maximum_age_ms
+      - dwell_ms
+      - clear_dwell_ms
+      - data_loss_dwell_ms
+      - recovery_dwell_ms
+      - hysteresis_m
+      - cooldown_ms
+      title: AlarmPolicyRequest
+      description: Gateway-autoritative Alarmrichtlinie (docs/contracts/alarm-policy.schema.json).
+    AlarmSnoozeRequest:
+      properties:
+        duration_ms:
+          type: integer
+          maximum: 86400000.0
+          minimum: 1.0
+          title: Duration Ms
+      type: object
+      required:
+      - duration_ms
+      title: AlarmSnoozeRequest
+      description: 'Alarm-Snooze: Dauer in Millisekunden (max. 24 h).'
+    AuraHeatmapRequest:
+      properties:
+        device_id:
+          type: string
+          title: Device Id
+          default: CT45P-01
+        samples:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Samples
+        cell_size_m:
+          type: number
+          title: Cell Size M
+          default: 1.0
+      type: object
+      title: AuraHeatmapRequest
+    AuraLink:
+      properties:
+        tx:
+          items:
+            type: number
+          type: array
+          title: Tx
+        rx:
+          items:
+            type: number
+          type: array
+          title: Rx
+        attenuation_db:
+          type: number
+          title: Attenuation Db
+      type: object
+      required:
+      - tx
+      - rx
+      - attenuation_db
+      title: AuraLink
+      description: 'Eine RTI-Messlinie: Sender, Empfänger, gemessene Dämpfung.'
+    AuraRtiRequest:
+      properties:
+        device_id:
+          type: string
+          title: Device Id
+          default: CT45P-01
+        bounds_min:
+          items:
+            type: number
+          type: array
+          title: Bounds Min
+          default:
+          - -15.0
+          - -15.0
+          - 0.0
+        bounds_max:
+          items:
+            type: number
+          type: array
+          title: Bounds Max
+          default:
+          - 15.0
+          - 15.0
+          - 3.0
+        voxel_size:
+          type: number
+          title: Voxel Size
+          default: 0.5
+        ellipse_width:
+          type: number
+          title: Ellipse Width
+          default: 0.05
+        regularization:
+          type: number
+          title: Regularization
+          default: 0.1
+        method:
+          type: string
+          title: Method
+          default: tikhonov
+        links:
+          items:
+            $ref: '#/components/schemas/AuraLink'
+          type: array
+          title: Links
+      type: object
+      title: AuraRtiRequest
+    BluetoothAccessoryUpdateRequest:
+      properties:
+        device_id:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,160}$
+          title: Device Id
+        timestamp:
+          type: number
+          title: Timestamp
+        accessories:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          maxItems: 64
+          title: Accessories
+      type: object
+      required:
+      - device_id
+      - timestamp
+      title: BluetoothAccessoryUpdateRequest
+      description: Batch-Update eigener Bluetooth-Zubehörgeräte (CT45P → Gateway).
+    DeviceActionRequest:
+      properties:
+        device_id:
+          type: string
+          title: Device Id
+        action:
+          type: string
+          title: Action
+        params:
+          additionalProperties: true
+          type: object
+          title: Params
+      type: object
+      required:
+      - device_id
+      - action
+      title: DeviceActionRequest
+      description: 'Geräteinteraktion: Capability-geprüfte Aktion ausführen.'
+    DeviceLayerRequest:
+      properties:
+        layer_id:
+          type: string
+          title: Layer Id
+        visible:
+          type: boolean
+          title: Visible
+      type: object
+      required:
+      - layer_id
+      - visible
+      title: DeviceLayerRequest
+      description: 'Geräteinteraktion: Layer-Sichtbarkeit setzen.'
+    DeviceUpsertRequest:
+      properties:
+        device:
+          additionalProperties: true
+          type: object
+          title: Device
+      type: object
+      required:
+      - device
+      title: DeviceUpsertRequest
+      description: 'Geräteinteraktion: Gerät upserten (Device-Dict gemäß Registry).'
+    EkfState:
+      properties:
+        x:
+          type: number
+          title: X
+        y:
+          type: number
+          title: Y
+        z:
+          type: number
+          title: Z
+        vx:
+          type: number
+          title: Vx
+        vy:
+          type: number
+          title: Vy
+        vz:
+          type: number
+          title: Vz
+        covariance:
+          items:
+            items:
+              type: number
+            type: array
+          type: array
+          title: Covariance
+        kalman_gain_lidar:
+          type: number
+          title: Kalman Gain Lidar
+        mode:
+          type: string
+          title: Mode
+      type: object
+      required:
+      - x
+      - y
+      - z
+      - vx
+      - vy
+      - vz
+      - covariance
+      - kalman_gain_lidar
+      - mode
+      title: EkfState
+    EnrollmentClaimRequest:
+      properties:
+        device_id:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,160}$
+          title: Device Id
+        code:
+          type: string
+          maxLength: 200
+          minLength: 20
+          title: Code
+      type: object
+      required:
+      - device_id
+      - code
+      title: EnrollmentClaimRequest
+      description: Gerät beansprucht einen Enrollment-Code und erhält das Device-Secret.
+    EnrollmentCodeRequest:
+      properties:
+        device_id:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,160}$
+          title: Device Id
+        ttl_seconds:
+          type: integer
+          maximum: 86400.0
+          minimum: 60.0
+          title: Ttl Seconds
+          default: 600
+      type: object
+      required:
+      - device_id
+      title: EnrollmentCodeRequest
+      description: 'Admin-Anfrage: einmaligen Enrollment-Code für ein Gerät ausstellen.'
+    ExportRequest:
+      properties:
+        format:
+          type: string
+          title: Format
+          default: geojson
+        annotations:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Annotations
+        points:
+          items:
+            items:
+              type: number
+            type: array
+          type: array
+          title: Points
+        device_id:
+          type: string
+          title: Device Id
+          default: CT45P-01
+      type: object
+      title: ExportRequest
+      description: 'Export-Anfrage: Annotationen/Punkte → GeoJSON/KML/JSON.'
+    FloorPlanBuildingsRequest:
+      properties:
+        lat:
+          type: number
+          title: Lat
+        lon:
+          type: number
+          title: Lon
+        radius:
+          type: number
+          title: Radius
+          default: 100.0
+      type: object
+      required:
+      - lat
+      - lon
+      title: FloorPlanBuildingsRequest
+      description: 'Grundriss: Gebäudeabruf via Overpass (Radius in Metern).'
+    FloorPlanGeocodeRequest:
+      properties:
+        query:
+          type: string
+          title: Query
+      type: object
+      required:
+      - query
+      title: FloorPlanGeocodeRequest
+      description: 'Grundriss: Adresssuche (Nominatim/Photon).'
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    MergeRequest:
+      properties:
+        device_ids:
+          items:
+            type: string
+          type: array
+          maxItems: 64
+          minItems: 2
+          title: Device Ids
+        reference:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reference
+      type: object
+      required:
+      - device_ids
+      title: MergeRequest
+    NetworkTrafficRequest:
+      properties:
+        flows:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Flows
+      type: object
+      title: NetworkTrafficRequest
+      description: 'Aktive Netzwerkvisualisierung: Live-Traffic-Ingest.'
+    PipelineRequest:
+      properties:
+        device_id:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,160}$
+          title: Device Id
+        points:
+          items:
+            type: number
+          type: array
+          maxItems: 150000
+          title: Points
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - device_id
+      title: PipelineRequest
+    ScenarioConfig:
+      properties:
+        type:
+          type: string
+          title: Type
+        params:
+          additionalProperties: true
+          type: object
+          title: Params
+      type: object
+      required:
+      - type
+      title: ScenarioConfig
+    ScenarioStopRequest:
+      properties:
+        scenario_id:
+          type: string
+          maxLength: 64
+          minLength: 1
+          title: Scenario Id
+      type: object
+      required:
+      - scenario_id
+      title: ScenarioStopRequest
+      description: Stoppt ein laufendes Kartierungsszenario.
+    SessionRequest:
+      properties:
+        device_id:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,160}$
+          title: Device Id
+        device_secret:
+          type: string
+          maxLength: 200
+          minLength: 20
+          title: Device Secret
+      type: object
+      required:
+      - device_id
+      - device_secret
+      title: SessionRequest
+      description: Gerät authentisiert sich mit dem Device-Secret und erhält ein JWT.
+    SimulationRequest:
+      properties:
+        node_id:
+          type: string
+          title: Node Id
+        flows:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Flows
+      type: object
+      required:
+      - node_id
+      title: SimulationRequest
+      description: 'Network3D: What-If-Failover-Simulation.'
+    TopologyRequest:
+      properties:
+        nodes:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Nodes
+        edges:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Edges
+      type: object
+      title: TopologyRequest
+      description: 'Network3D: Topologie-Ingest (Upsert von Nodes/Edges).'
+    TriangulationRequest:
+      properties:
+        anchors:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Anchors
+        distances:
+          additionalProperties:
+            type: number
+          type: object
+          title: Distances
+        uncertainties:
+          anyOf:
+          - additionalProperties:
+              type: number
+            type: object
+          - type: 'null'
+          title: Uncertainties
+        use_z:
+          type: boolean
+          title: Use Z
+          default: false
+      type: object
+      title: TriangulationRequest
+      description: 'Trilaterations-Anfrage: Anker + Distanzmessungen.'
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT aus POST /api/v1/session (Gerät) bzw. Admin-Bootstrap-Token.
+security:
+- BearerAuth: []

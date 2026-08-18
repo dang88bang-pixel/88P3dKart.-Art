@@ -461,3 +461,9 @@ class BluetoothAccessoryUpdateRequest(BaseModel):
     device_id: str = Field(pattern=DEVICE_ID_PATTERN)
     timestamp: float
     accessories: List[Dict[str, Any]] = Field(default_factory=list, max_length=64)
+
+
+class ScenarioStopRequest(BaseModel):
+    """Stoppt ein laufendes Kartierungsszenario."""
+
+    scenario_id: str = Field(min_length=1, max_length=64)

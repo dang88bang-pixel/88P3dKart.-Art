@@ -4,6 +4,7 @@ import hashlib
 import json
 import logging
 import time
+import uuid
 from typing import List
 
 import numpy as np
@@ -50,6 +51,9 @@ from device_db import (
 from device_registry import Device, DeviceActionEngine, DeviceRegistry
 from ekf_fusion import AdaptiveEKF
 from export_formats import (
+    points_to_obj,
+    points_to_ply,
+    points_to_stl,
     annotations_to_geojson,
     annotations_to_json,
     annotations_to_kml,
@@ -90,6 +94,7 @@ from models import (
     ScenarioConfig,
     SessionRequest,
     SimulationRequest,
+    ScenarioStopRequest,
     TopologyRequest,
     TriangulationRequest,
     UwbPhaseData,
@@ -121,6 +126,10 @@ db = LocalVectorStore()
 ekf = AdaptiveEKF(dt=1.0 / CONFIG.LOOP_HZ)
 uwb_processor = UwbDopplerProcessor(fs=CONFIG.UWB_FS, buffer_secs=CONFIG.UWB_BUFFER_SECS)
 pipeline = DataPipeline()
+_metrics_pipeline_runs = 0          # echter Zähler: POST /api/v1/pipeline/run
+_metrics_lidar_frames = 0           # echter Zähler: WS lidar-Frames
+_metrics_mmwave_frames = 0          # echter Zähler: WS mmwave-Frames
+_metrics_started_at = time.time()   # Prozess-Startzeit
 topology_graph = TopologyGraph()      # Network3D: Live-Topologie (docs/NETWORK3D.md)
 topology_history = TopologyHistory()  # Time Machine: Snapshot-Replay
 device_tracker = DeviceTracker()      # Live-Netzwerk: Change-/Anomalie-Erkennung
@@ -203,10 +212,18 @@ class ConnectionManager:
             except Exception:
                 self.disconnect(connection)
 
-    async def broadcast_json(self, data: dict, subject: str) -> int:
+    async def broadcast_json(self, data: dict, subject: str | None = None) -> int:
         text = json.dumps(data, separators=(",", ":"), allow_nan=False)
         delivered = 0
-        for connection in self._authorized_connections(subject):
+        targets = (
+            list(self.active_connections.items())
+            if subject is None
+            else [
+                (c, p) for c, p in self.active_connections.items()
+                if p.role == "admin" or p.subject == subject
+            ]
+        )
+        for connection, _principal in targets:
             try:
                 await connection.send_text(text)
                 delivered += 1
@@ -214,7 +231,7 @@ class ConnectionManager:
                 self.disconnect(connection)
         return delivered
 
-    def broadcast_json_sync(self, data: dict, subject: str):
+    def broadcast_json_sync(self, data: dict, subject: str | None = None):
         """Thread-safe, subject-scoped broadcast for the MQTT thread."""
         if _loop is not None and _loop.is_running():
             asyncio.run_coroutine_threadsafe(
@@ -298,6 +315,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="3dxAgent Edge-Agent", version="2.0.0", lifespan=lifespan)
+app.state.scenarios = {}
 app.state.security = GatewaySecurity(
     CredentialStore(CONFIG.AUTH_DB_PATH),
     CONFIG.AUTH_SIGNING_SECRET,
@@ -697,6 +715,8 @@ async def run_pipeline(
     principal: Principal = Depends(authenticated_principal),
 ):
     _require_device_scope(principal, request.device_id)
+    global _metrics_pipeline_runs
+    _metrics_pipeline_runs += 1
     result = pipeline.run(
         request.points,
         source=request.metadata.get("source", "lidar"),
@@ -895,6 +915,196 @@ async def triangulation_solve(request: TriangulationRequest):
             detail="Mindestens 3 Anker mit gültigen Distanzen benötigt (3D: 4)",
         )
     return {"position": result, "anchor_count": result["anchor_count"]}
+
+
+@app.get("/api/v1/agent/mesh")
+async def get_mesh(
+    device_id: str,
+    limit: int = 10000,
+    format: str = Query(default="json", max_length=8),
+    semantic_filter: str = Query(default="all", max_length=16),
+    principal: Principal = Depends(authenticated_principal),
+):
+    """Aktuelle 3D-Mesh-Punkte eines Geräts (Voxel-Rohdaten aus der DB).
+
+    format: json (Vollstruktur), obj, ply, stl (Textformate).
+    glb/gltf/ifc sind bewusst nicht implementiert (501) — siehe README.
+    """
+    _require_device_scope(principal, device_id)
+    if not 1 <= limit <= 500_000:
+        raise HTTPException(status_code=422, detail="limit must be between 1 and 500000")
+    if semantic_filter != "all":
+        raise HTTPException(
+            status_code=400,
+            detail="semantic_filter wird aktuell nur mit 'all' unterstützt (DB ohne Semantik-Labels)",
+        )
+    points = [list(p) for p in db.get_all_points(device_id, limit)]
+    if format in ("obj", "ply", "stl"):
+        if format == "obj":
+            content = points_to_obj(points)
+            media = "text/plain"
+        elif format == "ply":
+            content = points_to_ply(points)
+            media = "text/plain"
+        else:
+            content = points_to_stl(points)
+            media = "model/stl"
+        return Response(content=content, media_type=media)
+    if format == "json":
+        mesh = pipeline.mesh_generator.generate(np.asarray(points, dtype=float).reshape(-1, 3))
+        arr = np.asarray(points, dtype=float)
+        bounds = {
+            "min": arr.min(axis=0).tolist() if len(arr) else [0, 0, 0],
+            "max": arr.max(axis=0).tolist() if len(arr) else [0, 0, 0],
+        }
+        return {
+            "device_id": device_id,
+            "count": len(points),
+            "points": points,
+            "faces": mesh.faces.tolist(),
+            "bounds": bounds,
+            "timestamp": int(time.time()),
+        }
+    raise HTTPException(
+        status_code=501,
+        detail=f"Format '{format}' nicht implementiert (verfügbar: json, obj, ply, stl)",
+    )
+
+
+@app.get("/api/v1/agent/evaluation")
+async def get_evaluation(
+    device_id: str,
+    principal: Principal = Depends(authenticated_principal),
+):
+    """Evaluierungsbericht: echte Pipeline-Bewertung der gespeicherten Punkte."""
+    _require_device_scope(principal, device_id)
+    points = [list(p) for p in db.get_all_points(device_id, 100_000)]
+    if not points:
+        return {
+            "device_id": device_id,
+            "status": "empty",
+            "num_points": 0,
+            "confidence": 0.0,
+            "message": "Keine Punkte gespeichert — zuerst Lidar-Daten senden (WS 'lidar').",
+        }
+    flat: list[float] = [c for p in points for c in p]
+    result = pipeline.run(flat, source="lidar", quality=1.0)
+    return {"device_id": device_id, **result}
+
+
+@app.post("/api/v1/agent/scenario/start")
+async def scenario_start(
+    scenario: ScenarioConfig,
+    _principal: Principal = Depends(admin_principal),
+):
+    """Startet ein benanntes Kartierungsszenario (Zustand in app.state)."""
+    scenarios: dict = app.state.scenarios
+    scenario_id = f"scn_{uuid.uuid4().hex[:16]}"
+    now_ms = int(time.time() * 1000)
+    scenarios[scenario_id] = {
+        "scenario_id": scenario_id,
+        "type": scenario.type,
+        "params": scenario.params,
+        "status": "running",
+        "started_at": now_ms,
+        "points_at_start": sum(
+            len(db.get_all_points(dev, 500_000)) for dev in db.known_devices()
+        ),
+    }
+    logger.info("Szenario %s gestartet (Typ %s)", scenario_id, scenario.type)
+    return {
+        "scenario_id": scenario_id,
+        "type": scenario.type,
+        "status": "running",
+        "started_at": now_ms,
+    }
+
+
+@app.post("/api/v1/agent/scenario/stop")
+async def scenario_stop(
+    request: ScenarioStopRequest,
+    _principal: Principal = Depends(admin_principal),
+):
+    """Stoppt ein laufendes Szenario und liefert die Bilanz."""
+    scenarios: dict = app.state.scenarios
+    entry = scenarios.get(request.scenario_id)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Szenario nicht gefunden")
+    now_ms = int(time.time() * 1000)
+    points_now = sum(
+        len(db.get_all_points(dev, 500_000)) for dev in db.known_devices()
+    )
+    entry.update(
+        status="stopped",
+        stopped_at=now_ms,
+        duration_seconds=round((now_ms - entry["started_at"]) / 1000, 1),
+        points_delta=points_now - entry["points_at_start"],
+    )
+    logger.info("Szenario %s gestoppt (Δ %d Punkte)", request.scenario_id, entry["points_delta"])
+    return {k: entry[k] for k in (
+        "scenario_id", "type", "status", "started_at", "stopped_at",
+        "duration_seconds", "points_delta",
+    )}
+
+
+@app.get("/api/v1/metrics")
+async def metrics():
+    """Prometheus-Metriken (Textformat 0.0.4) — echte, laufende Zähler."""
+    scenarios: dict = app.state.scenarios
+    active_scenarios = sum(1 for e in scenarios.values() if e["status"] == "running")
+    bt_stats = global_accessory_registry.stats()
+    alarm_service: AlarmService = app.state.alarm_service
+    lines = [
+        "# HELP 3dxagent_uptime_seconds Prozess-Laufzeit in Sekunden",
+        "# TYPE 3dxagent_uptime_seconds gauge",
+        f"3dxagent_uptime_seconds {time.time() - _metrics_started_at:.3f}",
+        "# HELP 3dxagent_ws_connections Aktive WebSocket-Verbindungen",
+        "# TYPE 3dxagent_ws_connections gauge",
+        f"3dxagent_ws_connections {len(manager.active_connections)}",
+        "# HELP 3dxagent_pipeline_runs_total Verarbeitete Pipeline-Läufe",
+        "# TYPE 3dxagent_pipeline_runs_total counter",
+        f"3dxagent_pipeline_runs_total {_metrics_pipeline_runs}",
+        "# HELP 3dxagent_lidar_frames_total Empfangene Lidar-Frames (WS)",
+        "# TYPE 3dxagent_lidar_frames_total counter",
+        f"3dxagent_lidar_frames_total {_metrics_lidar_frames}",
+        "# HELP 3dxagent_mmwave_frames_total Empfangene mmWave-Frames (WS)",
+        "# TYPE 3dxagent_mmwave_frames_total counter",
+        f"3dxagent_mmwave_frames_total {_metrics_mmwave_frames}",
+        "# HELP 3dxagent_ekf_position_x EKF-Position X [m]",
+        "# TYPE 3dxagent_ekf_position_x gauge",
+        f"3dxagent_ekf_position_x {ekf.get_state().x:.4f}",
+        "# HELP 3dxagent_ekf_position_y EKF-Position Y [m]",
+        "# TYPE 3dxagent_ekf_position_y gauge",
+        f"3dxagent_ekf_position_y {ekf.get_state().y:.4f}",
+        "# HELP 3dxagent_ekf_position_z EKF-Position Z [m]",
+        "# TYPE 3dxagent_ekf_position_z gauge",
+        f"3dxagent_ekf_position_z {ekf.get_state().z:.4f}",
+        "# HELP 3dxagent_mode Aktueller Betriebsmodus (FULL/DEGRADED/MINIMAL)",
+        "# TYPE 3dxagent_mode gauge",
+        f"3dxagent_mode{{mode=\"{current_mode}\"}} 1",
+        "# HELP 3dxagent_devices_registered Registrierte Geräte",
+        "# TYPE 3dxagent_devices_registered gauge",
+        f"3dxagent_devices_registered {len(device_registry.devices)}",
+        "# HELP 3dxagent_network_topology_nodes Knoten im Topologie-Graph",
+        "# TYPE 3dxagent_network_topology_nodes gauge",
+        f"3dxagent_network_topology_nodes {len(topology_graph.nodes)}",
+        "# HELP 3dxagent_bluetooth_accessories Bekannte BLE-Zubehörgeräte",
+        "# TYPE 3dxagent_bluetooth_accessories gauge",
+        f"3dxagent_bluetooth_accessories {bt_stats.get('total', 0)}",
+        "# HELP 3dxagent_bluetooth_low_battery Zubehörgeräte mit <20% Akku",
+        "# TYPE 3dxagent_bluetooth_low_battery gauge",
+        f"3dxagent_bluetooth_low_battery {bt_stats.get('low_battery', 0)}",
+        "# HELP 3dxagent_bluetooth_sos Zubehörgeräte mit aktivem SOS",
+        "# TYPE 3dxagent_bluetooth_sos gauge",
+        f"3dxagent_bluetooth_sos {bt_stats.get('sos_active', 0)}",
+        "# HELP 3dxagent_active_scenarios Laufende Szenarien",
+        "# TYPE 3dxagent_active_scenarios gauge",
+        f"3dxagent_active_scenarios {active_scenarios}",
+        "# HELP 3dxagent_alarm_service_ready Alarm-Service verfügbar",
+        "# TYPE 3dxagent_alarm_service_ready gauge",
+        f"3dxagent_alarm_service_ready {1 if alarm_service else 0}",
+    ]
+    return Response(content="\n".join(lines) + "\n", media_type="text/plain; version=0.0.4")
 
 
 # ─── Export (docs/SERVICE_WORKER.md §Export Worker) ───────────────
@@ -1299,6 +1509,8 @@ async def websocket_endpoint(websocket: WebSocket):
                     )
 
                 elif msg_type == "lidar":
+                    global _metrics_lidar_frames
+                    _metrics_lidar_frames += 1
                     frame = LidarFrame(**payload)
                     points = np.asarray(frame.points, dtype=np.float32).reshape(-1, 3)
                     if len(points) > 0:
@@ -1308,6 +1520,8 @@ async def websocket_endpoint(websocket: WebSocket):
                     )
 
                 elif msg_type == "mmwave":
+                    global _metrics_mmwave_frames
+                    _metrics_mmwave_frames += 1
                     targets = MmwaveTarget(**payload)
                     if targets.targets:
                         target = targets.targets[0]

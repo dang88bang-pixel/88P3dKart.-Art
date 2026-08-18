@@ -68,3 +68,12 @@ Thumbs.db
 *.sqlite
 *.mmdb
 opencellid*.csv*
+
+# Deployment-Artefakte (lokal erzeugt, niemals committen)
+data/
+logs/
+secrets/
+ssl/
+backups/
+mosquitto/data/
+mosquitto/log/
