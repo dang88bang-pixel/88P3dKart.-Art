@@ -62,6 +62,7 @@ from export_formats import (
 from fleet import FleetRegistry
 from mesh_sync import sync_to_tolerance
 from positioning import FingerprintDB, estimate_position
+from wall_person_classifier import WallPersonClassifier
 from privacy import PersistenceFilter, strip_metadata
 from signal_processing import HampelFilter, KalmanRssiFilter, MedianMovingAverageFilter
 from floorplan import (
@@ -74,6 +75,8 @@ from external.manager import ExternalEntityManager
 from geo.resolver import GeoResolver
 from models import (
     AlarmEvidenceRequest,
+    FleetQrBindRequest,
+    SemanticClassifyRequest,
     CheckpointCreateRequest,
     FingerprintAddRequest,
     FingerprintLocateRequest,
@@ -143,6 +146,7 @@ db = LocalVectorStore()
 ekf = AdaptiveEKF(dt=1.0 / CONFIG.LOOP_HZ)
 uwb_processor = UwbDopplerProcessor(fs=CONFIG.UWB_FS, buffer_secs=CONFIG.UWB_BUFFER_SECS)
 pipeline = DataPipeline()
+wall_person_classifier = WallPersonClassifier()  # geometrische Wand-/Dynamik-Klassifikation
 persistence_filter = PersistenceFilter()   # erzwingt: Personen/Tiere nie persistiert
 fingerprint_db = FingerprintDB()           # RSSI-Fingerprinting (eigene Räume)
 fleet_registry = FleetRegistry()        # eigene Flotte (E-Bike, Scooter, BLE-Token …)
@@ -1219,6 +1223,47 @@ async def privacy_filter(
     }
 
 
+@app.post("/api/v1/fleet/bind-qr")
+async def fleet_bind_qr(
+    request: FleetQrBindRequest,
+    principal: Principal = Depends(authenticated_principal),
+):
+    """QR-Code-Anbindung eines Akku-Tokens (honeyKart-Format) → Flotte."""
+    try:
+        vehicle = fleet_registry.bind_token_from_qr(
+            request.model_dump(exclude_none=True), owner=principal.subject
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    await manager.broadcast_json(
+        {"type": "fleet_update", "payload": {"vehicles": [vehicle.to_dict()]}},
+        principal.subject,
+    )
+    return {"status": "bound", "vehicle": vehicle.to_dict()}
+
+
+@app.post("/api/v1/semantic/classify")
+async def semantic_classify(
+    request: SemanticClassifyRequest,
+    principal: Principal = Depends(authenticated_principal),
+):
+    """Geometrische Wand-/Dynamik-Klassifikation (3-Stufen-Pipeline).
+
+    'wall'-Cluster sind persistierbar; 'dynamic'-Cluster sind Live-Only
+    und werden von der Persistenz erzwungen ausgeschlossen (privacy.py).
+    """
+    _require_device_scope(principal, request.device_id)
+    points = np.asarray(request.points, dtype=float).reshape(-1, 3)
+    clusters, report = wall_person_classifier.classify(points)
+    return {
+        "device_id": request.device_id,
+        "report": report,
+        "clusters": [c.to_dict() for c in clusters],
+        "persistable_clusters": sum(1 for c in clusters if c.persistable),
+        "live_only_clusters": sum(1 for c in clusters if not c.persistable),
+    }
+
+
 @app.get("/api/v1/agent/mesh")
 async def get_mesh(
     device_id: str,
@@ -1402,6 +1447,9 @@ async def metrics():
         "# HELP 3dxagent_active_scenarios Laufende Szenarien",
         "# TYPE 3dxagent_active_scenarios gauge",
         f"3dxagent_active_scenarios {active_scenarios}",
+        "# HELP 3dxagent_fleet_qr_tokens Per QR gebundene Akku-Tokens",
+        "# TYPE 3dxagent_fleet_qr_tokens gauge",
+        f"3dxagent_fleet_qr_tokens {sum(1 for v in fleet_registry.get_all() if v.source == 'qr_bound')}",
         "# HELP 3dxagent_fingerprints Gespeicherte RSSI-Fingerprints",
         "# TYPE 3dxagent_fingerprints gauge",
         f"3dxagent_fingerprints {len(fingerprint_db._fingerprints)}",

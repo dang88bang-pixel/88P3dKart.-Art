@@ -16,7 +16,7 @@ import math
 from typing import Any, Dict, List
 
 # Semantische Typen, die NIE gespeichert werden dürfen (nur Live-View).
-LIVE_ONLY_TYPES = frozenset({"person", "animal", "moving_person"})
+LIVE_ONLY_TYPES = frozenset({"person", "animal", "moving_person", "dynamic"})  # "dynamic" = geometrische Dynamik-Cluster (WallPersonClassifier)
 
 # Metadaten-Schlüssel, die vor Persistenz entfernt werden.
 STRIP_KEYS = frozenset({"mac", "uuid", "user_id", "user", "owner_name", "phone", "email"})

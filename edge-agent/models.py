@@ -567,3 +567,31 @@ class PrivacyFilterRequest(BaseModel):
 
 class CheckpointCreateRequest(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+# ─── honeyKart-Integration ─────────────────────────────────────
+
+class FleetQrBindRequest(BaseModel):
+    """QR-Code-Payload eines Akku-Tokens (honeyKart-Format)."""
+
+    token_id: str = Field(min_length=1, max_length=64)
+    mac: Optional[str] = Field(default=None, max_length=32)
+    name: Optional[str] = Field(default=None, max_length=64)
+    pairing_code: Optional[str] = Field(default=None, max_length=32)
+    company_id: Optional[str] = Field(default=None, max_length=16)
+    battery_type: Optional[str] = Field(default=None, max_length=16)
+    firmware_version: Optional[str] = Field(default=None, max_length=32)
+
+
+class SemanticClassifyRequest(BaseModel):
+    """Geometrische Wand-/Dynamik-Klassifikation einer Punktwolke."""
+
+    device_id: str = Field(pattern=DEVICE_ID_PATTERN)
+    points: List[float] = Field(default_factory=list, max_length=MAX_POINT_COMPONENTS)
+
+    @field_validator("points")
+    @classmethod
+    def complete_xyz_tuples(cls, value: List[float]) -> List[float]:
+        if len(value) % 3:
+            raise ValueError("points must contain complete x/y/z tuples")
+        return value

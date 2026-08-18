@@ -23,7 +23,7 @@
     UNKNOWN: { hex: '#555555', emissive: 0x000000, label: 'Unbekannt' },
 
     // Muss exakt edge-agent/privacy.py:LIVE_ONLY_TYPES entsprechen.
-    LIVE_ONLY_TYPES: ['person', 'animal', 'moving_person'],
+    LIVE_ONLY_TYPES: ['person', 'animal', 'moving_person', 'dynamic'],
 
     /** Ordnet einen semantischen Typ dem Palette-Eintrag zu. */
     forKind(kind) {
