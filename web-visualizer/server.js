@@ -8,19 +8,26 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server, path: '/ws' });
 
-// Statische Dateien ausliefern
+// Statische Dateien ausliefern (inkl. lokal gebündeltem Leaflet)
 app.use(express.static(path.join(__dirname, 'public')));
+app.use('/vendor/leaflet', express.static(path.join(__dirname, 'node_modules/leaflet/dist')));
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 
 // ─── REST-Proxy: /api/* → Edge-Agent (docs/API.md, docs/DEVICE_DATABASE.md) ──
 const AGENT_REST_URL = process.env.AGENT_REST_URL || 'http://localhost:8080';
+// Optionaler Agent-Session-Token (Flotten-/Devicedb-Zugriff ohne Browser-JWT)
+const AGENT_TOKEN = process.env.AGENT_TOKEN || '';
 
 app.use('/api', (req, res) => {
     const target = new URL(req.originalUrl, AGENT_REST_URL);
+    const headers = { ...req.headers, host: target.host };
+    if (AGENT_TOKEN && !headers.authorization) {
+        headers.authorization = `Bearer ${AGENT_TOKEN}`;
+    }
     const proxyReq = http.request(
         target,
-        { method: req.method, headers: { ...req.headers, host: target.host } },
+        { method: req.method, headers },
         (proxyRes) => {
             res.writeHead(proxyRes.statusCode || 502, proxyRes.headers);
             proxyRes.pipe(res);
@@ -44,7 +51,8 @@ function connectAgent(clientWs) {
 
   const open = () => {
     if (closed) return;
-    agentWs = new WebSocket(AGENT_WS_URL);
+    const wsHeaders = AGENT_TOKEN ? { Authorization: `Bearer ${AGENT_TOKEN}` } : {};
+    agentWs = new WebSocket(AGENT_WS_URL, { headers: wsHeaders });
 
     agentWs.on('open', () => {
       console.log(`[Web-Viz] Verbunden mit Edge-Agent (${AGENT_WS_URL})`);

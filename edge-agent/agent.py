@@ -59,6 +59,7 @@ from export_formats import (
     annotations_to_kml,
     points_to_geojson,
 )
+from fleet import FleetRegistry
 from floorplan import (
     SOURCES,
     fetch_osm_buildings,
@@ -69,6 +70,11 @@ from external.manager import ExternalEntityManager
 from geo.resolver import GeoResolver
 from models import (
     AlarmEvidenceRequest,
+    FleetActionRequest,
+    FleetAnchorRequest,
+    FleetUpsertRequest,
+    GeoAnchor,
+    GeoFix,
     AlarmPolicyRequest,
     AlarmSnoozeRequest,
     ASSET_ID_PATTERN,
@@ -126,6 +132,8 @@ db = LocalVectorStore()
 ekf = AdaptiveEKF(dt=1.0 / CONFIG.LOOP_HZ)
 uwb_processor = UwbDopplerProcessor(fs=CONFIG.UWB_FS, buffer_secs=CONFIG.UWB_BUFFER_SECS)
 pipeline = DataPipeline()
+fleet_registry = FleetRegistry()        # eigene Flotte (E-Bike, Scooter, BLE-Token …)
+geo_resolver = GeoResolver(providers=[])  # GeoAnchor für lokale→GPS-Projektion
 _metrics_pipeline_runs = 0          # echter Zähler: POST /api/v1/pipeline/run
 _metrics_lidar_frames = 0           # echter Zähler: WS lidar-Frames
 _metrics_mmwave_frames = 0          # echter Zähler: WS mmwave-Frames
@@ -316,6 +324,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="3dxAgent Edge-Agent", version="2.0.0", lifespan=lifespan)
 app.state.scenarios = {}
+app.state.fleet = fleet_registry
 app.state.security = GatewaySecurity(
     CredentialStore(CONFIG.AUTH_DB_PATH),
     CONFIG.AUTH_SIGNING_SECRET,
@@ -917,6 +926,175 @@ async def triangulation_solve(request: TriangulationRequest):
     return {"position": result, "anchor_count": result["anchor_count"]}
 
 
+@app.post("/api/v1/fleet/anchor")
+async def fleet_set_anchor(
+    request: FleetAnchorRequest,
+    _principal: Principal = Depends(admin_principal),
+):
+    """Setzt den GeoAnchor (Referenzpunkt für lokale→GPS-Projektion)."""
+    anchor_obj = GeoAnchor(
+        fix=GeoFix(
+            lat=request.lat,
+            lon=request.lon,
+            accuracy_m=request.accuracy_m,
+            altitude_m=request.altitude_m,
+            source="manual",
+            license="n/a",
+            timestamp=time.time(),
+            quality=1.0,
+        ),
+        local_origin=request.local_origin,
+        heading_deg=request.heading_deg,
+    )
+    geo_resolver.set_anchor(anchor_obj)
+    logger.info(
+        "Fleet-Anchor gesetzt: %.6f, %.6f (Heading %.0f°)",
+        request.lat, request.lon, request.heading_deg,
+    )
+    return {"status": "ok", "anchor": {"lat": request.lat, "lon": request.lon}}
+
+
+@app.get("/api/v1/fleet/anchor")
+async def fleet_get_anchor(_principal: Principal = Depends(authenticated_principal)):
+    """Aktueller GeoAnchor (für die Projektion lokaler Koordinaten)."""
+    anchor_obj = geo_resolver.anchor
+    if anchor_obj is None:
+        return {"anchor": None}
+    return {
+        "anchor": {
+            "lat": anchor_obj.fix.lat,
+            "lon": anchor_obj.fix.lon,
+            "accuracy_m": anchor_obj.fix.accuracy_m,
+            "heading_deg": anchor_obj.heading_deg,
+            "local_origin": anchor_obj.local_origin,
+        }
+    }
+
+
+@app.get("/api/v1/fleet")
+async def fleet_list(_principal: Principal = Depends(authenticated_principal)):
+    """Alle eigenen Flotten-Geräte mit Position, Akku und Status (OSM-Dashboard)."""
+    return {
+        "count": len(fleet_registry.get_all()),
+        "vehicles": [v.to_dict() for v in fleet_registry.get_all()],
+        "stats": fleet_registry.stats(),
+    }
+
+
+@app.get("/api/v1/fleet/nearby")
+async def fleet_nearby(
+    lat: float = Query(ge=-90, le=90),
+    lon: float = Query(ge=-180, le=180),
+    radius_m: float = Query(default=2000.0, ge=10, le=50000),
+    _principal: Principal = Depends(authenticated_principal),
+):
+    """Plug-and-play-Umkreissuche: eigene Flotte + BLE-Zubehör in Reichweite."""
+    fleet_near = fleet_registry.nearby(lat, lon, radius_m)
+    ble_entries = []
+    for acc in global_accessory_registry.get_all():
+        distance_m = None
+        if acc.distance_m is not None:
+            distance_m = round(acc.distance_m, 1)
+        elif acc.rssi is not None:
+            distance_m = round(10 ** ((-59.0 - acc.rssi) / 20.0), 1)
+        if distance_m is None or distance_m > radius_m:
+            continue
+        ble_entries.append({
+            "id": acc.mac,
+            "name": acc.name or acc.mac,
+            "kind": "ble_accessory",
+            "kind_label": f"BLE-Zubehör ({acc.type.value})",
+            "source": "ble",
+            "distance_m": distance_m,
+            "rssi": acc.rssi,
+            "battery": acc.battery,
+            "lat": None,
+            "lon": None,
+        })
+    entries = [
+        {
+            "id": v.id,
+            "name": v.name,
+            "kind": v.kind,
+            "kind_label": v.to_dict()["kind_label"],
+            "source": v.source,
+            "distance_m": d,
+            "lat": v.lat,
+            "lon": v.lon,
+            "battery": v.battery,
+            "rssi": v.rssi,
+        }
+        for v, d in fleet_near
+    ] + ble_entries
+    entries.sort(key=lambda e: e["distance_m"])
+    return {
+        "center": {"lat": lat, "lon": lon},
+        "radius_m": radius_m,
+        "count": len(entries),
+        "entries": entries,
+    }
+
+
+@app.post("/api/v1/fleet/upsert")
+async def fleet_upsert(
+    request: FleetUpsertRequest,
+    principal: Principal = Depends(authenticated_principal),
+):
+    """Batch-Ingest eigener Flotten-Geräte (GPS / Triangulation / BLE-Sichtung)."""
+    _require_device_scope(principal, request.device_id)
+    anchor_obj = geo_resolver.anchor
+    updated = []
+    for payload in request.vehicles:
+        vehicle = fleet_registry.update_from_payload(
+            payload.model_dump(exclude_none=True), owner=request.device_id, anchor=anchor_obj
+        )
+        updated.append(vehicle.to_dict())
+    await manager.broadcast_json(
+        {"type": "fleet_update", "payload": {"vehicles": updated}},
+        request.device_id,
+    )
+    return {"updated": len(updated), "vehicles": updated}
+
+
+@app.post("/api/v1/fleet/{vehicle_id}/action")
+async def fleet_action(
+    vehicle_id: str,
+    request: FleetActionRequest,
+    principal: Principal = Depends(authenticated_principal),
+):
+    """Capability-geprüfte Flotten-Aktion über das Mesh (z. B. LED, Schloss)."""
+    vehicle = fleet_registry.get(vehicle_id)
+    if vehicle is None:
+        raise HTTPException(status_code=404, detail="Fahrzeug nicht gefunden")
+    if principal.role != "admin" and vehicle.owner and vehicle.owner != principal.subject:
+        raise HTTPException(status_code=403, detail="device scope denied")
+    try:
+        result = fleet_registry.execute_action(vehicle_id, request.action, request.params)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    await manager.broadcast_json(
+        {"type": "fleet_action_result", "payload": result},
+        vehicle.owner or principal.subject,
+    )
+    return result
+
+
+@app.delete("/api/v1/fleet/{vehicle_id}")
+async def fleet_delete(
+    vehicle_id: str,
+    principal: Principal = Depends(authenticated_principal),
+):
+    vehicle = fleet_registry.get(vehicle_id)
+    if vehicle is None:
+        raise HTTPException(status_code=404, detail="Fahrzeug nicht gefunden")
+    if principal.role != "admin" and vehicle.owner and vehicle.owner != principal.subject:
+        raise HTTPException(status_code=403, detail="device scope denied")
+    fleet_registry.remove(vehicle_id)
+    return {"removed": vehicle_id}
+
+
 @app.get("/api/v1/agent/mesh")
 async def get_mesh(
     device_id: str,
@@ -1100,6 +1278,9 @@ async def metrics():
         "# HELP 3dxagent_active_scenarios Laufende Szenarien",
         "# TYPE 3dxagent_active_scenarios gauge",
         f"3dxagent_active_scenarios {active_scenarios}",
+        "# HELP 3dxagent_fleet_vehicles Eigene Flotten-Geräte (Fahrzeuge, Tokens)",
+        "# TYPE 3dxagent_fleet_vehicles gauge",
+        f"3dxagent_fleet_vehicles {len(fleet_registry.get_all())}",
         "# HELP 3dxagent_alarm_service_ready Alarm-Service verfügbar",
         "# TYPE 3dxagent_alarm_service_ready gauge",
         f"3dxagent_alarm_service_ready {1 if alarm_service else 0}",
@@ -1642,6 +1823,23 @@ async def websocket_endpoint(websocket: WebSocket):
                     )
                     await manager.broadcast_json(
                         {"type": "device_action_result", "payload": result.to_dict()}
+                    )
+
+                elif msg_type == "fleet_position":
+                    # Flotten-Position (GPS/Triangulation/BLE) → Registry + Broadcast
+                    anchor_obj = geo_resolver.anchor
+                    fleet_registry.update_from_payload(
+                        payload, owner=device_id, anchor=anchor_obj
+                    )
+                    vehicle = fleet_registry.get(str(payload.get("id", "")))
+                    await manager.broadcast_json(
+                        {
+                            "type": "fleet_update",
+                            "payload": {
+                                "vehicles": [vehicle.to_dict()] if vehicle else [],
+                            },
+                        },
+                        device_id,
                     )
 
                 elif msg_type == "network_traffic":
