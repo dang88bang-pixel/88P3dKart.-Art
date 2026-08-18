@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 from geo.projection import enu_to_geodetic, haversine_m
+from signal_processing import KalmanRssiFilter
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +58,7 @@ class FleetVehicle:
     accuracy_m: Optional[float] = None
     local: Optional[List[float]] = None          # [x, y, z] im Agent-Frame
     rssi: Optional[int] = None
+    rssi_smoothed: Optional[float] = None        # Kalman-geglätteter RSSI
     distance_m: Optional[float] = None           # Distanzschätzung (BLE, Anker)
     battery: Optional[int] = None
     status: str = "online"
@@ -75,6 +77,7 @@ class FleetVehicle:
             "accuracy_m": self.accuracy_m,
             "local": self.local,
             "rssi": self.rssi,
+            "rssi_smoothed": self.rssi_smoothed,
             "distance_m": self.distance_m,
             "battery": self.battery,
             "status": self.status,
@@ -90,6 +93,7 @@ class FleetRegistry:
     def __init__(self) -> None:
         self._vehicles: Dict[str, FleetVehicle] = {}
         self._on_action: Optional[Any] = None  # Broadcast-Callback (agent.py)
+        self._kalman: Dict[str, KalmanRssiFilter] = {}  # pro Fahrzeug-ID
 
     # ─── Mutationen ────────────────────────────────────────────
     def upsert(self, vehicle: FleetVehicle) -> FleetVehicle:
@@ -149,9 +153,16 @@ class FleetRegistry:
             return self.upsert(vehicle)
 
         if vehicle.rssi is not None:
+            # Kalman-Glättung des RSSI (startet beim ersten Messwert, daher
+            # bleibt die erste Distanzschätzung identisch zum Rohwert).
+            kalman = self._kalman.get(vehicle_id)
+            if kalman is None:
+                kalman = KalmanRssiFilter(rssi0=float(vehicle.rssi))
+                self._kalman[vehicle_id] = kalman
+            vehicle.rssi_smoothed = round(kalman.update(float(vehicle.rssi)), 2)
             # Pfadverlust n=2.0, TxPower -59 dBm (wie in der App-Kalibrierung)
             tx_power = float(payload.get("tx_power", -59.0))
-            vehicle.distance_m = 10 ** ((tx_power - float(vehicle.rssi)) / (10 * 2.0))
+            vehicle.distance_m = 10 ** ((tx_power - float(vehicle.rssi_smoothed)) / (10 * 2.0))
             vehicle.status = "unlocated" if vehicle.status == "online" else vehicle.status
             vehicle.source = "ble"
             return self.upsert(vehicle)
