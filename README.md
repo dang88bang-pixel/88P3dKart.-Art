@@ -73,6 +73,21 @@ Positionsbestimmung:
 - **Farbkodierung** (`web-visualizer/public/colorcoding.js`): verbindliche
   Palette Grau/Blau/Grün/Rot/Gelb, synchron zur Server-Erzwingung
 
+**honeyKart-Integration** (docs/HONEYKART_INTEGRATION.md) — QR-Token-Anbindung
+und geometrische Wand-/Dynamik-Klassifikation:
+
+- **QR-Code-Token-Anbindung** — `POST /api/v1/fleet/bind-qr` nimmt das
+  honeyKart-JSON (token_id/mac/name/pairing_code/company_id/…) an; Re-Bind
+  aktualisiert Metadaten, MAC als stabile ID
+- **Wand-/Dynamik-Klassifikation** (`edge-agent/wall_person_classifier.py`,
+  3 Stufen: Voxel-Grid 0,05 m → Höhenfilter → Euklidisches Clustering →
+  PCA-Planarität (elongationsrobust) → RANSAC-Ebenen → Zylinder-Validierung);
+  `wall` = persistierbar, `dynamic` = Live-Only (NIE gespeichert, erzwungen);
+  Pipeline-DataInterpreter + `POST /api/v1/semantic/classify` nutzen ihn
+- **Abgrenzung dokumentiert:** aktive Gegenmaßnahmen (Deauth/Beacon-Spam/
+  Rogue-AP/Reconnect-Flooding) und Atemfrequenz-Biometrie sind bewusst
+  NICHT implementiert (Begründung im Dokument)
+
 **Flotten-Live-Dashboard** (docs/FLEET.md) — eigene gebundene Geräte in
 Echtzeit auf OpenStreetMap mit Mesh-Aktionen (v18.1.0-Fleet):
 - **Flotten-Registry** (`edge-agent/fleet.py`) — E-Bike/E-Scooter/E-Roller/Fahrzeug,

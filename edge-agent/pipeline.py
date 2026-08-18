@@ -84,10 +84,11 @@ class DataInterpreter:
         z = points[:, 2]
         zmin, zmax = float(z.min()), float(z.max())
 
-        # Heuristische Segmentierung über die Z-Höhe:
+        # Segmentierung über die Z-Höhe:
         #  - Boden: unterste ~15 % der Höhenspanne
-        #  - Personen/Objekte: mittlerer Bereich, kompakte Cluster (hier: alles Übrige)
-        #  - Wand/Decke: oberste ~15 %
+        #  - Mittelband: geometrische Wand-/Dynamik-Klassifikation
+        #    (WallPersonClassifier: PCA-Planarity + RANSAC + Zylinder-Validierung)
+        #  - Decke: oberste ~15 %
         if zmax - zmin < 1e-6:
             bands = [("floor", points)]
         else:
@@ -96,7 +97,11 @@ class DataInterpreter:
             bands.append(("wall", points[z > zmax - 0.15 * (zmax - zmin)]))
             mid = points[(z >= zmin + 0.15 * (zmax - zmin)) & (z <= zmax - 0.15 * (zmax - zmin))]
             if len(mid):
-                bands.append(("person", mid))
+                from wall_person_classifier import WallPersonClassifier
+                clusters, _ = WallPersonClassifier().classify(mid)
+                for cluster in clusters:
+                    # "dynamic" = Live-Only (nie persistiert), "wall" = statisch
+                    bands.append((cluster.label, cluster.points))
 
         objects: List[InterpretedObject] = []
         for kind, pts in bands:

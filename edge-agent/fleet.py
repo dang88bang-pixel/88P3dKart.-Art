@@ -59,6 +59,10 @@ class FleetVehicle:
     local: Optional[List[float]] = None          # [x, y, z] im Agent-Frame
     rssi: Optional[int] = None
     rssi_smoothed: Optional[float] = None        # Kalman-geglätteter RSSI
+    pairing_code: Optional[str] = None           # QR-Anbindung (honeyKart-Format)
+    company_id: Optional[str] = None
+    battery_type: Optional[str] = None
+    firmware_version: Optional[str] = None
     distance_m: Optional[float] = None           # Distanzschätzung (BLE, Anker)
     battery: Optional[int] = None
     status: str = "online"
@@ -78,6 +82,10 @@ class FleetVehicle:
             "local": self.local,
             "rssi": self.rssi,
             "rssi_smoothed": self.rssi_smoothed,
+            "pairing_code": self.pairing_code,
+            "company_id": self.company_id,
+            "battery_type": self.battery_type,
+            "firmware_version": self.firmware_version,
             "distance_m": self.distance_m,
             "battery": self.battery,
             "status": self.status,
@@ -168,6 +176,47 @@ class FleetRegistry:
             return self.upsert(vehicle)
 
         vehicle.status = "unlocated"
+        return self.upsert(vehicle)
+
+    def bind_token_from_qr(
+        self,
+        payload: Dict[str, Any],
+        owner: str = "",
+    ) -> FleetVehicle:
+        """QR-Code-Anbindung eines Akku-Tokens (docs/HONEYKART_INTEGRATION.md).
+
+        Erwartet das honeyKart-QR-JSON:
+        {token_id, mac, name, pairing_code, company_id, battery_type,
+         firmware_version}. Legt das Token als ble_token in der Flotte an.
+        """
+        token_id = str(payload.get("token_id", "")).strip()
+        if not token_id:
+            raise ValueError("QR-Payload ohne token_id")
+        mac = str(payload.get("mac", "")).strip().lower()
+        vehicle_id = f"token:{mac}" if mac else f"token:{token_id}"
+        existing = self._vehicles.get(vehicle_id)
+        if existing is not None:
+            # Re-Bind aktualisiert die Metadaten, behält Position/Akku
+            existing.name = str(payload.get("name") or existing.name)
+            existing.pairing_code = str(payload.get("pairing_code") or "") or None
+            existing.company_id = str(payload.get("company_id") or "") or None
+            existing.battery_type = str(payload.get("battery_type") or "") or None
+            existing.firmware_version = str(payload.get("firmware_version") or "") or None
+            existing.owner = owner or existing.owner
+            return self.upsert(existing)
+
+        vehicle = FleetVehicle(
+            id=vehicle_id,
+            name=str(payload.get("name") or token_id),
+            kind="ble_token",
+            source="qr_bound",
+            owner=owner,
+            status="online",
+            pairing_code=str(payload.get("pairing_code") or "") or None,
+            company_id=str(payload.get("company_id") or "") or None,
+            battery_type=str(payload.get("battery_type") or "") or None,
+            firmware_version=str(payload.get("firmware_version") or "") or None,
+        )
         return self.upsert(vehicle)
 
     def remove(self, vehicle_id: str) -> bool:

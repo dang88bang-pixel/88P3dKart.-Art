@@ -49,15 +49,16 @@ def test_persistence_filter_removes_live_only_objects():
         {"kind": "person", "position": [2, 2, 1]},
         {"kind": "animal", "position": [3, 3, 0]},
         {"kind": "moving_person", "position": [4, 4, 1]},
+        {"kind": "dynamic", "position": [4.5, 4.5, 1]},
         {"kind": "device", "position": [5, 5, 1]},
     ]
     kept, removed = filt.filter_objects(objects)
-    assert removed == 3
+    assert removed == 4
     kinds = {o["kind"] for o in kept}
     assert kinds == {"wall", "floor", "device"}
     # Audit zählt korrekt, ohne Objektdaten preiszugeben
     audit = filt.audit(objects)
-    assert audit["live_only_removed"] == 3
+    assert audit["live_only_removed"] == 4
     assert audit["persisted_kinds"]["wall"] == 1
 
 
@@ -88,34 +89,36 @@ def test_strip_metadata_removes_personal_keys():
 
 
 def test_pipeline_persons_never_reach_storage(tmp_path):
-    """Integration: Pipeline-Ergebnis (inkl. person-Objekte) → Filter → DB
+    """Integration: Pipeline-Ergebnis (inkl. Dynamik-Cluster) → Filter → DB
     speichert ausschließlich gefilterte (unpersönliche) Daten."""
     import numpy as np
 
     from pipeline import DataPipeline
 
     pipeline = DataPipeline()
-    # Raum mit Boden + mittlerem Band (wird heuristisch als 'person' klassifiziert)
+    # Raum mit Boden + Wand + kompaktem volumetrischem Blob (Dynamik-Kandidat)
     pts = []
     rng = np.random.default_rng(3)
     pts += [[x, y, 0.0] for x, y in zip(rng.uniform(-3, 3, 40), rng.uniform(-3, 3, 40))]
     pts += [[x, y, 2.5] for x, y in zip(rng.uniform(-3, 3, 15), rng.uniform(-3, 3, 15))]
-    pts += [[x, y, 1.2] for x, y in zip(rng.uniform(-2, 2, 15), rng.uniform(-2, 2, 15))]
+    blob = rng.normal(0, 0.3, (60, 3))
+    blob[:, 2] = np.clip(blob[:, 2] + 1.2, 0.6, 2.4)
+    pts += blob.tolist()
     result = pipeline.run(np.asarray(pts, dtype=float).flatten().tolist())
     kinds = result.get("objects", [])
-    assert any(k == "person" for k in kinds), "Pipeline muss Person-Objekt liefern"
+    assert any(k == "dynamic" for k in kinds), "Pipeline muss Dynamik-Cluster liefern"
 
     filt = PersistenceFilter()
     objects_full = [{"kind": k} for k in kinds]
     kept, removed = filt.filter_objects(objects_full)
     assert removed >= 1
-    assert all(o["kind"] not in ("person", "animal") for o in kept)
+    assert all(o["kind"] not in ("person", "animal", "dynamic") for o in kept)
 
     # Persistenz: nur gefilterte Daten landen in der DB
     store = LocalVectorStore(db_path=str(tmp_path / "pipeline.db"))
     store.save_transform("dev-1", (1.0, 2.0, 3.0), (0.1, 0.1), {"kinds": [o["kind"] for o in kept]})
     stored = store.get_latest("dev-1", 10)
-    assert stored and "person" not in json.dumps(stored)
+    assert stored and "person" not in json.dumps(stored) and "dynamic" not in json.dumps(stored)
 
 
 # ─── Checkpoints ────────────────────────────────────────────
