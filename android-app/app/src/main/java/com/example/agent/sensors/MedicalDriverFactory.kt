@@ -13,15 +13,15 @@ import com.example.agent.tactical.MedicalMonitoringService
 object MedicalDriverFactory {
 
     fun create(
-        context: Context,
         onVitalUpdate: (heartRate: Int, hrv: Float, spo2: Int, temp: Float) -> Unit
     ): MedicalMonitoringService {
 
         // Hinweis: Die BLE-/UART-Medizintreiber (Polar H10, Garmin, UART-Dongle)
-        // sind in diesem Stand nicht enthalten; die Factory liefert daher den
-        // passiven RealMedicalMonitoringService. Reale Vitalwerte müssen über
-        // updateVitalData() gesetzt werden (siehe TacticalHealthMonitoring).
-        context.getSharedPreferences("medical", android.content.Context.MODE_PRIVATE)
+        // sind in diesem Stand dokumentiert NICHT enthalten; die Factory liefert
+        // daher den passiven RealMedicalMonitoringService. Reale Vitalwerte
+        // müssen über updateVitalData() gesetzt werden (siehe
+        // TacticalHealthMonitoring). Ein späterer Treiber übernimmt seinen
+        // Kontext im eigenen Konstruktor.
 
         // Fallback: stub
         Log.w("MedicalDriverFactory", "No real medical driver found — using stub. Real data must come via updateVitalData().")

@@ -71,7 +71,7 @@ class Gatekeeper {
     /** Bekannte/zulässige Sendermuster (Frequenz-Bandbreiten-Fenster). */
     private val knownTransmitters = mutableListOf<Pair<Double, Double>>()
 
-    private var lastAlertMs = 0L
+    private var lastAlertMs = -5_000L
     private val alertCooldownMs = 5_000L
 
     /**

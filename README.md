@@ -90,6 +90,19 @@ passiv, nur eigene Geräte (Kontext: EDM-verwaltetes Betriebsgelände):
 - **Interaktionsfeld (Accordion)** im OSM-Dashboard: Fähigkeiten je Klasse,
   Gruppe, Historie, Sichtbarkeit
 
+**Wand-/Mensch-Klassifikation & Datenverarbeitungs-Pipeline (Kotlin/CT45P)**
+(docs/CLASSIFICATION.md) — Kotlin-Spiegelung der Python-Implementierung:
+
+- **`com.example.agent.classification`**: WallPersonClassifier (3 Stufen,
+  geometrisch, Numerik identisch zur Edge-Agent-Python-Version),
+  VoxelFilter, SemanticClassifier (verbindliche Farbpalette),
+  Deduplicator (adaptiver Octree), ViewController (LIVE/PERSISTED),
+  PersistenceFilter (Live-Only-Typen NIE speichern, Geräte anonymisiert)
+- **Pipeline**: `DataInterpreter` nutzt den Klassifikator für das Mittelband
+- **18/18 neue Unit-Tests grün**; nebenbei: AdaptiveOctree.split()-Fix
+  (Punkte fielen aus dem Baum), Gatekeeper-Cooldown, Testbaubarkeit
+- **Bewusst NICHT integriert**: Atemfrequenz-/Doppler-Biometrie, TinyML-Modelle
+
 **honeyKart-Integration** (docs/HONEYKART_INTEGRATION.md) — QR-Token-Anbindung
 und geometrische Wand-/Dynamik-Klassifikation:
 

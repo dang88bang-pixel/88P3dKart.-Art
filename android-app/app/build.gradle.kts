@@ -35,6 +35,11 @@ android {
         }
     }
 
+    testOptions {
+        // JVM-Unit-Tests: android.util.Log u. ä. als No-Op (kein Robolectric nötig)
+        unitTests.isReturnDefaultValues = true
+    }
+
     buildTypes {
         release {
             // ProGuard ist hier noch aus, weil einige der Reflection-

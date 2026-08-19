@@ -111,15 +111,15 @@ object NetworkTraffic {
 
     /**
      * Deterministische What-If-Simulation von Netzwerk-Traffic
- * (Was-wäre-wenn-Analyse; der Live-Pfad nutzt die Edge-Agent-API).
- */
-class NetworkTrafficSimulator(
-        seed: Long = 42L,
+     * (Was-wäre-wenn-Analyse; der Live-Pfad nutzt die Edge-Agent-API).
+     */
+    class TrafficSimulator(
+        seed: Int = 42,
         val baseBandwidthMbps: Double = 40.0,
         val burstProbability: Double = 0.15,
         val burstFactor: Double = 3.0,
     ) {
-        private val rng = Random(seed)
+        private val rng = Random(seed.toLong())
 
         fun simulate(
             edges: List<Pair<String, String>>,

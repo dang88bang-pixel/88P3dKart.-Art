@@ -6,6 +6,7 @@ import org.junit.Test
 import java.util.Random
 import kotlin.math.PI
 import kotlin.math.exp
+import kotlin.math.pow
 
 class RadarProcessingTest {
 

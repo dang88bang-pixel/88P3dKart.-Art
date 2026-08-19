@@ -4,6 +4,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.example.agent.maintenance.AdaptiveThresholdMonitor.MetricAnomaly
+import com.example.agent.maintenance.AdaptiveThresholdMonitor.Severity
 
 class AdaptiveThresholdMonitorTest {
 
