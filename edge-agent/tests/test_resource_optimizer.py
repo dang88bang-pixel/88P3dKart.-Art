@@ -117,13 +117,16 @@ def test_merge_weighted_prefers_fresh_confident():
 
 def test_fuse_batch_filters_merges_and_caps():
     config = adapt_fusion(0.1, 0.2, 80)
+    # Fix: explizite last_update-Werte — der Alters-Decay in merge_weighted
+    # machte den Test zeitabhängig-flaky (0.8495 vs. 0.85-Schwelle).
+    now = 60_000
     voxels = [
-        FusionVoxel(0.01, 0.01, 0.0, 0.9),   # Zelle (0,0)
-        FusionVoxel(0.02, 0.01, 0.0, 0.8),   # gleiche Zelle → Merge
-        FusionVoxel(1.0, 1.0, 0.0, 0.2),     # unter Konfidenzschwelle → weg
-        FusionVoxel(2.0, 2.0, 0.0, 0.7),
+        FusionVoxel(0.01, 0.01, 0.0, 0.9, last_update=now),   # Zelle (0,0)
+        FusionVoxel(0.02, 0.01, 0.0, 0.8, last_update=now),   # gleiche Zelle → Merge
+        FusionVoxel(1.0, 1.0, 0.0, 0.2, last_update=now),     # unter Konfidenzschwelle → weg
+        FusionVoxel(2.0, 2.0, 0.0, 0.7, last_update=now),
     ]
-    fused = fuse_batch(voxels, config)
+    fused = fuse_batch(voxels, config, now_ms=now)
     assert len(fused) == 2
     # Merge beider Zelle-(0,0)-Voxel: Position bleibt ≈ 0,01, Konfidenz steigt
     cell = next(v for v in fused if v.confidence > 0.8)
