@@ -11,18 +11,33 @@ import android.os.Bundle
 import android.util.Log
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import com.example.agent.network.AgentApiClient
 import com.example.agent.network.AgentWebSocketClient
+import com.example.agent.network.GatewayEndpoint
+import com.example.agent.network.models.AlarmEvent
+import com.example.agent.network.models.AlarmRuntime
 import com.example.agent.aura.AuraIntegrator
 import com.example.agent.pipeline.LiveSensorPipeline
 import com.example.agent.pipeline.PipelineOrchestrator
 import com.example.agent.triangulation.TriangulationService
 import com.example.agent.sensors.BleTokenManager
+import com.example.agent.sensors.EkfFusion
 import com.example.agent.sensors.ImuManager
 import com.example.agent.sensors.SerialManager
 import com.example.agent.sensors.UwbManager
+import com.example.agent.health.DeviceHealthState
+import com.example.agent.health.DeviceThermalMonitor
+import com.example.agent.security.GatewaySessionManager
+import com.example.agent.security.SecureCredentialStore
 import com.example.agent.storage.AppDatabase
 import com.example.agent.storage.SpatialRecord
+import com.example.agent.ui.alarm.AlarmUiState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -32,6 +47,26 @@ import kotlinx.coroutines.launch
 
 /** Foreground CT45P control-plane shell and explicitly configured sensor relay. */
 class MainActivity : AppCompatActivity() {
+
+    companion object {
+        private const val TAG = "MainActivity"
+        private const val EXTRA_OPEN_ALARMS = "extra_open_alarms"
+        private const val ALARM_NOTIFICATION_CHANNEL = "gateway_alarms"
+        private const val ALARM_NOTIFICATION_ID = 1001
+        private const val DEFAULT_SNOOZE_DURATION_MS = 300_000L
+        private val NOTIFIABLE_ALARM_EVENTS = setOf(
+            "TRIGGERED", "DATA_LOSS_STARTED", "CLEARED", "POLICY_ENABLED",
+        )
+    }
+
+    // ── Gateway-Session & Alarm-Präsentationszustand ──
+    private val credentialStore by lazy { SecureCredentialStore(applicationContext) }
+    private val sessionManager by lazy { GatewaySessionManager(credentialStore) }
+    private val thermalMonitor by lazy { DeviceThermalMonitor(this) }
+    val deviceHealthState: StateFlow<DeviceHealthState> get() = thermalMonitor.state
+    private val mutableAlarmUiState = MutableStateFlow(AlarmUiState())
+    val alarmUiState: StateFlow<AlarmUiState> = mutableAlarmUiState.asStateFlow()
+
     private lateinit var serialManager: SerialManager
     private lateinit var bleManager: BleTokenManager
     private lateinit var imuManager: ImuManager
@@ -104,7 +139,22 @@ class MainActivity : AppCompatActivity() {
         db = AppDatabase.getInstance(this)
         pipeline = PipelineOrchestrator(this)
         livePipeline = LiveSensorPipeline()
-        webSocketClient = AgentWebSocketClient().also { it.connect() }
+
+        // Gateway-Anbindung: Session aus dem Keystore-geschützten Credential;
+        // WS-URL wird aus der Enrollment-Basis-URL abgeleitet (wss://…/ws/agent/events).
+        val gatewayBaseUrl = credentialStore.load()?.gatewayBaseUrl
+        webSocketClient = AgentWebSocketClient(
+            serverUrl = gatewayBaseUrl?.let { GatewayEndpoint.websocketEvents(it) },
+            sessionProvider = { sessionManager.validSession() },
+            invalidateSession = { sessionManager.invalidateSession() },
+        )
+        webSocketClient.onAlarmEvent = ::acceptAlarmEvent
+        apiClient = AgentApiClient(
+            baseUrl = gatewayBaseUrl ?: "https://gateway.invalid",
+            sessionProvider = { sessionManager.validSession() },
+            invalidateSession = { sessionManager.invalidateSession() },
+        )
+        if (gatewayBaseUrl != null) webSocketClient.connect()
 
         // Permission-Flow zuerst; Hardware wird im Callback initialisiert.
         if (hasAllRequiredPermissions()) {
@@ -255,7 +305,7 @@ class MainActivity : AppCompatActivity() {
             serialManager.lidarPoints.collect { points ->
                 if (points.isNotEmpty()) {
                     ekf.updateLidar(floatArrayOf(points[0], points[1], points[2]))
-                    webSocketClient.sendLidarFrame("CT45P-01", points, scatteringDetected = false)
+                    webSocketClient.sendLidarFrame("CT45P-01", points, scattering = false)
                     saveCurrentState()
                 }
             }
@@ -268,17 +318,12 @@ class MainActivity : AppCompatActivity() {
                     webSocketClient.sendMmwaveTargets("CT45P-01", targets)
                 }
             }
-            client.onAlarmEvent = ::acceptAlarmEvent
         }
         scope.launch {
             bleManager.tokenUpdates.collect { token ->
-                Log.d("BLE", "Token ${token.mac} RSSI=${token.rssi} type=${token.type}")
+                Log.d("BLE", "Token ${token.mac} RSSI=${token.rssi}")
                 webSocketClient.sendBleTokens("CT45P-01", listOf(token))
             }
-            supportFragmentManager.beginTransaction()
-                .replace(R.id.nav_host_fragment, fragment)
-                .commit()
-            true
         }
         // IMU: Sample-konsistent puffern (siehe ImuManager für Details).
         scope.launch {
@@ -358,9 +403,7 @@ class MainActivity : AppCompatActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         if (intent.getBooleanExtra(EXTRA_OPEN_ALARMS, false)) {
-            findViewById<com.google.android.material.bottomnavigation.BottomNavigationView>(
-                R.id.nav_view,
-            ).selectedItemId = R.id.navigation_alarm
+            Log.i(TAG, "Alarm-Ansicht angefordert")
         }
     }
 
@@ -379,6 +422,22 @@ class MainActivity : AppCompatActivity() {
             errorMessage = null,
         )
         if (event.eventType in NOTIFIABLE_ALARM_EVENTS) notifyAlarm(event)
+    }
+
+    private fun saveCurrentState() {
+        val state = ekf.getState()
+        scope.launch {
+            db.spatialDao().insert(
+                SpatialRecord(
+                    posX = state[0],
+                    posY = state[1],
+                    posZ = state[2],
+                    covLidar = 0.1f,
+                    covMmwave = 0.1f,
+                    metadataJson = "{}",
+                ),
+            )
+        }
     }
 
     private fun createAlarmNotificationChannel() {

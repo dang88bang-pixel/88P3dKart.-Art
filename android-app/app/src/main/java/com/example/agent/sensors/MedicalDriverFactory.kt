@@ -17,28 +17,13 @@ object MedicalDriverFactory {
         onVitalUpdate: (heartRate: Int, hrv: Float, spo2: Int, temp: Float) -> Unit
     ): MedicalMonitoringService {
 
-        // 1. Try Polar H10 (very common)
-        try {
-            return PolarH10Manager(context, onVitalUpdate)
-        } catch (e: Exception) {
-            Log.d("MedicalDriverFactory", "PolarH10 not available: ${e.message}")
-        }
+        // Hinweis: Die BLE-/UART-Medizintreiber (Polar H10, Garmin, UART-Dongle)
+        // sind in diesem Stand nicht enthalten; die Factory liefert daher den
+        // passiven RealMedicalMonitoringService. Reale Vitalwerte müssen über
+        // updateVitalData() gesetzt werden (siehe TacticalHealthMonitoring).
+        context.getSharedPreferences("medical", android.content.Context.MODE_PRIVATE)
 
-        // 2. Try Garmin (Forerunner, Fenix, HRM-Pro etc.)
-        try {
-            return GarminManager(context, onVitalUpdate)
-        } catch (e: Exception) {
-            Log.d("MedicalDriverFactory", "Garmin not available: ${e.message}")
-        }
-
-        // 3. Try UART medical dongle / custom medical sensor
-        try {
-            return UartMedicalDriver(context, onVitalUpdate)
-        } catch (e: Exception) {
-            Log.d("MedicalDriverFactory", "UartMedicalDriver not available: ${e.message}")
-        }
-
-        // 4. Fallback: stub
+        // Fallback: stub
         Log.w("MedicalDriverFactory", "No real medical driver found — using stub. Real data must come via updateVitalData().")
         return com.example.agent.tactical.RealMedicalMonitoringService()
     }

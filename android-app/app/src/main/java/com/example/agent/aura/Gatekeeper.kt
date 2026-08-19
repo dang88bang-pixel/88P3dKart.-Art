@@ -78,6 +78,9 @@ class Gatekeeper {
      * Registriert ein als legitim eingestuftes Sendermuster (z. B. eigene
      * Smart-Home-Sensoren), das keine Alerts mehr auslösen soll.
      */
+    /** Callback für erkannte Anomalien (→ AuraIntegrator._alerts). */
+    var onAlert: ((GatekeeperAlert) -> Unit)? = null
+
     fun whitelistTransmitter(centerHz: Double, bandwidthHz: Double) {
         knownTransmitters.add(centerHz to bandwidthHz)
     }
@@ -199,8 +202,7 @@ class Gatekeeper {
     ) {
         if (nowMs - lastAlertMs < alertCooldownMs) return
         lastAlertMs = nowMs
-        _alerts.tryEmit(
-            GatekeeperAlert(
+        val alert = GatekeeperAlert(
                 timestampMs = nowMs,
                 category = category,
                 severity = severity,
@@ -209,8 +211,9 @@ class Gatekeeper {
                 sourceIp = sourceIp,
                 sourcePort = sourcePort,
             )
-        )
-    }
+        _alerts.tryEmit(alert)
+        onAlert?.invoke(alert)
+}
 
     private fun formatMHz(hz: Double): String = String.format(java.util.Locale.US, "%.3f", hz / 1e6)
     private fun formatKHz(hz: Double): String = String.format(java.util.Locale.US, "%.1f", hz / 1e3)

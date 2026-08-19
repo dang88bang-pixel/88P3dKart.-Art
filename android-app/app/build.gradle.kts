@@ -35,24 +35,6 @@ android {
         }
     }
 
-    signingConfigs {
-        create("release") {
-            // Credentials werden in ~/.gradle/gradle.properties
-            // (lokal) bzw. in den GitHub-Actions-Secrets (CI)
-            // hinterlegt. Siehe .github/workflows/build-apk.yml.
-            val ksFile = providers.gradleProperty("RELEASE_STORE_FILE")
-            val ksPass = providers.gradleProperty("RELEASE_STORE_PASSWORD")
-            val ksAlias = providers.gradleProperty("RELEASE_KEY_ALIAS")
-            val keyPass = providers.gradleProperty("RELEASE_KEY_PASSWORD")
-            if (ksFile.isPresent && ksPass.isPresent && ksAlias.isPresent && keyPass.isPresent) {
-                storeFile = rootProject.file(ksFile.get())
-                storePassword = ksPass.get()
-                keyAlias = ksAlias.get()
-                keyPassword = keyPass.get()
-            }
-        }
-    }
-
     buildTypes {
         release {
             // ProGuard ist hier noch aus, weil einige der Reflection-
@@ -86,6 +68,7 @@ android {
 dependencies {
     // Core
     implementation("androidx.core:core-ktx:1.12.0")
+    
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("com.google.android.material:material:1.11.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.7.0")

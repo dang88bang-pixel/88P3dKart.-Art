@@ -39,7 +39,7 @@ object NLOSGeometry {
         val variance = sumSq / phases.size
 
         // Very rough "reflection strength"
-        val reflectionStrength = (variance / (2f * kotlin.math.PI)).coerceIn(0f, 1f)
+        val reflectionStrength = (variance / (2f * kotlin.math.PI.toFloat())).coerceIn(0f, 1f)
 
         val isNlos = reflectionStrength > 0.55f
         val conf = reflectionStrength.coerceIn(0f, 0.95f)

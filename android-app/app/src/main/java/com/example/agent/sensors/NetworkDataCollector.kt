@@ -30,7 +30,7 @@ class NetworkDataCollector(private val context: Context) {
     fun collectCellularData(): Map<String, Any?> {
         val tm = telephonyManager ?: return emptyMap()
         return mapOf(
-            "network_type" to tm.dataNetworkType.name,
+            "network_type" to tm.dataNetworkType,
             "operator" to (tm.networkOperatorName ?: ""),
         )
     }

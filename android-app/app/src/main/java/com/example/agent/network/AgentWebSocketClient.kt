@@ -21,7 +21,6 @@ import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okio.ByteString
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -47,6 +46,8 @@ class AgentWebSocketClient(
         private const val INITIAL_RECONNECT_DELAY_MS = 1_000L
         private const val MAX_RECONNECT_DELAY_MS = 30_000L
         private const val BACKOFF_FACTOR = 1.5
+        private const val SESSION_RENEWAL_MARGIN_SECONDS = 30L
+        private const val SESSION_RENEWAL_CLOSE_CODE = 4001
     }
 
     private val client: OkHttpClient = OkHttpClient.Builder()
@@ -63,11 +64,6 @@ class AgentWebSocketClient(
         ignoreUnknownKeys = true
         encodeDefaults = true
     }
-
-    private var webSocket: WebSocket? = null
-    @Volatile private var isConnected = false
-    @Volatile private var isConnecting = false
-    private var reconnectJob: Job? = null
     private var renewalJob: Job? = null
     private var connectionGeneration = 0L
     @Volatile private var closed = false
@@ -85,8 +81,13 @@ class AgentWebSocketClient(
         if (isConnected.get() || isConnecting.get()) return
         if (!isConnecting.compareAndSet(false, true)) return
 
-        Log.d(TAG, "Verbinde zu $serverUrl ...")
-        val request = Request.Builder().url(serverUrl).build()
+        val url = serverUrl ?: run {
+            Log.e(TAG, "Keine Server-URL konfiguriert")
+            isConnecting.set(false)
+            return
+        }
+        Log.d(TAG, "Verbinde zu $url ...")
+        val request = Request.Builder().url(url).build()
 
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
@@ -106,7 +107,7 @@ class AgentWebSocketClient(
             }
 
             override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
-                if (!isCurrent(generation)) return
+                if (!isCurrent(connectionGeneration)) return
                 scope.launch(Dispatchers.Main) { onBinaryPointCloud?.invoke(bytes.toByteArray()) }
             }
 
@@ -130,18 +131,12 @@ class AgentWebSocketClient(
         scheduleReconnect()
     }
 
-    private fun scheduleReconnect() {
-        // Vorherigen Reconnect-Job sauber beenden.
-        reconnectJob?.cancel()
-        return true
-    }
-
     @Synchronized
     private fun markTerminated(generation: Long): Boolean {
         if (generation != connectionGeneration) return false
         connectionGeneration += 1
-        isConnecting = false
-        isConnected = false
+        isConnecting.set(false)
+        isConnected.set(false)
         webSocket = null
         renewalJob?.cancel()
         return !closed
@@ -153,7 +148,7 @@ class AgentWebSocketClient(
 
     @Synchronized
     private fun isCurrentConnectionAttempt(generation: Long): Boolean =
-        isConnecting && isCurrent(generation)
+        isConnecting.get() && isCurrent(generation)
 
     @Synchronized
     private fun scheduleSessionRenewal(expiresAtEpochSeconds: Long, generation: Long) {
@@ -169,7 +164,7 @@ class AgentWebSocketClient(
 
     @Synchronized
     private fun renewSession(generation: Long) {
-        if (!isConnected || !isCurrent(generation)) return
+        if (!isConnected.get() || !isCurrent(generation)) return
         invalidateSession()
         webSocket?.close(SESSION_RENEWAL_CLOSE_CODE, "Renewing gateway session")
     }
@@ -190,6 +185,29 @@ class AgentWebSocketClient(
                 delayMs = (delayMs * BACKOFF_FACTOR).toLong().coerceAtMost(MAX_RECONNECT_DELAY_MS)
             }
         }
+    }
+
+    /** Map-basierter Versand (JSON-Envelope mit beliebigem Payload). */
+    private fun sendPayload(type: String, payload: Map<String, Any?>) {
+        if (!isConnected.get()) return
+        val envelope = mapOf("type" to type, "payload" to payload)
+        val text = json.encodeToString(kotlinx.serialization.json.JsonObject.serializer(),
+            kotlinx.serialization.json.JsonObject(
+                envelope.mapValues { (_, v) ->
+                    kotlinx.serialization.json.JsonPrimitive(
+                        when (v) {
+                            null -> return@mapValues kotlinx.serialization.json.JsonNull
+                            is String -> v
+                            is Number -> v.toString()
+                            is Boolean -> v.toString()
+                            else -> v.toString()
+                        }
+                    )
+                }
+            )
+        )
+        val ok = webSocket?.send(text) ?: false
+        if (!ok) Log.w(TAG, "send() zurückgewiesen (type=$type)")
     }
 
     /** Hilfsfunktion: serialisiert ein typisiertes DTO und schickt es als Text-Frame. */
@@ -213,6 +231,7 @@ class AgentWebSocketClient(
                 scattering_detected = scattering,
             ),
         )
+    }
 
     fun sendMmwaveTargets(deviceId: String, targets: List<SerialManager.MmwaveTarget>) {
         if (targets.isEmpty()) return
@@ -234,12 +253,14 @@ class AgentWebSocketClient(
                 deviceId = deviceId,
                 timestamp = System.currentTimeMillis() / 1000.0,
                 tokens = tokens.map {
-                    WsBleToken(it.mac, it.rssi, it.accelX, it.accelY, it.accelZ, it.battery)
+                    WsBleToken(it.mac, it.rssi, it.accelX, it.accelY, it.accelZ, it.battery ?: 0)
                 },
             ),
         )
+    }
 
     /** Überladung für direktes Senden von Accessory Payload Maps (z.B. SOS, Button Events) */
+    @JvmName("sendBleTokenMaps")
     fun sendBleTokens(deviceId: String, tokens: List<Map<String, Any?>>) {
         sendPayload(
             "ble",
@@ -325,8 +346,8 @@ class AgentWebSocketClient(
         wifi: List<com.example.agent.triangulation.WifiRttTriangulator.RttAnchor>,
         ble: List<com.example.agent.triangulation.BleBeaconTriangulator.BeaconAnchor>,
     ) {
-        val anchors = wifi.map { WsAnchor(it.id, "wifi", it.x, it.y, it.z) } +
-            ble.map { WsAnchor(it.id, "ble", it.x, it.y, it.z) }
+        val anchors = wifi.map { WsAnchor(it.id, "wifi", it.x.toFloat(), it.y.toFloat(), it.z.toFloat()) } +
+            ble.map { WsAnchor(it.id, "ble", it.x.toFloat(), it.y.toFloat(), it.z.toFloat()) }
         if (anchors.isEmpty()) return
         send("triangulation_anchors", WsTriangulationAnchorsPayload(deviceId, anchors))
     }
@@ -340,7 +361,7 @@ class AgentWebSocketClient(
                 deviceId = deviceId,
                 timestamp = System.currentTimeMillis() / 1000.0,
                 voxels = voxels.map {
-                    WsAuraVoxel(it.x, it.y, it.z, it.attenuation, it.weight)
+                    WsAuraVoxel(it.x.toFloat(), it.y.toFloat(), it.z.toFloat(), it.attenuation.toFloat(), it.weight.toFloat())
                 },
             ),
         )

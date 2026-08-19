@@ -28,7 +28,7 @@ class TagVelocityTracker(private val alpha: Float = 0.6f) {
         fun copy() = TrackedTag(mac, position.clone(), velocity.clone(), speedMs, lastSeenMs)
     }
 
-    private data class State(
+    data class State(
         var lastPosition: FloatArray?,
         var lastTimeMs: Long,
         var velocity: FloatArray,

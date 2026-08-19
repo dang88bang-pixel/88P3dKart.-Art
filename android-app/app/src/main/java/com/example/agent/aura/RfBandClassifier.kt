@@ -97,7 +97,7 @@ object RfBandClassifier {
             occupied.add(
                 OccupiedBand(
                     centerHz = centerHz,
-                    bandwidthHz = bandwidthHz,
+                    bandwidthHz = bandwidthHz.toDouble(),
                     powerRatio = (powerSum / (end - start)).toFloat(),
                     band = band,
                     modulation = modulation,

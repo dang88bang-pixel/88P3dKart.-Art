@@ -2,18 +2,18 @@ package com.example.agent.sensors
 
 import android.content.Context
 import android.util.Log
-import androidx.uwb.ranging.RangingParameters
-import androidx.uwb.ranging.RangingResult
-import androidx.uwb.ranging.UwbManager as AndroidUwbManager
-import androidx.uwb.ranging.UwbPeer
 import com.example.agent.offline.NLOSGeometry
 import java.util.concurrent.Executors
 
 /**
- * UWB-Ranging & Micro-Doppler-Erfassung (Android 12+, FiRa-konform).
+ * UWB-Ranging & Micro-Doppler-Erfassung (Android 12+).
  *
- * Liefert die gemessene Phase (Radians) pro Ranging-Runde.
- * Zusätzlich: Echtzeit-NLOS/Geometry-Analyse (HoloRadar-style) mit realen Phasen.
+ * Hinweis (Baubarkeit dieses Standes): Die Jetpack-UWB-Alpha-Bibliothek
+ * (androidx.uwb) ist im verwendeten Maven-Repository nicht auflösbar.
+ * Diese Klasse stellt daher die Phasen-/NLOS-Verarbeitungskette bereit und
+ * nimmt Ranging-Daten über `onRawDistance` (Meter) oder `onPhase` (Radians)
+ * entgegen. Der FiRa-Hardware-Driver (UwbRangingSession) kann später ohne
+ * API-Änderung an dieser Stelle ergänzt werden.
  */
 class UwbManager(private val context: Context) {
 
@@ -21,9 +21,7 @@ class UwbManager(private val context: Context) {
         private const val TAG = "UwbManager"
     }
 
-    private val uwbManager = AndroidUwbManager.createInstance(context)
     private val executor = Executors.newSingleThreadExecutor()
-    private var session: androidx.uwb.ranging.UwbRangingSession? = null
 
     /** Callback liefert die rohe Phase (Radians) eines Ranging-Ergebnisses. */
     var onPhase: ((Float) -> Unit)? = null
@@ -35,52 +33,34 @@ class UwbManager(private val context: Context) {
     private val phaseBuffer = mutableListOf<Float>()
     private val maxBuffer = 20
 
-    fun startRanging(peerAddress: ByteArray, channel: Int = 9, preambleIndex: Int = 9) {
-        try {
-            val peer = UwbPeer.Builder(peerAddress).build()
-            val params = RangingParameters.Builder()
-                .setPeer(peer)
-                .setChannel(channel)
-                .setPreambleIndex(preambleIndex)
-                .build()
-
-            session = uwbManager.startRanging(params, executor) { rangingResult ->
-                val phase = extractPhase(rangingResult)
-                if (phase != null) {
-                    onPhase?.invoke(phase)
-
-                    // === Real NLOS analysis (HoloRadar-style) ===
-                    phaseBuffer.add(phase)
-                    if (phaseBuffer.size > maxBuffer) phaseBuffer.removeAt(0)
-
-                    val estimate = NLOSGeometry.fromPhaseBuffer(phaseBuffer)
-                    if (estimate.isLikelyNlos || estimate.confidence > 0.4f) {
-                        onNlosEstimate?.invoke(estimate)
-                        Log.d(TAG, "NLOS estimate: extra=${estimate.estimatedExtraDistance}m conf=${estimate.confidence}")
-                    }
-                }
-            }
-            Log.d(TAG, "UWB-Ranging gestartet (Channel $channel)")
-        } catch (e: Exception) {
-            Log.e(TAG, "UWB-Ranging fehlgeschlagen: ${e.message}")
-        }
+    /** Startet die Ranging-Kette (ohne FiRa-Stack: passiv, Daten via onRawDistance/onPhase). */
+    fun startRanging(peerAddress: ByteArray = ByteArray(0), channel: Int = 9, preambleIndex: Int = 9) {
+        Log.d(TAG, "UWB-Ranging aktiviert (Channel $channel) — FiRa-Driver nicht Teil dieses Standes")
     }
 
-    private fun extractPhase(result: RangingResult): Float? {
-        // Distanzmessung → Phase (vereinfachte Modellierung für den
-        // Micro-Doppler; auf realer Hardware an die Phasenrückgabe des
-        // Qorvo-DWM3000 koppeln).
-        val distanceMeters = result.distanceMeters ?: return null
-        val wavelength = 0.046f // ~6.5 GHz UWB
-        return ((distanceMeters % wavelength) / wavelength * (2 * Math.PI)).toFloat()
+    /**
+     * Nimmt eine Distanzmessung (Meter) entgegen und wandelt sie in die
+     * Phasen-/NLOS-Kette um (Wavelength ~6,5 GHz).
+     */
+    fun onRawDistance(distanceMeters: Double) {
+        val wavelength = 0.046f
+        val phase = (((distanceMeters % wavelength.toDouble()) / wavelength) * (2 * Math.PI)).toFloat()
+        onPhase?.invoke(phase)
+        phaseBuffer.add(phase)
+        if (phaseBuffer.size > maxBuffer) phaseBuffer.removeAt(0)
+        val estimate = NLOSGeometry.fromPhaseBuffer(phaseBuffer)
+        if (estimate.isLikelyNlos || estimate.confidence > 0.4f) {
+            onNlosEstimate?.invoke(estimate)
+            Log.d(TAG, "NLOS estimate: extra=${estimate.estimatedExtraDistance}m conf=${estimate.confidence}")
+        }
     }
 
     fun stopRanging() {
-        try {
-            session?.close()
-            phaseBuffer.clear()
-        } catch (e: Exception) {
-            Log.w(TAG, "Stopp fehlgeschlagen: ${e.message}")
-        }
+        phaseBuffer.clear()
+    }
+
+    fun shutdown() {
+        stopRanging()
+        executor.shutdown()
     }
 }

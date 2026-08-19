@@ -74,7 +74,7 @@ class WifiRttTriangulator(private val context: Context) {
     init {
         val pm = context.packageManager
         val featureRtt = pm.hasSystemFeature(PackageManager.FEATURE_WIFI_RTT)
-        ieee80211mcSupported = rttManager?.is80211mcSupported == true
+        ieee80211mcSupported = featureRtt
         supported = featureRtt && rttManager != null && rttManager.isAvailable
     }
 
@@ -172,7 +172,7 @@ class WifiRttTriangulator(private val context: Context) {
         val uncertainties = HashMap<String, Double>()
         for (r in results) {
             if (r.status != RangingResult.STATUS_SUCCESS) continue
-            val bssid = r.macAddress?.uppercase() ?: continue
+            val bssid = r.macAddress?.toString()?.uppercase() ?: continue
             if (!anchorsByBssid.containsKey(bssid)) continue
             distances[bssid] = r.distanceMm / 1000.0
             uncertainties[bssid] = maxOf(r.distanceStdDevMm / 1000.0, 0.1)

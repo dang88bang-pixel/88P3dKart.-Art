@@ -99,10 +99,14 @@ class CT45pFilamentBridge(
         if (started) return
         started = true
         renderer.start()
-        if (scanner.isAvailable(appContext)) {
-            scanner.register(appContext)
-        } else {
-            Log.w(TAG, "Honeywell-Scanner nicht erreichbar — prüfe <queries> im Manifest")
+        try {
+            val filter = android.content.IntentFilter().apply {
+                addAction(HoneywellScannerReceiver.ACTION_DECODE)
+                addAction(HoneywellScannerReceiver.ACTION_LEGACY)
+            }
+            appContext.registerReceiver(scanner, filter)
+        } catch (e: Exception) {
+            Log.w(TAG, "Honeywell-Scanner nicht registrierbar: ${e.message}")
         }
         Log.i(TAG, "CT45pBridge gestartet (Filament: ${FilamentAvailability.isAvailable})")
     }

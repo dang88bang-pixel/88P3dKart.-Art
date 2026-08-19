@@ -171,9 +171,9 @@ class PointClusterMerger(
         return clusters.map { cluster ->
             val fallbackCount = cluster.count
             MergedPoint(
-                x = if (cluster.weightSum > 0.0) cluster.cx else cluster.sumX / fallbackCount,
-                y = if (cluster.weightSum > 0.0) cluster.cy else cluster.sumY / fallbackCount,
-                z = if (cluster.weightSum > 0.0) cluster.cz else cluster.sumZ / fallbackCount,
+                x = (if (cluster.weightSum > 0.0) cluster.cx else cluster.sumX / fallbackCount).toFloat(),
+                y = (if (cluster.weightSum > 0.0) cluster.cy else cluster.sumY / fallbackCount).toFloat(),
+                z = (if (cluster.weightSum > 0.0) cluster.cz else cluster.sumZ / fallbackCount).toFloat(),
                 confidence = (cluster.confidenceSum / cluster.count).toFloat(),
                 motionScore = (cluster.motionSum / cluster.count).toFloat(),
                 dominantSource = cluster.sources.maxByOrNull { it.value }?.key ?: "unknown",

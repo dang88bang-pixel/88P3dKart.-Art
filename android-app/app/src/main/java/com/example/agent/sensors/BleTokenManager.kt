@@ -8,6 +8,7 @@ import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import androidx.core.content.ContextCompat
 import android.util.Log
 import com.example.agent.bluetooth.BluetoothAccessory
 import com.example.agent.bluetooth.BluetoothAccessoryManager
@@ -24,6 +25,10 @@ import kotlinx.coroutines.launch
 
 /** Scans versioned nRF52840 token advertisements (company ID 0x0059). */
 class BleTokenManager(private val context: Context) {
+
+    /** Zubehör-Registry (BLE-Tokens, Sensor-Tags, Wearables). */
+    val bluetoothAccessoryManager by lazy { BluetoothAccessoryManager(context) }
+    private val accessoryManager get() = bluetoothAccessoryManager
 
     companion object {
         private const val TAG = "BleTokenManager"
