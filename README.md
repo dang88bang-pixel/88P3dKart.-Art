@@ -73,6 +73,23 @@ Positionsbestimmung:
 - **Farbkodierung** (`web-visualizer/public/colorcoding.js`): verbindliche
   Palette Grau/Blau/Grün/Rot/Gelb, synchron zur Server-Erzwingung
 
+**Betriebsgelände-Betrieb, EDM & Offline-Sync** (docs/PREMISES_EDM.md) —
+passiv, nur eigene Geräte (Kontext: EDM-verwaltetes Betriebsgelände):
+
+- **Premises-Security** (`edge-agent/premises_security.py`): Bekannt-vs.-
+  Unbekannt-Klassifikation (own/infra/unknown), `premises_alert` bei
+  Fremdgeräten, passive Sensorberichte (Magnet/IR/RF), Störungs-DETEKTION
+  (Geräteschwund) — keine Gegenmaßnahmen
+- **EDM-Lebenszyklus** (`edge-agent/edm.py`): ENROLLED→PROVISIONED→
+  QUARANTINED→RESET_PENDING→RESET, auditiert; Reset ausschließlich über
+  Honeywell Provisioning Mode/OEMConfig (eigene Geräte, kein FRP-Bypass)
+- **Offline-Sync-Queue**: `/api/v1/sync/*` + Service-Worker-Handler
+  (periodicsync, Best-Effort)
+- **Flotten-Gruppen + Positionshistorie**: `/api/v1/fleet/groups*`,
+  `/api/v1/fleet/{id}/history`
+- **Interaktionsfeld (Accordion)** im OSM-Dashboard: Fähigkeiten je Klasse,
+  Gruppe, Historie, Sichtbarkeit
+
 **honeyKart-Integration** (docs/HONEYKART_INTEGRATION.md) — QR-Token-Anbindung
 und geometrische Wand-/Dynamik-Klassifikation:
 
