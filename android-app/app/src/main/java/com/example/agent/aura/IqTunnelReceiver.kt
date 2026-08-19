@@ -118,13 +118,13 @@ class IqTunnelReceiver(
     private suspend fun receiveLoop(s: DatagramSocket) {
         val buffer = ByteArray(RECEIVE_BUFFER_SIZE)
         val packet = DatagramPacket(buffer, buffer.size)
-        while (isActive && isRunning) {
+        while (isRunning) {
             try {
                 s.receive(packet)
                 val data = packet.data.copyOf(packet.length)
                 // DROP_OLDEST: trySend blockiert nie; bei vollem Kanal wird
                 // das älteste Paket verworfen (aktuellste Daten gewinnen).
-                if (rawChannel.trySend(data) is ChannelResult.Failure) {
+                if (rawChannel.trySend(data).isFailure) {
                     Log.w(TAG, "Kanal voll — ältestes Paket verworfen (DROP_OLDEST)")
                 }
             } catch (e: SocketException) {

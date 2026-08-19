@@ -123,8 +123,9 @@ class SecureCredentialStore(context: Context) : DeviceCredentialStore {
     fun isHardwareBacked(): Boolean {
         val key = existingKey() ?: return false
         return try {
-            val factory = SecretKeyFactory.getInstance(key.algorithm, ANDROID_KEYSTORE)
-            factory.getKeySpec(key, KeyInfo::class.java).isInsideSecureHardware
+            val factory = SecretKeyFactory.getInstance(key.algorithm, "AndroidKeyStore")
+            val info = factory.getKeySpec(key, KeyInfo::class.java) as KeyInfo
+            info.isInsideSecureHardware
         } catch (_: Exception) {
             false
         }

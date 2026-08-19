@@ -16,7 +16,7 @@ class MeshGenerator {
         if (points.size < 3) return Mesh(points.map { floatArrayOf(it.x, it.y, it.z) }, emptyList())
 
         // Deduplizieren über (x, y) für eine stabile Triangulation
-        val seen = LinkedHashMap<Pair<Long, Long>, FloatArray>()
+        val seen = LinkedHashMap<Long, FloatArray>()
         for (p in points) {
             val key = (p.x.toRawBits().toLong() shl 32) or (p.y.toRawBits().toLong() and 0xFFFFFFFFL)
             seen.putIfAbsent(key, floatArrayOf(p.x, p.y, p.z))

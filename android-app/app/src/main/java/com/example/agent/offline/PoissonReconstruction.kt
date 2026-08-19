@@ -37,6 +37,7 @@ class PoissonReconstruction {
         return reconstruct(pts, resolution, iso)
     }
 
+    @JvmName("reconstructPoints")
     fun reconstruct(points: List<FloatArray>, resolution: Int = 32, iso: Float = 0.5f): Mesh {
         if (points.isEmpty()) return Mesh(emptyList(), emptyList())
 

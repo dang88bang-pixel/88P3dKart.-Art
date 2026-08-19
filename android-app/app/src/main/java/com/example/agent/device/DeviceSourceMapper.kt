@@ -74,7 +74,7 @@ object DeviceSourceMapper {
             id = source.id,
             name = source.name,
             type = type,
-            category = DeviceModels.categoryOf(type),
+            category = DeviceModels.Device.categoryOf(type),
             position = Position3D(0f, 0f, 0f),
             status = stalenessStatus(source.lastSeenMs),
             capabilities = listOf(DeviceCapability(CapabilityType.READ_DATA, "Signalstärke lesen")),

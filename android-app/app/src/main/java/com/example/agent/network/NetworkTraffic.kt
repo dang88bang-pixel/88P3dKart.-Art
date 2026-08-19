@@ -109,8 +109,11 @@ object NetworkTraffic {
         return activity.mapValues { (_, a) -> (a.totalMbps / peak) * maxHeight }
     }
 
-    
-
+    /**
+     * Deterministische What-If-Simulation von Netzwerk-Traffic
+ * (Was-wäre-wenn-Analyse; der Live-Pfad nutzt die Edge-Agent-API).
+ */
+class NetworkTrafficSimulator(
         seed: Long = 42L,
         val baseBandwidthMbps: Double = 40.0,
         val burstProbability: Double = 0.15,
@@ -118,6 +121,10 @@ object NetworkTraffic {
     ) {
         private val rng = Random(seed)
 
+        fun simulate(
+            edges: List<Pair<String, String>>,
+            timestamp: Long = System.currentTimeMillis(),
+        ): List<TrafficFlow> {
             return edges.map { (source, target) ->
                 val burst = rng.nextDouble() < burstProbability
                 var bandwidth = baseBandwidthMbps * (if (burst) burstFactor else 1.0)

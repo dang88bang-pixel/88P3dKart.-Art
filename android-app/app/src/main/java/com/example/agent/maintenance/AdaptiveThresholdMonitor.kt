@@ -111,9 +111,9 @@ class AdaptiveThresholdMonitor(
         val result = ArrayList<MetricAnomaly>(2)
         val (isCritical, isWarning) = when (config.direction) {
             MetricDirection.HIGHER_IS_WORSE ->
-                value > config.criticalThreshold to (value > config.warningThreshold)
+                Pair(value > config.criticalThreshold, value > config.warningThreshold)
             MetricDirection.LOWER_IS_WORSE ->
-                value < config.criticalThreshold to (value < config.warningThreshold)
+                Pair(value < config.criticalThreshold, value < config.warningThreshold)
         }
         if (isCritical) {
             result.add(

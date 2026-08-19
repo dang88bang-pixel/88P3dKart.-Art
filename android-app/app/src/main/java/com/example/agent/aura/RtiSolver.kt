@@ -130,7 +130,7 @@ class RtiSolver(
                 val dTx = distance3(c, link.tx)
                 val dRx = distance3(c, link.rx)
                 if (dTx + dRx < dLink + ellipseWidth) {
-                    val w = 1.0 / sqrt((dTx + dRx).toDouble()).toFloat()
+                    val w = 1.0f / sqrt((dTx + dRx).toDouble()).toFloat()
                     weights.add(i to w)
                     sum += w
                 }
@@ -229,7 +229,7 @@ class RtiSolver(
             val y = links[i].attenuationDb.toDouble()
             for ((v, w) in rows[i]) {
                 field[v] += w * y
-                weightSum[v] += w
+                weightSum[v] += w.toDouble()
             }
         }
         for (v in 0 until n) {

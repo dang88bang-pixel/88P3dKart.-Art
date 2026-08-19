@@ -454,7 +454,7 @@ class TacticalHealthMonitoring(
         return PersonnelStatus.OPERATIONAL
     }
 
-    private suspend fun checkAllPersonnel() {
+    internal suspend fun checkAllPersonnel() {
         val current = _personnel.value.toMutableList()
         current.forEach { personnel ->
             val newStress = evaluateStressLevel(personnel)

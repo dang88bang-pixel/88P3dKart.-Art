@@ -86,8 +86,9 @@ class AuraIntegrator(
     fun start() {
         if (!scope.isActive) scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         receiver.start()
+        gatekeeper.onAlert = { _alerts.tryEmit(it) }
         scope.launch {
-            for (chunk in receiver.chunks) processChunk(chunk)
+            receiver.chunks.collect { chunk -> processChunk(chunk) }
         }
         Log.i(TAG, "Aura-Integrator aktiv (Port $receiverPort)")
     }
@@ -140,7 +141,7 @@ class AuraIntegrator(
                 sampleRateHz = 2.4e6f, // RTL-SDR-Nennabtastrate; ggf. per Config anpassen
                 centerFrequencyHz = 433.92e6, // Nominalfrequenz des 433-MHz-Bands
             )
-            alerts.forEach { _alerts.tryEmit(it) }
+            // Alerts werden über gatekeeper.onAlert emittiert (oben verdrahtet).
         }
 
         // 2) Leistung + Pose → Heatmap-Sample (Ringpuffer)
