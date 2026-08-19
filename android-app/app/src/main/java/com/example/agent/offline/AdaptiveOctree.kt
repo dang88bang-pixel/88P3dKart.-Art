@@ -60,13 +60,20 @@ class AdaptiveOctree(private val maxDepth: Int = 6, private val minCellSize: Flo
         private fun split() {
             val v = voxel ?: return
             if (!isLeaf) return
+            // Bugfix: Kindzentren liegen bei ± size/4 (Kind-Kantenlänge = size/2,
+            // Kind-Halbextent = size/4) — vorher ± size/2, wodurch eingefügte
+            // Punkte aus dem Baum fielen. Der alte Voxel wird strikt dem EINEN
+            // Oktanten zugewiesen, der ihn enthält (gleiche Indexlogik wie insert,
+            // Grenzwerte zählen zum ≥-Kind) — vorher konnte eine Bereichsprüfung
+            // denselben Voxel mehreren Kindern zuordnen (Doppelzählung).
             val halfSize = size / 2f
+            val quarter = size / 4f
             for (i in 0..7) {
-                val ccx = cx + (if (i and 1 != 0) halfSize else -halfSize)
-                val ccy = cy + (if (i and 2 != 0) halfSize else -halfSize)
-                val ccz = cz + (if (i and 4 != 0) halfSize else -halfSize)
+                val ccx = cx + (if (i and 1 != 0) quarter else -quarter)
+                val ccy = cy + (if (i and 2 != 0) quarter else -quarter)
+                val ccz = cz + (if (i and 4 != 0) quarter else -quarter)
                 val child = OctreeNode(ccx, ccy, ccz, halfSize, depth + 1)
-                if (abs(v.x - ccx) <= halfSize && abs(v.y - ccy) <= halfSize && abs(v.z - ccz) <= halfSize) {
+                if (getChildIndex(v.x, v.y, v.z) == i) {
                     child.voxel = v
                 }
                 children[i] = child

@@ -1,21 +1,25 @@
 package com.example.agent.pipeline
 
-import kotlin.math.max
-import kotlin.math.min
+import com.example.agent.classification.Point3D
+import com.example.agent.classification.WallPersonClassifier
 
 /**
  * Stufe 2 — Datenanalyse & Interpretation.
  *
- * Segmentiert eine Punktwolke heuristisch in Boden / Wand / Person/Objekt
- * anhand der Z-Höhenverteilung.
+ * Segmentiert eine Punktwolke in Boden / Decke / Wand / Dynamik:
+ * Das Mittelband wird mit der dreistufigen geometrischen Pipeline
+ * (WallPersonClassifier, Spezifikation "Wand vs. Mensch") klassifiziert —
+ * `wall` = statisch/persistierbar, `dynamic` = Live-Only (nie speichern).
+ * Numerische Parität zur Python-Pipeline des Edge-Agents.
  */
-class DataInterpreter {
+class DataInterpreter(private val wallPersonClassifier: WallPersonClassifier = WallPersonClassifier()) {
 
     data class InterpretedObject(
-        val kind: String,           // "floor", "wall", "person", "unknown"
+        val kind: String,           // "floor", "wall", "dynamic", "unknown"
         val centroid: FloatArray,   // [x, y, z]
         val bboxMin: FloatArray,
         val bboxMax: FloatArray,
+        val persistable: Boolean,
     )
 
     fun interpret(points: List<DataAcquisitionService.SensorDataPoint>): List<InterpretedObject> {
@@ -34,7 +38,24 @@ class DataInterpreter {
             val hi = zMax - 0.15f * span
             bands.add("floor" to points.filter { it.z < lo })
             bands.add("wall" to points.filter { it.z > hi })
-            bands.add("person" to points.filter { it.z in lo..hi })
+            val mid = points.filter { it.z in lo..hi }
+            if (mid.isNotEmpty()) {
+                // Geometrische Klassifikation des Mittelbands (3 Stufen):
+                // Voxel-Grid → Höhenfilter → Clustering → PCA-Planarität →
+                // Zylinder-/Plausibilitätsvalidierung.
+                val midPoints = mid.map { Point3D(it.x, it.y, it.z) }
+                val (reports, _) = wallPersonClassifier.classify(midPoints)
+                for (report in reports) {
+                    val kind = if (report.persistable) "wall" else "dynamic"
+                    bands.add(
+                        kind to mid.filter {
+                            it.x in report.bboxMin.x..report.bboxMax.x &&
+                                it.y in report.bboxMin.y..report.bboxMax.y &&
+                                it.z in report.bboxMin.z..report.bboxMax.z
+                        }
+                    )
+                }
+            }
         }
 
         val objects = mutableListOf<InterpretedObject>()
@@ -49,7 +70,15 @@ class DataInterpreter {
             val bMax = floatArrayOf(
                 pts.maxOf { it.x }, pts.maxOf { it.y }, pts.maxOf { it.z }
             )
-            objects.add(InterpretedObject(kind, floatArrayOf(cx, cy, cz), bMin, bMax))
+            objects.add(
+                InterpretedObject(
+                    kind = kind,
+                    centroid = floatArrayOf(cx, cy, cz),
+                    bboxMin = bMin,
+                    bboxMax = bMax,
+                    persistable = kind != "dynamic",
+                )
+            )
         }
         return objects
     }
