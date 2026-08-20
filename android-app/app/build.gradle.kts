@@ -13,8 +13,13 @@ android {
         applicationId = "com.example.agent"
         minSdk = 31 // Android 12+ für UWB + BLE 5.0
         targetSdk = 34
-        versionCode = 5
-        versionName = "4.5.0-BT-Accessories"
+        versionCode = 6
+        versionName = "1.0.0"
+        multiDexEnabled = true
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+        }
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     signingConfigs {
@@ -49,6 +54,8 @@ android {
             // für assembleRelease — das Ergebnis ist eine nicht-
             // obsfukierte, aber korrekt signierte APK.
             isMinifyEnabled = false
+            isShrinkResources = false
+            isDebuggable = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
