@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">3dxAgent</string>
-    <string name="app_version">v4.4.0</string>
+    <string name="app_version">v1.0.0</string>
 
     <!-- Navigation -->
     <string name="nav_live">Live 3D</string>
