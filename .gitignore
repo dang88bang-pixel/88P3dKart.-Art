@@ -1,4 +1,6 @@
 # Python
+electronix-assistant/.venv/
+electronix-assistant/data/
 __pycache__/
 *.py[cod]
 *.egg-info/
