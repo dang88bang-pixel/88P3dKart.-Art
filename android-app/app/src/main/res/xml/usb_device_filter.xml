@@ -1,7 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Silicon Labs (RPLIDAR A1) -->
+    <!-- Silicon Labs CP210x (RPLIDAR A1/A2, viele UART-Dongles) -->
     <usb-device vendor-id="4292" />
-    <!-- FTDI (TI IWR6843 mmWave) -->
+    <!-- FTDI (TI IWR6843 mmWave, generic UART) -->
     <usb-device vendor-id="1027" />
+    <!-- QinHeng CH340 / CH341 -->
+    <usb-device vendor-id="6790" />
+    <!-- Prolific PL2303 -->
+    <usb-device vendor-id="1659" />
+    <!-- STM32 / CDC ACM -->
+    <usb-device vendor-id="1155" />
+    <!-- Arduino -->
+    <usb-device vendor-id="9025" />
+    <!-- Atmel -->
+    <usb-device vendor-id="1003" />
+    <!-- Raspberry Pi Pico -->
+    <usb-device vendor-id="11914" />
+    <!-- Nordic nRF (USB CDC) -->
+    <usb-device vendor-id="6421" />
+    <!-- Texas Instruments -->
+    <usb-device vendor-id="1105" />
+    <!-- CDC ACM class match (device-class 2) -->
+    <usb-device class="2" />
 </resources>

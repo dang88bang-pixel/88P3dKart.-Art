@@ -58,6 +58,6 @@ Legende: 🟢 umgesetzt im Repo · 🟡 teilweise / nur lokal prüfbar · 🔴 b
 🟢 Release-APK über GitHub Actions Artifact + Pre-Release-Tag.
 
 ## APK holen
-1. Actions → **Build APK** → Artifact `3dxAgent-apk`
-2. Releases → Tag `apk-1.0.0-*`
-3. `adb install -r app-release.apk`
+1. Actions → **Build APK** → Branch `arena/01a02a36-88p3dkart-art` → Artifact `3dxagent-apks`
+2. Releases → Tag `v4.6.0-classification` (ältere signierte APK) oder neues Release nach CI
+3. `./releases/ct45p-deploy.sh app-release.apk`  (installiert + **alle** Permissions aktiv)

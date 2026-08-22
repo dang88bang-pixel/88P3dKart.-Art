@@ -1,6 +1,6 @@
 # 🧭 3dxAgent — Autonomes 3D-Kartierungs- & Lageerkennungssystem
 
-**Version:** 4.5.0-BT-Accessories · **Zielplattform:** Honeywell CT45P + Multi-Sensor Edge-Netzwerk + Bluetooth-Zubehör Ökosystem
+**Version:** 18.1.0 · **Zielplattform:** Honeywell CT45P + Multi-Sensor Edge-Netzwerk + Bluetooth-Zubehör Ökosystem
 
 Die **3dxAgent-Plattform** nutzt das Industrie-Smartphone **Honeywell CT45P**
 als mobilen Bedien-, Enrollment- und Autorisierungsmaster. In der empfohlenen

@@ -35,7 +35,7 @@ Bitte einmal in GitHub klicken:
 
 1. Öffnen: https://github.com/dingeldangbang/88P3dKart.-Art/actions/workflows/build-apk.yml
 2. **Run workflow**
-3. Branch: `arena/01a01cd9-88p3dkart-art`
+3. Branch: `arena/01a02a36-88p3dkart-art`
 4. `build_type`: **release**, `sign_release`: **false** (solange keine Keystore-Secrets)
 5. Nach ~5–10 Min. Artifact **3dxagent-apks** herunterladen
 6. Auf CT45P: `adb install -r app-release.apk`

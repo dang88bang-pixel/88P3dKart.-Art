@@ -14,6 +14,12 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import androidx.navigation.fragment.NavHostFragment
+import androidx.navigation.ui.setupWithNavController
+import com.example.agent.permissions.AppPermissions
+import com.example.agent.sensors.BluetoothAccessoryScanService
+import com.example.agent.tactical.TacticalForegroundService
+import com.google.android.material.bottomnavigation.BottomNavigationView
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -68,7 +74,8 @@ class MainActivity : AppCompatActivity() {
     val alarmUiState: StateFlow<AlarmUiState> = mutableAlarmUiState.asStateFlow()
 
     private lateinit var serialManager: SerialManager
-    private lateinit var bleManager: BleTokenManager
+    lateinit var bleManager: BleTokenManager
+        private set
     private lateinit var imuManager: ImuManager
     private lateinit var uwbManager: UwbManager
     private lateinit var ekf: EkfFusion
@@ -98,33 +105,29 @@ class MainActivity : AppCompatActivity() {
      * sonst riskiert man SecurityException-Crashes, wenn der User die
      * Permissions ablehnt.
      */
-    private val requiredPermissions: Array<String> by lazy {
-        buildList {
-            add(Manifest.permission.BLUETOOTH_SCAN)
-            add(Manifest.permission.BLUETOOTH_CONNECT)
-            add(Manifest.permission.ACCESS_FINE_LOCATION)
-            add(Manifest.permission.UWB_RANGING)
-            // ab Android 13 (API 33): NEARBY_WIFI_DEVICES für Wi-Fi RTT-Scans
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                add(Manifest.permission.NEARBY_WIFI_DEVICES)
-            }
-        }.toTypedArray()
+    private val requiredPermissions: Array<String> = AppPermissions.runtimeForeground()
+
+    private val backgroundLocationLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { results ->
+        Log.i(TAG, "Hintergrund-Ortung: $results")
+        requestBatteryExemption()
+        initializeHardware()
     }
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { results ->
-        val allGranted = results.values.all { it }
-        if (allGranted) {
-            Log.i("MainActivity", "Alle Runtime-Permissions erteilt — starte Hardware")
-            initializeHardware()
+        val denied = results.filterValues { !it }.keys
+        if (denied.isEmpty()) {
+            Log.i(TAG, "Alle Vordergrund-Permissions erteilt")
         } else {
-            Log.w(
-                "MainActivity",
-                "Permissions abgelehnt: ${results.filterValues { !it }.keys}"
-            )
-            // Wir starten trotzdem mit dem, was erlaubt ist — die
-            // Manager prüfen ihre Permission selbst und loggen/fail-soft.
+            Log.w(TAG, "Permissions abgelehnt: $denied — Fail-Soft")
+        }
+        if (!AppPermissions.hasBackgroundLocation(this)) {
+            backgroundLocationLauncher.launch(AppPermissions.runtimeBackgroundLocation())
+        } else {
+            requestBatteryExemption()
             initializeHardware()
         }
     }
@@ -133,6 +136,8 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         createAlarmNotificationChannel()
+        setupNavigation()
+        thermalMonitor.start()
 
         // Software-/Datenebene: benötigt KEINE Permissions, kann sofort starten.
         ekf = EkfFusion(dt = 0.05f)
@@ -154,20 +159,44 @@ class MainActivity : AppCompatActivity() {
             sessionProvider = { sessionManager.validSession() },
             invalidateSession = { sessionManager.invalidateSession() },
         )
-        if (gatewayBaseUrl != null) webSocketClient.connect()
+        if (gatewayBaseUrl != null) {
+            webSocketClient.connect()
+            mutableAlarmUiState.value = mutableAlarmUiState.value.copy(connected = true)
+        }
 
         // Permission-Flow zuerst; Hardware wird im Callback initialisiert.
-        if (hasAllRequiredPermissions()) {
-            initializeHardware()
-        } else {
+        requestAllPermissionsOrStart()
+    }
+
+    private fun setupNavigation() {
+        val navHost = supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as? NavHostFragment
+            ?: return
+        findViewById<BottomNavigationView>(R.id.nav_view)
+            .setupWithNavController(navHost.navController)
+    }
+
+    private fun requestAllPermissionsOrStart() {
+        val missing = AppPermissions.missing(this, requiredPermissions)
+        if (missing.isNotEmpty()) {
             permissionLauncher.launch(requiredPermissions)
+            return
         }
+        if (!AppPermissions.hasBackgroundLocation(this)) {
+            backgroundLocationLauncher.launch(AppPermissions.runtimeBackgroundLocation())
+            return
+        }
+        requestBatteryExemption()
+        initializeHardware()
+    }
+
+    private fun requestBatteryExemption() {
+        if (AppPermissions.isIgnoringBatteryOptimizations(this)) return
+        runCatching { startActivity(AppPermissions.batteryOptimizationIntent(this)) }
+            .onFailure { Log.w(TAG, "Akku-Optimierung nicht anzeigbar: ${it.message}") }
     }
 
     private fun hasAllRequiredPermissions(): Boolean =
-        requiredPermissions.all {
-            ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
-        }
+        AppPermissions.missing(this, requiredPermissions).isEmpty()
 
     /**
      * Initialisiert alle Hardware-Manager. Wird aufgerufen, sobald die
@@ -179,7 +208,11 @@ class MainActivity : AppCompatActivity() {
      * nicht-existente Sensoren. Jetzt mit explizitem Permission-Check
      * pro Manager (fail-soft).
      */
+    @Volatile private var hardwareStarted = false
+
     private fun initializeHardware() {
+        if (hardwareStarted) return
+        hardwareStarted = true
         // USB-Serial (RPLIDAR + mmWave) — benötigt nur USB-HOST-Feature,
         // keine Runtime-Permissions. Wenn das Gerät nicht erkannt wird,
         // ist `usbManager.deviceList` schlicht leer.
@@ -243,6 +276,16 @@ class MainActivity : AppCompatActivity() {
             triangulation.start(wifiRttEnabled = true, bleEnabled = true)
         } catch (e: Exception) {
             Log.w("Triangulation", "Start übersprungen: ${e.message}")
+        }
+
+        // Dauerbetrieb: FGS + BLE-Scan unabhängig von der Activity-Lebensdauer.
+        runCatching { TacticalForegroundService.start(this) }
+        runCatching {
+            ContextCompat.startForegroundService(
+                this,
+                Intent(this, BluetoothAccessoryScanService::class.java)
+                    .putExtra("scan_mode", "HIGH_ACCURACY"),
+            )
         }
 
         // === Taktisches Stressmonitoring – FULLY REAL ===

@@ -13,7 +13,12 @@ import com.example.agent.tactical.MedicalMonitoringService
 object MedicalDriverFactory {
 
     fun create(
-        onVitalUpdate: (heartRate: Int, hrv: Float, spo2: Int, temp: Float) -> Unit
+        onVitalUpdate: (heartRate: Int, hrv: Float, spo2: Int, temp: Float) -> Unit,
+    ): MedicalMonitoringService = create(null, onVitalUpdate)
+
+    fun create(
+        context: android.content.Context?,
+        onVitalUpdate: (heartRate: Int, hrv: Float, spo2: Int, temp: Float) -> Unit,
     ): MedicalMonitoringService {
 
         // Hinweis: Die BLE-/UART-Medizintreiber (Polar H10, Garmin, UART-Dongle)

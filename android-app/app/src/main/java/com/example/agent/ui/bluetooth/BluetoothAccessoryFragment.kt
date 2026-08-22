@@ -32,9 +32,10 @@ class BluetoothAccessoryFragment : Fragment() {
         healthText = view.findViewById(R.id.bt_health)
 
         view.findViewById<View>(R.id.btn_scan_high_accuracy)?.setOnClickListener {
-            (activity as? MainActivity)?.let { main ->
-                // Zugriff über bleManager
-                // main.bleManager.bluetoothAccessoryManager.startScan(HIGH_ACCURACY)
+            runCatching {
+                (activity as? MainActivity)?.bleManager
+                    ?.bluetoothAccessoryManager
+                    ?.startScan(com.example.agent.bluetooth.BluetoothAccessoryManager.ScanMode.HIGH_ACCURACY)
             }
         }
 
