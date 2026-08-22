@@ -1,32 +1,30 @@
-3dxAgent REAL-CT45P v18.0.0-UNIFIED — APK Bereitstellung
+3dxAgent REAL-CT45P v18.1.0 — APK bereitstellen
 
-✅ ALLE BRANCHES ZUSAMMENGEFÜHRT
-✅ 100% REAL (keine Mocks/Simulationen)
-✅ Volle Historie (48 Commits)
+ZIEL: fertige APK, alle Abhängigkeiten und Berechtigungen aktiv.
 
-Neue Version: 18.0.0-UNIFIED-REAL-CT45P
+Diese Sandbox hat kein JDK und keinen Zugang zu Maven/Google.
+Die APK wird deshalb über GitHub Actions gebaut (Workflow „Build APK“ ist aktiv).
 
-WICHTIG:
-Dieses Verzeichnis enthält KEINE fertige Binary-APK, weil im aktuellen Environment kein JDK 17 + Android SDK verfügbar ist.
+1) Dieses Branch pushen (bereits Teil des Arena-Flows)
+2) GitHub → Actions → Build APK → Run workflow
+   Branch: arena/01a02a36-88p3dkart-art
+   build_type: release
+   sign_release: false   (oder true, wenn Keystore-Secrets gesetzt sind)
+3) Artifact 3dxagent-apks herunterladen
+4) Auf CT45P:
+   ./releases/ct45p-deploy.sh app-release.apk
 
-Echter Build (auf deiner Maschine):
-1. JDK 17 + Android SDK 34 (oder Android Studio) installieren
-2. Repo klonen oder dieses Paket entpacken
-3. ./releases/build-real-apk.sh   ODER
-   cd android-app && ./gradlew clean assembleRelease
+Das Deploy-Skript installiert mit -g und erteilt danach ALLE Runtime-Permissions.
 
-Ergebnis:
-  releases/3dxAgent-REAL-CT45P-18.0.0-UNIFIED-*.apk
+Bereits vorhandene signierte APK (älterer Stand 4.6.0):
+  https://github.com/dingeldangbang/88P3dKart.-Art/releases/tag/v4.6.0-classification
 
-Installation auf CT45P:
-  adb install -r releases/3dxAgent-REAL-CT45P-18.0.0-UNIFIED-*.apk
-
-Verifizierte Real-Chains:
-- IMU (SensorManager) → TacticalHealthMonitoring
-- UartBleBridge (USB OTG + BLE NUS)
-- AdbWifiDiscovery (NsdManager + adb)
-- Ct45pWorkshopBridge
-- WebSocket tactical_personnel / tactical_alert / tactical_overview
-- Web Visualizer nur mit echten WS-Daten
-
-Branch: arena/01a00b5e-88p3dkart-art (alle Branches vereint)
+Was in 18.1.0 aktiv ist:
+- Alle Manifest-Permissions (BT Scan/Connect/Advertise, Location inkl. Hintergrund,
+  UWB, Wi-Fi RTT, NFC, Kamera, Sensoren, FGS-Typen, Boot, Akku-Whitelist)
+- Runtime-Grant in Enrollment + MainActivity (2-Phasen inkl. Hintergrund-Ortung)
+- TacticalForegroundService + BluetoothAccessoryScanService + Boot-Receiver
+- Navigation (3D / Karte / BT / Alarm / Taktik)
+- Offline-Start ohne Gateway
+- Gradle-Dependencies: Room, OkHttp, Retrofit, Navigation, WorkManager,
+  Security-Crypto, UsbSerial, Java-WebSocket, MultiDex, AndroidX Test

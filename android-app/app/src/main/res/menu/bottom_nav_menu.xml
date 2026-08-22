@@ -1,6 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:id="@+id/navigation_live" android:title="3D" />
-    <item android:id="@+id/navigation_map" android:title="Karte" />
-    <item android:id="@+id/navigation_alarm" android:title="@string/nav_alarm" />
+    <item
+        android:id="@+id/navigation_live"
+        android:icon="@android:drawable/ic_menu_compass"
+        android:title="@string/nav_live" />
+    <item
+        android:id="@+id/navigation_map"
+        android:icon="@android:drawable/ic_menu_mapmode"
+        android:title="@string/nav_map" />
+    <item
+        android:id="@+id/navigation_bluetooth"
+        android:icon="@android:drawable/stat_sys_data_bluetooth"
+        android:title="@string/nav_bluetooth" />
+    <item
+        android:id="@+id/navigation_alarm"
+        android:icon="@android:drawable/ic_dialog_alert"
+        android:title="@string/nav_alarm" />
+    <item
+        android:id="@+id/navigation_tactical"
+        android:icon="@android:drawable/ic_menu_myplaces"
+        android:title="@string/nav_tactical" />
 </menu>

@@ -17,20 +17,21 @@ object BluetoothPermissions {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             add(Manifest.permission.BLUETOOTH_SCAN)
             add(Manifest.permission.BLUETOOTH_CONNECT)
-            // BLUETOOTH_ADVERTISE nicht nötig für Scanner, aber für Relay
             add(Manifest.permission.BLUETOOTH_ADVERTISE)
         } else {
             add(Manifest.permission.BLUETOOTH)
             add(Manifest.permission.BLUETOOTH_ADMIN)
         }
         add(Manifest.permission.ACCESS_FINE_LOCATION)
-        // Coarse als Fallback
         add(Manifest.permission.ACCESS_COARSE_LOCATION)
     }
 
     val OPTIONAL_PERMISSIONS: List<String> = listOf(
         Manifest.permission.UWB_RANGING,
-        Manifest.permission.BLUETOOTH_SCAN, // doppelt ok
+        Manifest.permission.ACCESS_BACKGROUND_LOCATION,
+        Manifest.permission.NEARBY_WIFI_DEVICES,
+        Manifest.permission.POST_NOTIFICATIONS,
+        Manifest.permission.BLUETOOTH_SCAN,
     )
 
     fun hasAllPermissions(context: Context): Boolean =

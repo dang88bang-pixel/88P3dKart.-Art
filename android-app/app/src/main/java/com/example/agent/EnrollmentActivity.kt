@@ -8,8 +8,10 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.ProgressBar
 import android.widget.TextView
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import com.example.agent.permissions.AppPermissions
 import com.example.agent.security.GatewayEnrollmentManager
 import com.example.agent.security.SecureCredentialStore
 import kotlinx.coroutines.launch
@@ -36,6 +38,8 @@ class EnrollmentActivity : AppCompatActivity() {
         gatewayUrl = findViewById(R.id.gateway_url)
         deviceId = findViewById(R.id.device_id)
         enrollmentCode = findViewById(R.id.enrollment_code)
+        findViewById<Button>(R.id.offline_button).setOnClickListener { openControlPlane() }
+        requestRuntimePermissions()
 
         try {
             if (credentialStore.load() != null) {
@@ -88,6 +92,33 @@ class EnrollmentActivity : AppCompatActivity() {
         deviceId.isEnabled = !busy
         enrollmentCode.isEnabled = !busy
         progress.visibility = if (busy) View.VISIBLE else View.GONE
+    }
+
+    private val permissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions(),
+    ) { results ->
+        val denied = results.filterValues { !it }.keys
+        if (denied.isNotEmpty()) {
+            status.setText(R.string.permissions_partial)
+        }
+        if (!AppPermissions.hasBackgroundLocation(this) &&
+            AppPermissions.granted(this, android.Manifest.permission.ACCESS_FINE_LOCATION)
+        ) {
+            backgroundLocationLauncher.launch(AppPermissions.runtimeBackgroundLocation())
+        }
+    }
+
+    private val backgroundLocationLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions(),
+    ) { /* Dauerbetrieb darf auch ohne Hintergrund-Ortung starten */ }
+
+    private fun requestRuntimePermissions() {
+        val missing = AppPermissions.missing(this, AppPermissions.runtimeForeground())
+        if (missing.isNotEmpty()) {
+            permissionLauncher.launch(AppPermissions.runtimeForeground())
+        } else if (!AppPermissions.hasBackgroundLocation(this)) {
+            backgroundLocationLauncher.launch(AppPermissions.runtimeBackgroundLocation())
+        }
     }
 
     private fun openControlPlane() {

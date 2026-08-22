@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/navigation_live">
+
+    <fragment
+        android:id="@+id/navigation_live"
+        android:name="com.example.agent.ui.live.LiveViewFragment"
+        android:label="@string/nav_live" />
+
+    <fragment
+        android:id="@+id/navigation_map"
+        android:name="com.example.agent.ui.map.MapFragment"
+        android:label="@string/nav_map" />
+
+    <fragment
+        android:id="@+id/navigation_bluetooth"
+        android:name="com.example.agent.ui.bluetooth.BluetoothAccessoryFragment"
+        android:label="@string/nav_bluetooth" />
+
+    <fragment
+        android:id="@+id/navigation_alarm"
+        android:name="com.example.agent.ui.alarm.AlarmFragment"
+        android:label="@string/nav_alarm" />
+
+    <fragment
+        android:id="@+id/navigation_tactical"
+        android:name="com.example.agent.tactical.TacticalDashboardFragment"
+        android:label="@string/nav_tactical" />
+
+    <fragment
+        android:id="@+id/navigation_scenario"
+        android:name="com.example.agent.ui.scenario.ScenarioFragment"
+        android:label="@string/nav_scenario" />
+</navigation>

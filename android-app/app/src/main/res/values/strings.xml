@@ -1,15 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">3dxAgent</string>
-    <string name="app_version">v1.0.0</string>
+    <string name="app_version">v18.1.0</string>
 
     <!-- Navigation -->
     <string name="nav_live">Live 3D</string>
     <string name="nav_map">Karte</string>
     <string name="nav_scenario">Szenarien</string>
     <string name="nav_alarm">Alarme</string>
+    <string name="nav_bluetooth">Bluetooth</string>
+    <string name="nav_tactical">Taktik</string>
     <string name="nav_analysis">Analyse</string>
     <string name="nav_settings">Einstellungen</string>
+
+    <string name="tactical_fgs_channel">Dauerbetrieb</string>
+    <string name="tactical_fgs_channel_description">Hält Sensoren, BLE und Ortung im Hintergrund aktiv</string>
+    <string name="tactical_fgs_title">3dxAgent Dauerbetrieb</string>
+    <string name="tactical_fgs_running">IMU · BLE · UWB · USB aktiv</string>
+    <string name="enrollment_offline">Offline starten</string>
+    <string name="permissions_partial">Einige Berechtigungen fehlen — Hardware startet im Fail-Soft-Modus.</string>
 
     <!-- Status -->
     <string name="status_connected">Verbunden</string>
